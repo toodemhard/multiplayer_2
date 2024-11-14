@@ -1,0 +1,65 @@
+﻿{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "base",
+      "description": "",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "installDir": "${sourceDir}/install/${presetName}",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_CXX_FLAGS": "-Wno-error",
+        "CMAKE_C_COMPILER_WORKS": "YES",
+        "CMAKE_CXX_COMPILER_WORKS": "YES",
+        "SDL3_DIR": "C:/Users/toodemhard/libs/SDL3/SDL3_build"
+        //"CMAKE_PREFIX_PATH": "C:/Users/toodemhard/libs/SDL3/SDL3_build"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "debug",
+      "displayName": "x64 Debug",
+      "description": "",
+      "inherits": "base",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "cacheVariables": {
+        "SDL3_DIR": "C:/Users/toodemhard/libs/SDL3/SDL3_debug",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_FLAGS": "-g -DDEV",
+        "CMAKE_C_FLAGS": "-g -DDEV"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "x64 Release",
+      "description": "",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS": "-DDEV",
+        "CMAKE_C_FLAGS": "-DDEV"
+      }
+    },
+    {
+      "name": "distribution",
+      "displayName": "distribution",
+      "description": "",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INSTALL_PREFIX": "{$sourceDIr}/dist2",
+        "COPY_TO_DISTRIBUTION": "ON"
+      }
+    }
+  ]
+}
