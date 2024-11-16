@@ -11,7 +11,7 @@
             "program": "${workspaceFolder}/build/debug/idk.exe",
             // "console": "externalTerminal",
             "args": [],
-            "cwd": "${workspaceFolder}/build/debug"
+            "cwd": "${workspaceFolder}/build/debug",
         }
     ]
 }

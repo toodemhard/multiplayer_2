@@ -33,7 +33,7 @@
         "strategy": "external"
       },
       "cacheVariables": {
-        "SDL3_DIR": "C:/Users/toodemhard/libs/SDL3/SDL3_debug",
+        "SDL3_DIR": "${sourceDir}/lib/SDL/build_debug",
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_CXX_FLAGS": "-g -DDEV",
         "CMAKE_C_FLAGS": "-g -DDEV"

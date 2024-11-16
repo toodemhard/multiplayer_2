@@ -5,4 +5,5 @@ AlignAfterOpenBracket: BlockIndent
 AllowAllParametersOfDeclarationOnNextLine: false
 AllowShortFunctionsOnASingleLine: Empty
 PointerAlignment: Left
-ColumnLimit: 120
+ColumnLimit: 140
+NamespaceIndentation: All
