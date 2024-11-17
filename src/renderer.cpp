@@ -17,28 +17,65 @@ namespace renderer {
 
         SDL_SetGPUSwapchainParameters(device, window, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, SDL_GPU_PRESENTMODE_VSYNC);
 
-        auto vertex_shader = load_shader(device, shaders::rect_vert, 0, 2, 0, 0);
 
-        auto fragment_shader = load_shader(device, shaders::rect_frag, 1, 1, 0, 0);
+        {
+            auto color_target_description = SDL_GPUColorTargetDescription {
+                .format = SDL_GetGPUSwapchainTextureFormat(device, window),
+                    .blend_state = {
+                        .src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+                        .dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                        .color_blend_op = SDL_GPU_BLENDOP_ADD,
+                        .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
+                        .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO,
+                        .alpha_blend_op = SDL_GPU_BLENDOP_ADD,
+                        .enable_blend = true,
+                    }
+            };
 
-        auto create_info = SDL_GPUGraphicsPipelineCreateInfo{
-            .vertex_shader = vertex_shader,
-            .fragment_shader = fragment_shader,
-            .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLESTRIP,
-            .target_info =
-                {
-                    .color_target_descriptions =
-                        (SDL_GPUColorTargetDescription[]){{.format = SDL_GetGPUSwapchainTextureFormat(device, window)}},
-                    .num_color_targets = 1,
-                },
-        };
-        // create_info.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
-        renderer_out->textured_quad_pipeline = SDL_CreateGPUGraphicsPipeline(device, &create_info);
-        renderer_out->device = device;
+            auto vertex_shader = load_shader(device, shaders::rect_vert, 0, 2, 0, 0);
+            auto fragment_shader = load_shader(device, shaders::rect_frag, 1, 1, 0, 0);
 
-        SDL_ReleaseGPUShader(device, vertex_shader);
-        SDL_ReleaseGPUShader(device, fragment_shader);
+            auto create_info = SDL_GPUGraphicsPipelineCreateInfo{
+                .vertex_shader = vertex_shader,
+                .fragment_shader = fragment_shader,
+                .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLESTRIP,
+                .target_info =
+                    {
+                        .color_target_descriptions = &color_target_description,
+                        .num_color_targets = 1,
+                        // .depth_stencil_format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+                    },
+            };
+            // create_info.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
+            renderer_out->textured_rect_pipeline = SDL_CreateGPUGraphicsPipeline(device, &create_info);
+            renderer_out->device = device;
 
+            SDL_ReleaseGPUShader(device, vertex_shader);
+            SDL_ReleaseGPUShader(device, fragment_shader);
+        }
+
+        {
+            auto vertex_shader = load_shader(device, shaders::wire_rect_vert, 0, 1, 0, 0);
+            auto fragment_shader = load_shader(device, shaders::wire_rect_frag, 0, 1, 0, 0);
+
+            auto create_info = SDL_GPUGraphicsPipelineCreateInfo{
+                .vertex_shader = vertex_shader,
+                .fragment_shader = fragment_shader,
+                .primitive_type = SDL_GPU_PRIMITIVETYPE_LINESTRIP,
+                .target_info =
+                    {
+                        .color_target_descriptions =
+                            (SDL_GPUColorTargetDescription[]){{.format = SDL_GetGPUSwapchainTextureFormat(device, window)}},
+                        .num_color_targets = 1,
+                    },
+            };
+            // create_info.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
+            renderer_out->wire_rect_pipeline = SDL_CreateGPUGraphicsPipeline(device, &create_info);
+            renderer_out->device = device;
+
+            SDL_ReleaseGPUShader(device, vertex_shader);
+            SDL_ReleaseGPUShader(device, fragment_shader);
+        }
 
         return 0;
     }
@@ -91,14 +128,29 @@ namespace renderer {
         return shader;
     }
 
+    void draw_wire_rect(Renderer& renderer, const Rect& rect, const RGBA& color) {
+        SDL_BindGPUGraphicsPipeline(renderer.render_pass, renderer.wire_rect_pipeline);
+        auto resolution = glm::vec2{renderer.window_width, renderer.window_height};
+
+        auto normalized_screen_rect =
+            Rect{.position = (rect.position + rect.scale / 2.0f) / resolution * 2.0f - 1.0f, .scale = rect.scale / resolution};
+        normalized_screen_rect.position.y *= -1;
+
+        auto color_normalized = glm::vec4(color.r, color.g, color.b, color.a) / 255.0f;
+
+        SDL_PushGPUVertexUniformData(renderer.draw_command_buffer, 0, &normalized_screen_rect, sizeof(Rect));
+        SDL_PushGPUFragmentUniformData(renderer.draw_command_buffer, 0, &color_normalized, sizeof(glm::vec4));
+
+        SDL_DrawGPUPrimitives(renderer.render_pass, 5, 1, 0, 0);
+    }
+
     void draw_textured_rect(Renderer& renderer, const Rect* src_rect, const Rect& dst_rect, const Texture& texture, const RGB& color_mod) {
-        constexpr int window_width = 1024;
-        constexpr int window_height = 768;
+        SDL_BindGPUGraphicsPipeline(renderer.render_pass, renderer.textured_rect_pipeline);
 
         auto texture_sampler_binding = SDL_GPUTextureSamplerBinding{.texture = texture.texture, .sampler = texture.sampler};
         SDL_BindGPUFragmentSamplers(renderer.render_pass, 0, &texture_sampler_binding, 1);
 
-        auto resolution = glm::vec2{window_width, window_height};
+        auto resolution = glm::vec2{renderer.window_width, renderer.window_height};
 
         auto normalized_screen_rect =
             Rect{.position = (dst_rect.position + dst_rect.scale / 2.0f) / resolution * 2.0f - 1.0f, .scale = dst_rect.scale / resolution};
@@ -142,7 +194,6 @@ namespace renderer {
 
         renderer.render_pass = SDL_BeginGPURenderPass(renderer.draw_command_buffer, &color_target_info, 1, NULL);
 
-        SDL_BindGPUGraphicsPipeline(renderer.render_pass, renderer.textured_quad_pipeline);
     }
 
     void end_rendering(Renderer& renderer) {
@@ -150,8 +201,7 @@ namespace renderer {
         SDL_SubmitGPUCommandBuffer(renderer.draw_command_buffer);
     }
 
-
-    Texture load_texture(Renderer &renderer, const Image &image) {
+    Texture load_texture(Renderer& renderer, const Image& image) {
         const int comp = 4;
 
         auto texture_create_info = SDL_GPUTextureCreateInfo{

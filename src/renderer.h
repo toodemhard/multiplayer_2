@@ -6,7 +6,6 @@
 #include "SDL3/SDL_gpu.h"
 #include "color.h"
 
-
 namespace renderer {
 
     struct Texture {
@@ -16,8 +15,12 @@ namespace renderer {
     };
 
     struct Renderer {
+        const int window_width = 1024;
+        const int window_height = 768;
+
         SDL_GPUDevice* device;
-        SDL_GPUGraphicsPipeline* textured_quad_pipeline;
+        SDL_GPUGraphicsPipeline* textured_rect_pipeline;
+        SDL_GPUGraphicsPipeline* wire_rect_pipeline;
 
         SDL_GPUTexture* swapchain_texture;
 
@@ -52,6 +55,8 @@ namespace renderer {
         const RGB& color_mod = color::white
     );
 
+    void draw_wire_rect(Renderer& renderer, const Rect& rect, const RGBA& color);
+
     int init_renderer(Renderer* renderer_out, SDL_Window* window);
 
     void begin_rendering(Renderer& renderer, SDL_Window* window);
@@ -60,4 +65,4 @@ namespace renderer {
 
     Texture load_texture(Renderer& renderer, const Image& image);
 
-}
+} // namespace renderer

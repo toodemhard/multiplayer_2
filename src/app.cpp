@@ -1,7 +1,7 @@
-#include <SDL3/SDL.h>
 #include "SDL3/SDL_gpu.h"
-#include "codegen/shaders.h"
 #include "codegen/assets.h"
+#include "codegen/shaders.h"
+#include <SDL3/SDL.h>
 
 #include <glm/glm.hpp>
 #include <optional>
@@ -26,20 +26,26 @@ namespace app {
         }
 
         Renderer renderer;
-        if(init_renderer(&renderer, window) != 0) {
+        if (init_renderer(&renderer, window) != 0) {
             return 1;
         }
 
         Font font;
         font::load_font(&font, renderer, assets::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
 
+        Texture amogus_texture;
+        {
+            int width, height, comp;
+            unsigned char* image = stbi_load(assets::amogus_png, &width, &height, &comp, STBI_rgb_alpha);
+            amogus_texture = load_texture(renderer, Image{.w = width, .h = height, .data = image});
+        }
 
-
-
-        int width, height, comp;
-        unsigned char* image = stbi_load(assets::amogus_png, &width, &height, &comp, STBI_rgb_alpha);
-
-        auto texture = load_texture(renderer, Image{.w=width,.h=height,.data=image});
+        Texture pot_texture;
+        {
+            int width, height, comp;
+            unsigned char* image = stbi_load(assets::pot_jpg, &width, &height, &comp, STBI_rgb_alpha);
+            pot_texture = load_texture(renderer, Image{.w = width, .h = height, .data = image});
+        }
 
 
         while (1) {
@@ -57,20 +63,24 @@ namespace app {
                 break;
             }
 
-            auto rect = Rect{
-                {0, 0},
-                {600, 600},
-            };
-
             begin_rendering(renderer, window);
 
+            auto src = Rect{.position{0, 0}, .scale{pot_texture.w, pot_texture.h}};
+            auto src_2 = Rect{.position{0, 0}, .scale{amogus_texture.w, amogus_texture.h}};
 
-            auto src = Rect {
-                .scale{width / 2, height}
+            auto rect = Rect{
+                {300, 300},
+                {200, 200},
             };
-            draw_textured_rect(renderer, &src, rect, texture, {100, 255, 0});
+            auto rect_2 = Rect{
+                {300, 300},
+                {200, 200},
+            };
+            draw_textured_rect(renderer, &src, rect, pot_texture);
+            draw_textured_rect(renderer, nullptr, {{200,300},{200,200}}, amogus_texture);
+            draw_wire_rect(renderer, rect_2, {0,0,255,255});
 
-            // font::draw_text(renderer, font, "sfhkjlashfk jlhsadljfh adf", 36, {20, 30});
+            font::draw_text(renderer, font, "sfhkjl jlhsadljfh adf", 64, {20, 30});
 
             end_rendering(renderer);
         }

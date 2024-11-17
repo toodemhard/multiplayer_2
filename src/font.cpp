@@ -75,9 +75,9 @@ namespace font {
         int image_size = bitmap_length * 4;
         auto image = std::vector<unsigned char>(image_size);
         for (int i = 0; i < bitmap_length; i++) {
-            image[i * 4] = bitmap[i];
-            image[i * 4 + 1] = bitmap[i];
-            image[i * 4 + 2] = bitmap[i];
+            image[i * 4] = 255;
+            image[i * 4 + 1] = 255;
+            image[i * 4 + 2] = 255;
             image[i * 4 + 3] = bitmap[i];
         }
 

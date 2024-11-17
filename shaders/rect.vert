@@ -10,7 +10,7 @@ layout (set = 1, binding = 1) uniform SourceRegion {
     vec2 scale;
 } sourceRegion;
 
-layout (location = 0) out vec2 texCoord;
+layout (location = 0) out vec2 TexCoord;
 
 void main() {
     vec2 vertices[4] = vec2[](
@@ -20,15 +20,9 @@ void main() {
         vec2(1.0, 1.0)
     );
 
-    // vec2 uvs[4] = vec2[](
-    //     vec2(0.0, 0.0),
-    //     vec2(1.0, 0.0),
-    //     vec2(-1.0, 1.0),
-    //     vec2(1.0, 1.0)
-    // );
-
     gl_Position = vec4(vertices[gl_VertexIndex] * rect.scale + rect.position, 0, 1.0);
+    vec2 uv = (vertices[gl_VertexIndex] * 0.5 + 0.5);
+    TexCoord = vec2(uv.x, 1.0 - uv.y) * sourceRegion.scale + sourceRegion.position;
 
-    texCoord = (vertices[gl_VertexIndex] * 0.5 + 0.5) * sourceRegion.scale + sourceRegion.position;
 
 }
