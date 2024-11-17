@@ -1,4 +1,4 @@
-#include <glad/glad.h>
+// #include <glad/glad.h>
 #include <SDL3/SDL.h>
 #include <glm/vec2.hpp>
 #include "codegen/assets.h"
@@ -212,88 +212,88 @@ int IDK() {
     return 0;
 }
 
-int opengl(){ 
-    constexpr int window_width = 1024;
-    constexpr int window_height = 768;
-
-    if (!SDL_Init(SDL_INIT_VIDEO)) {
-        SDL_Log("Failed to initialize SDL: %s", SDL_GetError());
-        return -1;
-    }
-
-    auto flags = SDL_WINDOW_INPUT_FOCUS | SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE; // | SDL_WINDOW_FULLSCREEN;
-
-    auto window = SDL_CreateWindow("ye", window_width, window_height, flags);
-    if (window == NULL) {
-        SDL_Log("CreateWindow failed: %s", SDL_GetError());
-        return -1;
-    }
-
-    auto gl_context = SDL_GL_CreateContext(window);
-    if (gl_context == NULL) {
-        SDL_Log("Failed to create OpenGL Context: %s", SDL_GetError());
-        return -1;
-    }
-
-    SDL_GL_MakeCurrent(window, gl_context);
-
-    if (!gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress)) {
-        SDL_Log("Failed to initialize GLAD");
-        return -1;
-    }
-
-    glViewport(0, 0, window_width, window_height);
-
-
-    int width, height, comp;
-    unsigned char* image = stbi_load(assets::amogus_png, &width, &height, &comp, STBI_rgb_alpha);
-
-    float vertices[] = {
-        -0.5f, -0.5f, 0.0f,
-         0.5f, -0.5f, 0.0f,
-         0.0f,  0.5f, 0.0f
-    };
-
-    unsigned int vbo;
-    glGenBuffers(1, &vbo);
-
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-
-
-    while (1) {
-        bool quit = false;
-
-        SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_EVENT_QUIT) {
-                quit = true;
-                break;
-            }
-
-            switch (event.type) {
-            case SDL_EVENT_WINDOW_RESIZED:
-                int width, height;
-                SDL_GetWindowSize(window, &width, &height);
-                glViewport(0, 0, width, height);
-                break;
-            }
-
-        }
-
-        if (quit) {
-            break;
-        }
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        SDL_GL_SwapWindow(window);
-    }
-
-    SDL_DestroyWindow(window);
-
-    SDL_Quit();
-
-    return 0;
-}
+// int opengl(){ 
+//     constexpr int window_width = 1024;
+//     constexpr int window_height = 768;
+//
+//     if (!SDL_Init(SDL_INIT_VIDEO)) {
+//         SDL_Log("Failed to initialize SDL: %s", SDL_GetError());
+//         return -1;
+//     }
+//
+//     auto flags = SDL_WINDOW_INPUT_FOCUS | SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE; // | SDL_WINDOW_FULLSCREEN;
+//
+//     auto window = SDL_CreateWindow("ye", window_width, window_height, flags);
+//     if (window == NULL) {
+//         SDL_Log("CreateWindow failed: %s", SDL_GetError());
+//         return -1;
+//     }
+//
+//     auto gl_context = SDL_GL_CreateContext(window);
+//     if (gl_context == NULL) {
+//         SDL_Log("Failed to create OpenGL Context: %s", SDL_GetError());
+//         return -1;
+//     }
+//
+//     SDL_GL_MakeCurrent(window, gl_context);
+//
+//     if (!gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress)) {
+//         SDL_Log("Failed to initialize GLAD");
+//         return -1;
+//     }
+//
+//     glViewport(0, 0, window_width, window_height);
+//
+//
+//     int width, height, comp;
+//     unsigned char* image = stbi_load(assets::amogus_png, &width, &height, &comp, STBI_rgb_alpha);
+//
+//     float vertices[] = {
+//         -0.5f, -0.5f, 0.0f,
+//          0.5f, -0.5f, 0.0f,
+//          0.0f,  0.5f, 0.0f
+//     };
+//
+//     unsigned int vbo;
+//     glGenBuffers(1, &vbo);
+//
+//     glBindBuffer(GL_ARRAY_BUFFER, vbo);
+//     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+//
+//
+//
+//     while (1) {
+//         bool quit = false;
+//
+//         SDL_Event event;
+//         while (SDL_PollEvent(&event)) {
+//             if (event.type == SDL_EVENT_QUIT) {
+//                 quit = true;
+//                 break;
+//             }
+//
+//             switch (event.type) {
+//             case SDL_EVENT_WINDOW_RESIZED:
+//                 int width, height;
+//                 SDL_GetWindowSize(window, &width, &height);
+//                 glViewport(0, 0, width, height);
+//                 break;
+//             }
+//
+//         }
+//
+//         if (quit) {
+//             break;
+//         }
+//         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+//         glClear(GL_COLOR_BUFFER_BIT);
+//
+//         SDL_GL_SwapWindow(window);
+//     }
+//
+//     SDL_DestroyWindow(window);
+//
+//     SDL_Quit();
+//
+//     return 0;
+// }

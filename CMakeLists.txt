@@ -43,13 +43,12 @@ file(GLOB_RECURSE SOURCE_FILES CONFIGURE_DEPENDS ${SOURCE_DIRECTORY}/*.cpp)
 # )
 
 
-add_executable(${PROJECT_NAME} ${SOURCE_FILES} lib/glad/src/glad.c)
+add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     lib/stb
     lib/glm/include
     lib/SDL/include
-    lib/glad/include
 )
 
 add_library(kys SHARED kys.cpp)
