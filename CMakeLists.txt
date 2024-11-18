@@ -9,9 +9,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include(FetchContent)
 
 find_package(SDL3 REQUIRED)
-# find_package(Vulkan REQUIRED)
-find_package(OpenGL REQUIRED)
-
 
 add_custom_target(compile_shaders ALL
     COMMAND ${CMAKE_COMMAND} -E env py ${CMAKE_SOURCE_DIR}/scripts/compile_shaders.py
@@ -34,35 +31,35 @@ option(TRACY_ON_DEMAND "" OFF)
 add_subdirectory(lib/tracy)
 add_subdirectory(lib/glm)
 
-set(SOURCE_DIRECTORY src)
-file(GLOB_RECURSE SOURCE_FILES CONFIGURE_DEPENDS ${SOURCE_DIRECTORY}/*.cpp)
 
-# list(REMOVE_ITEM SOURCE_FILES 
+file(GLOB_RECURSE SRC_SERVER CONFIGURE_DEPENDS src/server/*.cpp)
+
+add_executable(server ${SRC_SERVER})
+
+# list(REMOVE_ITEM SRC_CLIENT 
 #     "${CMAKE_CURRENT_SOURCE_DIR}/src/game.cpp"
 #     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor.cpp"
 # )
 
+file(GLOB_RECURSE SRC_CLIENT CONFIGURE_DEPENDS src/client/*.cpp)
 
-add_executable(${PROJECT_NAME} ${SOURCE_FILES})
+add_executable(client ${SRC_CLIENT})
 
-target_include_directories(${PROJECT_NAME} PRIVATE
+target_include_directories(client PRIVATE
     lib/stb
     lib/glm/include
     lib/SDL/include
 )
 
-add_library(kys SHARED kys.cpp)
+# add_library(kys SHARED kys.cpp)
 
-target_link_libraries(${PROJECT_NAME} PUBLIC TracyClient)
+target_link_libraries(client PUBLIC TracyClient)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE 
+target_link_libraries(client PRIVATE 
     SDL3::SDL3
     glm::glm
     # EASTL
-    OpenGL::GL
 )
-
-file(GLOB_RECURSE SHADER_SOURCE_FILES CONFIGURE_DEPENDS shaders/*.vert shaders/*.frag shaders/*.comp)
 
 add_custom_target(copy_assets
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/data ${CMAKE_CURRENT_BINARY_DIR}
@@ -74,10 +71,10 @@ add_custom_target(copy_build_script
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/scripts/run.ps1 ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-add_dependencies(${PROJECT_NAME} copy_assets compile_shaders copy_build_script)
+add_dependencies(client copy_assets compile_shaders copy_build_script)
 
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_RUNTIME_DLLS:${PROJECT_NAME}> $<TARGET_FILE_DIR:${PROJECT_NAME}>
+add_custom_command(TARGET client POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_RUNTIME_DLLS:client> $<TARGET_FILE_DIR:client>
     COMMAND_EXPAND_LISTS
 )
 #

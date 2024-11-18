@@ -1,10 +1,11 @@
 import os
 import subprocess
 from pathlib import Path
+import base_path
 
 asset_files = os.listdir("./data/assets")
 
-header_file_path = Path("src/codegen/assets.h")
+header_file_path = base_path.base_path / "assets.h"
 header_file_path.parent.mkdir(exist_ok=True, parents=True)
 with open(header_file_path, "w+") as header:
     header.write("""#pragma once
