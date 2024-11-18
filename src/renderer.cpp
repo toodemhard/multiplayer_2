@@ -32,8 +32,8 @@ namespace renderer {
                     }
             };
 
-            auto vertex_shader = load_shader(device, shaders::rect_vert, 0, 2, 0, 0);
-            auto fragment_shader = load_shader(device, shaders::rect_frag, 1, 1, 0, 0);
+            auto vertex_shader = load_shader(device, shaders::textured_rect_vert, 0, 2, 0, 0);
+            auto fragment_shader = load_shader(device, shaders::textured_rect_frag, 1, 1, 0, 0);
 
             auto create_info = SDL_GPUGraphicsPipelineCreateInfo{
                 .vertex_shader = vertex_shader,
@@ -144,7 +144,7 @@ namespace renderer {
         SDL_DrawGPUPrimitives(renderer.render_pass, 5, 1, 0, 0);
     }
 
-    void draw_textured_rect(Renderer& renderer, const Rect* src_rect, const Rect& dst_rect, const Texture& texture, const RGB& color_mod) {
+    void draw_textured_rect(Renderer& renderer, const Rect* src_rect, const Rect& dst_rect, const Texture& texture, const RGBA& color_mod) {
         SDL_BindGPUGraphicsPipeline(renderer.render_pass, renderer.textured_rect_pipeline);
 
         auto texture_sampler_binding = SDL_GPUTextureSamplerBinding{.texture = texture.texture, .sampler = texture.sampler};
@@ -156,8 +156,34 @@ namespace renderer {
             Rect{.position = (dst_rect.position + dst_rect.scale / 2.0f) / resolution * 2.0f - 1.0f, .scale = dst_rect.scale / resolution};
         normalized_screen_rect.position.y *= -1;
 
-        struct RGB_Normalized {
-            float r, g, b;
+        Rect normalized_texture_rect;
+        if (src_rect != nullptr) {
+            normalized_texture_rect = {
+                .position = src_rect->position / glm::vec2{texture.w, texture.h},
+                .scale = src_rect->scale / glm::vec2{texture.w, texture.h},
+            };
+        } else {
+            normalized_texture_rect = Rect{{0, 0}, {1, 1}};
+        }
+
+        auto color_mod_normalized = glm::vec4{color_mod.r, color_mod.g, color_mod.b, color_mod.a} / 255.0f;
+
+        SDL_PushGPUVertexUniformData(renderer.draw_command_buffer, 0, &normalized_screen_rect, sizeof(Rect));
+        SDL_PushGPUVertexUniformData(renderer.draw_command_buffer, 1, &normalized_texture_rect, sizeof(Rect));
+        SDL_PushGPUFragmentUniformData(renderer.draw_command_buffer, 0, &color_mod_normalized, sizeof(glm::vec4));
+
+        SDL_DrawGPUPrimitives(renderer.render_pass, 4, 1, 0, 0);
+    }
+
+    void draw_world_textured_rect(Renderer& renderer, const Camera2D& camera, const Rect* src_rect, const Rect& world_rect, const Texture& texture, const RGBA& color_mod) {
+        SDL_BindGPUGraphicsPipeline(renderer.render_pass, renderer.textured_rect_pipeline);
+
+        auto texture_sampler_binding = SDL_GPUTextureSamplerBinding{.texture = texture.texture, .sampler = texture.sampler};
+        SDL_BindGPUFragmentSamplers(renderer.render_pass, 0, &texture_sampler_binding, 1);
+
+        auto normalized_screen_rect = Rect {
+            (world_rect.position - camera.position) / camera.scale * 2.0f,
+            world_rect.scale / camera.scale,
         };
 
         Rect normalized_texture_rect;
@@ -170,11 +196,11 @@ namespace renderer {
             normalized_texture_rect = Rect{{0, 0}, {1, 1}};
         }
 
-        RGB_Normalized color_mod_normalized = {color_mod.r / 255.0f, color_mod.g / 255.0f, color_mod.b / 255.0f};
+        auto color_mod_normalized = glm::vec4{color_mod.r, color_mod.g, color_mod.b, color_mod.a} / 255.0f;
 
         SDL_PushGPUVertexUniformData(renderer.draw_command_buffer, 0, &normalized_screen_rect, sizeof(Rect));
         SDL_PushGPUVertexUniformData(renderer.draw_command_buffer, 1, &normalized_texture_rect, sizeof(Rect));
-        SDL_PushGPUFragmentUniformData(renderer.draw_command_buffer, 0, &color_mod_normalized, sizeof(RGB_Normalized));
+        SDL_PushGPUFragmentUniformData(renderer.draw_command_buffer, 0, &color_mod_normalized, sizeof(glm::vec4));
 
         SDL_DrawGPUPrimitives(renderer.render_pass, 4, 1, 0, 0);
     }
@@ -194,7 +220,10 @@ namespace renderer {
 
         renderer.render_pass = SDL_BeginGPURenderPass(renderer.draw_command_buffer, &color_target_info, 1, NULL);
 
+
     }
+
+
 
     void end_rendering(Renderer& renderer) {
         SDL_EndGPURenderPass(renderer.render_pass);

@@ -58,7 +58,7 @@ namespace font {
     // TextFontAtlas text_font_atlas;
     // IconFontAtlas icon_font_atlas;
 
-    void load_font(Font* font_output, renderer::Renderer renderer, const char* ttf_path, int w, int h, int font_size) {
+    void load_font(Font* font_output, Renderer renderer, const char* ttf_path, int w, int h, int font_size) {
 
         *font_output = Font{.char_data = std::vector<stbtt_packedchar>(num_chars), .w = w, .h = h, .baked_font_size = font_size};
 
@@ -83,7 +83,7 @@ namespace font {
 
         font_output->atlas_texture = renderer::load_texture(
             renderer,
-            renderer::Image{
+            Image{
                 .w = w,
                 .h = h,
                 .data = image.data(),

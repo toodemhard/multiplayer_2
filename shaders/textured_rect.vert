@@ -23,6 +23,4 @@ void main() {
     gl_Position = vec4(vertices[gl_VertexIndex] * rect.scale + rect.position, 0, 1.0);
     vec2 uv = (vertices[gl_VertexIndex] * 0.5 + 0.5);
     TexCoord = vec2(uv.x, 1.0 - uv.y) * sourceRegion.scale + sourceRegion.position;
-
-
 }
