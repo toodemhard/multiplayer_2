@@ -1,3 +1,4 @@
+#include "SDL3/SDL_events.h"
 #include "SDL3/SDL_gpu.h"
 #include "codegen/assets.h"
 #include "codegen/shaders.h"
@@ -5,6 +6,7 @@
 
 #include <chrono>
 #include <glm/glm.hpp>
+#include <iostream>
 #include <optional>
 
 #include "color.h"
@@ -90,9 +92,19 @@ int run() {
                 break;
             case SDL_EVENT_KEY_DOWN:
                 input.keyboard_repeat[event.key.scancode] = true;
-                input.m_key_this_frame = event.key.scancode;
+
+                if (!event.key.repeat) {
+                    input.keyboard_down[event.key.scancode] = true;
+                }
+
+                break;
+            case SDL_EVENT_KEY_UP:
+                input.keyboard_up[event.key.scancode] = true;
+                break;
+            default:
                 break;
             }
+
             input.wheel = total_wheel;
         }
 

@@ -6,7 +6,6 @@ namespace Input {
 void Input::begin_frame() {
     ZoneScoped;
 
-    std::fill(keyboard_repeat.begin(), keyboard_repeat.end(), false);
     current_mouse = SDL_GetMouseState(&mouse_pos.x, &mouse_pos.y);
     mod_state = SDL_GetModState();
 }
@@ -14,9 +13,9 @@ void Input::begin_frame() {
 void Input::end_frame() {
     ZoneScoped;
 
-    std::memcpy(last_keyboard.data(), current_keyboard, SDL_SCANCODE_COUNT);
-
-    m_key_this_frame = {};
+    keyboard_down = {};
+    keyboard_up = {};
+    keyboard_repeat = {};
 
     last_mouse = current_mouse;
 }
@@ -56,15 +55,15 @@ bool Input::mouse_up(const SDL_MouseButtonFlags& button_mask) const {
 }
 
 bool Input::key_down(const SDL_Scancode& scan_code) const {
-    return current_keyboard[scan_code] && !last_keyboard[scan_code];
+    return keyboard_down[scan_code];
 }
 
 bool Input::key_held(const SDL_Scancode& scan_code) const {
-    return current_keyboard[scan_code];
+    return keyboard_held[scan_code];
 }
 
 bool Input::key_up(const SDL_Scancode& scan_code) const {
-    return !current_keyboard[scan_code] && last_keyboard[scan_code];
+    return keyboard_up[scan_code];
 }
 
 bool Input::key_down_repeat(const SDL_Scancode& scan_code) const {

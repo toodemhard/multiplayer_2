@@ -61,11 +61,11 @@ class Input {
 
     std::array<SDL_Scancode, ActionID::count> keybindings;
 
-    std::optional<SDL_Scancode> m_key_this_frame;
+    std::array<bool, SDL_SCANCODE_COUNT> keyboard_up{};
+    std::array<bool, SDL_SCANCODE_COUNT> keyboard_down{};
 
   private:
-    std::array<bool, SDL_SCANCODE_COUNT> last_keyboard{};
-    const bool* current_keyboard = SDL_GetKeyboardState(NULL);
+    const bool* keyboard_held = SDL_GetKeyboardState(NULL);
 
     SDL_Keymod mod_state;
 
