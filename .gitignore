@@ -1,2 +1,4 @@
 data/shaders
 build/
+.vs/
+.vscode/

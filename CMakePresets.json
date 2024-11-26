@@ -14,8 +14,8 @@
         "CMAKE_CXX_FLAGS": "-Wno-error",
         "CMAKE_C_COMPILER_WORKS": "YES",
         "CMAKE_CXX_COMPILER_WORKS": "YES",
-        "SDL3_DIR": "C:/Users/toodemhard/libs/SDL3/SDL3_build"
-        //"CMAKE_PREFIX_PATH": "C:/Users/toodemhard/libs/SDL3/SDL3_build"
+        "SDL3_DIR": "${sourceDir}/lib/SDL/build",
+        "yojimbo_DIR": "C:/Users/toodemhard/libs/yojimbo"
       },
       "condition": {
         "type": "equals",
@@ -33,7 +33,6 @@
         "strategy": "external"
       },
       "cacheVariables": {
-        "SDL3_DIR": "${sourceDir}/lib/SDL/build",
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_CXX_FLAGS": "-g -DDEV",
         "CMAKE_C_FLAGS": "-g -DDEV"

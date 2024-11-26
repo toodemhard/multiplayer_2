@@ -1,6 +1,23 @@
-#include <SDL3/SDL.h>
 #include "app.h"
+#include "client.h"
 #include "font.h"
+#include "serialize.h"
+#include "yojimbo_address.h"
+#include "yojimbo_allocator.h"
+#include "yojimbo_config.h"
+#include "yojimbo_constants.h"
+#include "yojimbo_message.h"
+#include "yojimbo_platform.h"
+#include "yojimbo_serialize.h"
+#include <SDL3/SDL.h>
+
+#include "game_server.h"
+
+#include <cstdio>
+#include <format>
+#include <iostream>
+#include <stdexcept>
+#include <yojimbo.h>
 
 // std::vector<char> read_file(const char* file_name) {
 //     std::string path = "data/" + std::string(file_name);
@@ -18,12 +35,10 @@
 // }
 
 
-
 int main() {
-
-    // Font::save_font_atlas_image();
-    // return 0;
     app::run();
+
+
 
     return 0;
 }

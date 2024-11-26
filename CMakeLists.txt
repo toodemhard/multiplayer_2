@@ -8,6 +8,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(FetchContent)
 
+
+# find_package(GameNetworkingSockets CONFIG REQUIRED)
 find_package(SDL3 REQUIRED)
 
 add_custom_target(compile_shaders ALL
@@ -27,14 +29,10 @@ add_custom_target(define_assets ALL
 option(TRACY_ENABLE "" OFF)
 option(TRACY_ON_DEMAND "" OFF)
 
-# add_subdirectory(lib/EASTL)
+add_subdirectory(lib/EASTL)
 add_subdirectory(lib/tracy)
 add_subdirectory(lib/glm)
 
-
-file(GLOB_RECURSE SRC_SERVER CONFIGURE_DEPENDS src/server/*.cpp)
-
-add_executable(server ${SRC_SERVER})
 
 # list(REMOVE_ITEM SRC_CLIENT 
 #     "${CMAKE_CURRENT_SOURCE_DIR}/src/game.cpp"
@@ -43,22 +41,63 @@ add_executable(server ${SRC_SERVER})
 
 file(GLOB_RECURSE SRC_CLIENT CONFIGURE_DEPENDS src/client/*.cpp)
 
-add_executable(client ${SRC_CLIENT})
+file(GLOB_RECURSE SRC_COMMON CONFIGURE_DEPENDS src/common/*.cpp)
+file(GLOB_RECURSE PLS CONFIGURE_DEPENDS src/common/*.h)
+set(COMMON_DIR ${CMAKE_SOURCE_DIR}/src/common/)
+
+add_executable(client ${SRC_CLIENT} ${SRC_COMMON} ${PLS})
 
 target_include_directories(client PRIVATE
     lib/stb
     lib/glm/include
     lib/SDL/include
+
+    ${COMMON_DIR}
+
+
+    ${yojimbo_DIR}/include
+    ${yojimbo_DIR}/serialize
 )
 
+
 # add_library(kys SHARED kys.cpp)
+
+set(yojimbo_build_dir ${yojimbo_DIR}/bin/Debug)
+set(yojimbo_lib
+
+    ${yojimbo_build_dir}/sodium-builtin.lib
+    ${yojimbo_build_dir}/tlsf.lib
+    ${yojimbo_build_dir}/netcode.lib
+    ${yojimbo_build_dir}/reliable.lib
+    ${yojimbo_build_dir}/yojimbo.lib
+)
 
 target_link_libraries(client PUBLIC TracyClient)
 
 target_link_libraries(client PRIVATE 
     SDL3::SDL3
     glm::glm
-    # EASTL
+    ${yojimbo_lib}
+    # GameNetworkingSockets::static
+    EASTL
+)
+
+file(GLOB_RECURSE src_server CONFIGURE_DEPENDS src/server/*.cpp)
+set(COMMON_DIR ${CMAKE_SOURCE_DIR}/src/common/)
+
+add_executable(server ${src_server} ${SRC_COMMON})
+
+target_include_directories(server PRIVATE
+    # lib/stb
+    # lib/glm/include
+    # lib/SDL/include
+    ${COMMON_DIR}
+    ${yojimbo_DIR}/include
+    ${yojimbo_DIR}/serialize
+)
+
+target_link_libraries(server PRIVATE
+    ${yojimbo_lib}
 )
 
 add_custom_target(copy_assets

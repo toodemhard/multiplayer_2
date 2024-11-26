@@ -1,5 +1,6 @@
 #include "SDL3/SDL_events.h"
 #include "SDL3/SDL_gpu.h"
+#include "client.h"
 #include "codegen/assets.h"
 #include "codegen/shaders.h"
 #include <SDL3/SDL.h>
@@ -69,6 +70,9 @@ int run() {
 
     auto last_frame_time = std::chrono::high_resolution_clock::now();
 
+    InitializeYojimbo();
+    OnlineGameScreen client(yojimbo::Address(127, 0, 0, 1, 5000));
+
     while (1) {
         auto this_frame_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> duration = (this_frame_time - last_frame_time);
@@ -111,6 +115,8 @@ int run() {
         if (quit) {
             break;
         }
+
+        client.Update(delta_time, input);
 
         begin_rendering(renderer, window);
 
