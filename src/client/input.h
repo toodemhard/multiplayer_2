@@ -1,5 +1,6 @@
 #pragma once
 
+#include "SDL3/SDL_mouse.h"
 #include "SDL3/SDL_scancode.h"
 #include <SDL3/SDL.h>
 #include <array>
@@ -50,9 +51,9 @@ class Input {
 
     bool modifier(const SDL_Keymod modifiers) const;
 
-    bool mouse_down(const SDL_MouseButtonFlags& button_mask) const;
-    bool mouse_held(const SDL_MouseButtonFlags& button_mask) const;
-    bool mouse_up(const SDL_MouseButtonFlags& button_mask) const;
+    bool mouse_down(int button) const;
+    bool mouse_held(int button) const;
+    bool mouse_up(int button) const;
 
     glm::vec2 mouse_pos{};
     float wheel{};
@@ -64,13 +65,14 @@ class Input {
     std::array<bool, SDL_SCANCODE_COUNT> keyboard_up{};
     std::array<bool, SDL_SCANCODE_COUNT> keyboard_down{};
 
+    SDL_MouseButtonFlags button_down_flags{};
+    SDL_MouseButtonFlags button_up_flags{};
+
   private:
     const bool* keyboard_held = SDL_GetKeyboardState(NULL);
+    SDL_MouseButtonFlags button_held_flags{};
 
     SDL_Keymod mod_state;
-
-    SDL_MouseButtonFlags last_mouse{};
-    SDL_MouseButtonFlags current_mouse{};
 };
 
 } // namespace input

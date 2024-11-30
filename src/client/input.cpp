@@ -1,4 +1,5 @@
 #include "input.h"
+#include "SDL3/SDL_mouse.h"
 #include <tracy/Tracy.hpp>
 
 namespace Input {
@@ -6,7 +7,7 @@ namespace Input {
 void Input::begin_frame() {
     ZoneScoped;
 
-    current_mouse = SDL_GetMouseState(&mouse_pos.x, &mouse_pos.y);
+    button_held_flags = SDL_GetMouseState(&mouse_pos.x, &mouse_pos.y);
     mod_state = SDL_GetModState();
 }
 
@@ -17,7 +18,8 @@ void Input::end_frame() {
     keyboard_up = {};
     keyboard_repeat = {};
 
-    last_mouse = current_mouse;
+    button_down_flags = {};
+    button_up_flags = {};
 }
 
 void Input::init_keybinds(std::array<Keybind, ActionID::count> keybinds) {
@@ -42,16 +44,16 @@ bool Input::modifier(const SDL_Keymod modifiers) const {
     return (modifiers & mod_state);
 }
 
-bool Input::mouse_down(const SDL_MouseButtonFlags& button_mask) const {
-    return (current_mouse & button_mask) && !(last_mouse & button_mask);
+bool Input::mouse_down(int button) const {
+    return (button_down_flags & SDL_BUTTON_MASK(button));
 }
 
-bool Input::mouse_held(const SDL_MouseButtonFlags& button_mask) const {
-    return (current_mouse & button_mask);
+bool Input::mouse_held(int button) const {
+    return (button_held_flags & SDL_BUTTON_MASK(button)) || mouse_down(button);
 }
 
-bool Input::mouse_up(const SDL_MouseButtonFlags& button_mask) const {
-    return !(current_mouse & button_mask) && (last_mouse & button_mask);
+bool Input::mouse_up(int button) const {
+    return (button_up_flags & SDL_BUTTON_MASK(button));
 }
 
 bool Input::key_down(const SDL_Scancode& scan_code) const {
