@@ -7,11 +7,22 @@
         {
             "type": "cppvsdbg",
             "request": "launch",
-            "name": "Debug",
-            "program": "${workspaceFolder}/build/debug/idk.exe",
-            // "console": "externalTerminal",
+            "name": "debug-client",
+            "program": "${workspaceFolder}/build/debug/client.exe",
+            "console": "integratedTerminal",
             "args": [],
             "cwd": "${workspaceFolder}/build/debug",
+            "visualizerFile": "${workspaceFolder}/lib/EASTL/doc/EASTL.natvis"
+        },
+        {
+            "type": "cppvsdbg",
+            "request": "launch",
+            "name": "debug_server",
+            "program": "${workspaceFolder}/build/debug/server.exe",
+            "console": "integratedTerminal",
+            "args": [],
+            "cwd": "${workspaceFolder}/build/debug",
+            "visualizerFile": "${workspaceFolder}/lib/EASTL/doc/EASTL.natvis"
         }
     ]
 }

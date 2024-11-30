@@ -97,7 +97,9 @@ target_include_directories(server PRIVATE
 )
 
 target_link_libraries(server PRIVATE
+    glm::glm
     ${yojimbo_lib}
+    EASTL
 )
 
 add_custom_target(copy_assets
