@@ -272,7 +272,7 @@ namespace font {
                     {w * size_ratio, h * size_ratio}
                 };
 
-                draw_textured_rect(renderer, &src, dst, font.atlas_texture);
+                draw_textured_rect(renderer, src, dst, font.atlas_texture);
 
                 x += char_info.xadvance * size_ratio;
             }

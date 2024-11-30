@@ -3,6 +3,8 @@
 #include <SDL3/SDL.h>
 #include <glm/glm.hpp>
 
+#include <optional>
+
 #include "SDL3/SDL_gpu.h"
 #include "color.h"
 
@@ -56,7 +58,7 @@ SDL_GPUShader* load_shader(
 
 void draw_textured_rect(
     Renderer& renderer,
-    const Rect* src_rect,
+    const std::optional<Rect>& src_rect,
     const Rect& dst_rect,
     const Texture& texture,
     const RGBA& color_mod = rgba::white
@@ -65,7 +67,7 @@ void draw_textured_rect(
 void draw_world_textured_rect(
     Renderer& renderer,
     const Camera2D& camera,
-    const Rect* src_rect,
+    const std::optional<Rect>& src_rect,
     const Rect& world_rect,
     const Texture& texture,
     const RGBA& color_mod = rgba::white
