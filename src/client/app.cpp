@@ -1,17 +1,19 @@
 #include "SDL3/SDL_events.h"
 #include "SDL3/SDL_gpu.h"
+#include "SDL3/SDL_mouse.h"
 #include "client.h"
-#include "codegen/assets.h"
 #include "codegen/shaders.h"
 #include <SDL3/SDL.h>
 
 #include <chrono>
+#include <future>
 #include <glm/glm.hpp>
 #include <iostream>
 #include <optional>
 
 #include "color.h"
 #include "font.h"
+#include "game.h"
 #include "glm/ext/quaternion_geometric.hpp"
 #include "glm/fwd.hpp"
 #include "glm/geometric.hpp"
@@ -19,6 +21,7 @@
 #include "stb_image.h"
 
 #include "input.h"
+#include "assets.h"
 
 namespace app {
 
@@ -40,22 +43,21 @@ int run() {
         return 1;
     }
 
+    Texture textures[(int)ImageID::count];
+    std::future<void> texture_futures[(int)ImageID::count];
+
+    auto image_to_texture = [](Renderer& renderer, Texture textures[], ImageID id) {
+        int width, height, comp;
+        unsigned char* image = stbi_load(image_paths[(int)id], &width, &height, &comp, STBI_rgb_alpha);
+        textures[(int)id] = load_texture(renderer, Image{.w = width, .h = height, .data = image});
+    };
+
+    for (int i = 0; i < (int)ImageID::count; i++) {
+        texture_futures[i] = std::async(std::launch::async, image_to_texture, std::ref(renderer), textures, (ImageID)i);
+    }
+
     Font font;
-    font::load_font(&font, renderer, assets::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
-
-    Texture amogus_texture;
-    {
-        int width, height, comp;
-        unsigned char* image = stbi_load(assets::amogus_png, &width, &height, &comp, STBI_rgb_alpha);
-        amogus_texture = load_texture(renderer, Image{.w = width, .h = height, .data = image});
-    }
-
-    Texture pot_texture;
-    {
-        int width, height, comp;
-        unsigned char* image = stbi_load(assets::pot_jpg, &width, &height, &comp, STBI_rgb_alpha);
-        pot_texture = load_texture(renderer, Image{.w = width, .h = height, .data = image});
-    }
+    auto font_future =  std::async(std::launch::async, font::load_font, &font, std::ref(renderer), font_paths[(int)FontID::Avenir_LT_Std_95_Black_ttf], 512, 512, 64);
 
     Input::Input input;
     input.init_keybinds(Input::default_keybindings);
@@ -68,57 +70,35 @@ int run() {
     };
     camera.scale *= 5.0f;
 
-    auto last_frame_time = std::chrono::high_resolution_clock::now();
 
     InitializeYojimbo();
     OnlineGameScreen client(yojimbo::Address(127, 0, 0, 1, 5000));
 
+
+    for (int i = 0; i < (int)ImageID::count; i++) {
+        texture_futures[i].wait();
+    }
+    font_future.wait();
+
+
+    auto last_frame_time = std::chrono::high_resolution_clock::now();
+    double accumulator = 0.0;
+    uint32_t frame = {};
+    double time = {};
+
     while (1) {
-        auto this_frame_time = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> duration = (this_frame_time - last_frame_time);
-        double delta_time = duration.count();
         bool quit = false;
 
-        input.begin_frame();
+        auto this_frame_time = std::chrono::high_resolution_clock::now();
+        double delta_time = std::chrono::duration_cast<std::chrono::duration<double>>(this_frame_time - last_frame_time).count();
+        last_frame_time = this_frame_time;
 
-        SDL_Event event;
-        float total_wheel{};
+        accumulator += delta_time;
 
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_EVENT_QUIT) {
-                quit = true;
-                break;
-            }
 
-            switch (event.type) {
-            case SDL_EVENT_MOUSE_WHEEL:
-                total_wheel += event.wheel.y;
-                break;
-            case SDL_EVENT_KEY_DOWN:
-                input.keyboard_repeat[event.key.scancode] = true;
-
-                if (!event.key.repeat) {
-                    input.keyboard_down[event.key.scancode] = true;
-                }
-
-                break;
-            case SDL_EVENT_KEY_UP:
-                input.keyboard_up[event.key.scancode] = true;
-                break;
-            default:
-                break;
-            }
-
-            input.wheel = total_wheel;
-        }
-
-        if (quit) {
-            break;
-        }
-
-        client.Update(delta_time, input);
-
-        begin_rendering(renderer, window);
+        auto& pot_texture = textures[(int)ImageID::pot_jpg];
+        auto& amogus_texture = textures[(int)ImageID::amogus_png];
+        auto& bullet_texture = textures[(int)ImageID::bullet_png];
 
         auto src = Rect{.position{0, 0}, .scale{pot_texture.w, pot_texture.h}};
         auto src_2 = Rect{.position{0, 0}, .scale{amogus_texture.w, amogus_texture.h}};
@@ -133,38 +113,126 @@ int run() {
         };
         using namespace Input;
 
-        glm::vec2 move_input{};
-        if (input.action_held(ActionID::move_up)) {
-            move_input.y += 1;
-        }
-        if (input.action_held(ActionID::move_down)) {
-            move_input.y -= 1;
-        }
-        if (input.action_held(ActionID::move_left)) {
-            move_input.x -= 1;
-        }
-        if (input.action_held(ActionID::move_right)) {
-            move_input.x += 1;
-        }
-        if (glm::length(move_input) > 0) {
-            player_position += glm::normalize(move_input) * (float)delta_time * 4.0f;
+
+        constexpr double fixed_dt = 1.0 / 128.0;
+
+        while (accumulator >= fixed_dt) {
+            accumulator -= fixed_dt;
+            frame++;
+            time += fixed_dt;
+            printf("frame:%d %fs\n", frame, time);
+
+            input.begin_frame();
+
+            SDL_Event event;
+            while (SDL_PollEvent(&event)) {
+                if (event.type == SDL_EVENT_QUIT) {
+                    quit = true;
+                    break;
+                }
+                switch (event.type) {
+                    case SDL_EVENT_MOUSE_WHEEL:
+                        input.wheel += event.wheel.y;
+                        break;
+                    case SDL_EVENT_KEY_DOWN:
+                        input.keyboard_repeat[event.key.scancode] = true;
+
+                        if (!event.key.repeat) {
+                            input.keyboard_down[event.key.scancode] = true;
+                        }
+                        break;
+                    case SDL_EVENT_KEY_UP:
+                        input.keyboard_up[event.key.scancode] = true;
+                        break;
+                    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+                        input.button_down_flags |= SDL_BUTTON_MASK(event.button.button);
+                    case SDL_EVENT_MOUSE_BUTTON_UP:
+                        if (event.button.down) {
+                            break;
+                        }
+                        input.button_up_flags |= SDL_BUTTON_MASK(event.button.button);
+                    default:
+                        break;
+                }
+            }
+
+            if (quit) {
+                break;
+            }
+
+            glm::vec2 move_input{};
+
+            PlayerInput player_input{};
+            if (input.action_held(ActionID::move_up)) {
+                player_input.up = true;
+            }
+            if (input.action_held(ActionID::move_down)) {
+                player_input.down = true;
+            }
+            if (input.action_held(ActionID::move_left)) {
+                player_input.left = true;
+            }
+            if (input.action_held(ActionID::move_right)) {
+                player_input.right = true;
+            }
+            // if (glm::length(move_input) > 0) {
+            //     player_position += glm::normalize(move_input) * (float)delta_time * 4.0f;
+            // }
+
+            if (input.key_down(SDL_SCANCODE_F)) {
+                printf("asdf\n");
+            }
+
+            if (input.mouse_down(SDL_BUTTON_LEFT)) {
+                player_input.fire = true;
+            }
+
+            // printf("upate\n");
+
+            client.Update(fixed_dt, player_input, input);
+            input.end_frame();
         }
 
-        draw_textured_rect(renderer, &src, rect, pot_texture);
+        if (quit) {
+            break;
+        }
+
+
+
+
+        begin_rendering(renderer, window);
+
+        draw_textured_rect(renderer, src, rect, pot_texture);
         draw_wire_rect(renderer, rect_2, {0, 0, 255, 255});
-        draw_textured_rect(renderer, nullptr, {{200, 300}, {200, 200}}, amogus_texture);
+        draw_textured_rect(renderer, {}, {{200, 300}, {200, 200}}, amogus_texture);
 
-        draw_world_textured_rect(renderer, camera, nullptr, {player_position, {1, 1}}, amogus_texture);
+
+        const auto& state = client.m_state;
+
+        for (int i = 0; i < state.players.size(); i++) {
+            draw_world_textured_rect(renderer, camera, {}, {state.players[i], {1, 1}}, amogus_texture);
+        }
+
+        for (int i = 0; i < bullets_capacity; i++) {
+            auto& bullets = state.bullets;
+
+            if (!bullets.alive[i]) {
+                continue;
+            }
+
+            draw_world_textured_rect(renderer, camera, {}, {{bullets.position[i]}, {1, 1}}, bullet_texture);
+        }
+        // draw_world_textured_rect(renderer, camera, nullptr, {client.m_pos, {1, 1}}, amogus_texture);
+
 
         auto string = std::format("{} {}", player_position.x, player_position.y);
         font::draw_text(renderer, font, string.data(), 64, {20, 30});
 
 
         end_rendering(renderer);
+        // printf("render\n");
 
-        input.end_frame();
 
-        last_frame_time = this_frame_time;
     }
 
     SDL_DestroyWindow(window);

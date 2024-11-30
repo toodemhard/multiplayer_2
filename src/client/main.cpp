@@ -14,10 +14,12 @@
 #include "game_server.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <format>
 #include <iostream>
 #include <stdexcept>
 #include <yojimbo.h>
+#include <EASTL/any.h>
 
 // std::vector<char> read_file(const char* file_name) {
 //     std::string path = "data/" + std::string(file_name);
@@ -35,10 +37,9 @@
 // }
 
 
+
 int main() {
     app::run();
-
-
 
     return 0;
 }
