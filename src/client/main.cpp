@@ -11,8 +11,6 @@
 #include "yojimbo_serialize.h"
 #include <SDL3/SDL.h>
 
-#include "game_server.h"
-
 #include <cstdio>
 #include <cstdlib>
 #include <format>

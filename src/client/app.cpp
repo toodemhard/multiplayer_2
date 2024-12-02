@@ -9,6 +9,7 @@
 #include <future>
 #include <glm/glm.hpp>
 #include <iostream>
+#include <numeric>
 #include <optional>
 
 #include "color.h"
@@ -72,7 +73,7 @@ int run() {
 
 
     InitializeYojimbo();
-    OnlineGameScreen client(yojimbo::Address(127, 0, 0, 1, 5000));
+    GameClient client(yojimbo::Address(127, 0, 0, 1, 5000));
 
 
     for (int i = 0; i < (int)ImageID::count; i++) {
@@ -114,7 +115,7 @@ int run() {
         using namespace Input;
 
 
-        constexpr double fixed_dt = 1.0 / 128.0;
+        constexpr double fixed_dt = 1.0 / tick_rate;
 
         while (accumulator >= fixed_dt) {
             accumulator -= fixed_dt;
@@ -161,6 +162,14 @@ int run() {
             }
 
             glm::vec2 move_input{};
+
+            if (input.key_down(SDL_SCANCODE_R)) {
+                accumulator += fixed_dt;
+            }
+
+            if (input.key_down(SDL_SCANCODE_E)) {
+                accumulator -= fixed_dt;
+            }
 
             PlayerInput player_input{};
             if (input.action_held(ActionID::move_up)) {
@@ -209,8 +218,10 @@ int run() {
 
         const auto& state = client.m_state;
 
-        for (int i = 0; i < state.players.size(); i++) {
-            draw_world_textured_rect(renderer, camera, {}, {state.players[i], {1, 1}}, amogus_texture);
+        for (int i = 0; i < max_player_count; i++) {
+            if (state.players.alive[i]) {
+                draw_world_textured_rect(renderer, camera, {}, {state.players.position[i], {1, 1}}, amogus_texture);
+            }
         }
 
         for (int i = 0; i < bullets_capacity; i++) {

@@ -1,22 +1,27 @@
 #include "client.h"
 #include "EASTL/internal/move_help.h"
-#include "game_server.h"
 #include <chrono>
 #include <format>
 #include <iostream>
 
-OnlineGameScreen::OnlineGameScreen(const yojimbo::Address& server_address)
-    : m_client(yojimbo::GetDefaultAllocator(), yojimbo::Address("0.0.0.0"), m_connection_config, m_adapter, 0.0) {
+GameClient::GameClient(const yojimbo::Address& server_address)
+    : m_adapter(this), m_client(yojimbo::GetDefaultAllocator(), yojimbo::Address("0.0.0.0"), m_connection_config, m_adapter, 0.0) {
     uint64_t client_id;
     yojimbo_random_bytes((uint8_t*)&client_id, 8);
     m_client.InsecureConnect(default_private_key, client_id, server_address);
 }
 
-OnlineGameScreen::~OnlineGameScreen() {
+GameClient::~GameClient() {
     m_client.Disconnect();
 }
 
-void OnlineGameScreen::Update(float dt, PlayerInput input, Input::Input& input_2) {
+void GameClient::ClientConnected(int client_index) {
+}
+
+void GameClient::ClientDisconnected(int client_index) {
+}
+
+void GameClient::Update(float dt, PlayerInput input, Input::Input& input_2) {
     m_client.AdvanceTime(m_client.GetTime() + dt);
     m_client.ReceivePackets();
 
@@ -49,14 +54,14 @@ void OnlineGameScreen::Update(float dt, PlayerInput input, Input::Input& input_2
     m_client.SendPackets();
 }
 
-void OnlineGameScreen::ProcessMessages() {
+void GameClient::ProcessMessages() {
 }
 
 void ProcessTestMessage(TestMessage* message) {
     std::cout << std::format("Test message received from server with data: {}\n", message->m_data);
 }
 
-void OnlineGameScreen::ProcessMessage(yojimbo::Message* message) {
+void GameClient::ProcessMessage(yojimbo::Message* message) {
     switch (message->GetType()) {
     case (int)GameMessageType::Test:
         std::cout << std::format("ping: {}\n", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - m_packet_sent_time).count());

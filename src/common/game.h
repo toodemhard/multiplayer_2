@@ -9,6 +9,15 @@ struct PlayerInput {
     bool left;
     bool right;
     bool fire;
+    glm::vec<2, int> mouse_pos;
+};
+
+constexpr int max_player_count = 8;
+struct Players {
+    bool alive[max_player_count];
+    glm::vec2 position[max_player_count];
+
+    // eastl::fixed_vector<int, max_player_count> free_list;
 };
 
 constexpr int bullets_capacity = 16;
@@ -18,9 +27,14 @@ struct Bullets {
     float create_time[bullets_capacity];
 };
 
+
 struct State {
-    eastl::fixed_vector<glm::vec2, 16> players;
+    Players players;
     Bullets bullets;
 };
 
-void update(State& state, eastl::fixed_vector<PlayerInput, 16>& inputs, double time, double dt);
+void update(State& state, PlayerInput inputs[], double time, double dt);
+
+void create_player(State& state);
+
+void remove_player(State& state, int player_index);

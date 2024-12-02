@@ -4,15 +4,25 @@
 #include "EASTL/fixed_vector.h"
 #include "game.h"
 #include "input.h"
-#include "game_server.h"
+#include "net_common.h"
 
-class OnlineGameScreen {
+
+class ClientAdapter : public yojimbo::Adapter {
   public:
-    OnlineGameScreen(const yojimbo::Address& server_address);
-    ~OnlineGameScreen();
+    yojimbo::MessageFactory* CreateMessageFactory(yojimbo::Allocator& allocator) override {
+        return YOJIMBO_NEW(allocator, GameMessageFactory, allocator);
+    }
+};
+
+class GameClient {
+  public:
+    GameClient(const yojimbo::Address& server_address);
+    ~GameClient();
     void Update(float dt, PlayerInput input, Input::Input& input_2);
     void ProcessMessages();
     void ProcessMessage(yojimbo::Message* message);
+    void ClientConnected(int client_index);
+    void ClientDisconnected(int client_index);
 
     State m_state;
 
@@ -23,7 +33,7 @@ class OnlineGameScreen {
 
   private:
     GameConnectConfig m_connection_config;
-    GameAdapter m_adapter;
+    GameAdapter<GameClient> m_adapter;
     yojimbo::Client m_client;
 };
 
