@@ -18,7 +18,7 @@ class GameClient {
   public:
     GameClient(const yojimbo::Address& server_address);
     ~GameClient();
-    void Update(float dt, PlayerInput input, Input::Input& input_2);
+    void Update(float dt, PlayerInput input, Input::Input& input_2, int* throttle_ticks);
     void ProcessMessages();
     void ProcessMessage(yojimbo::Message* message);
     void ClientConnected(int client_index);
@@ -30,6 +30,7 @@ class GameClient {
 
     // glm::vec2 m_pos;
     eastl::fixed_vector<glm::vec2, 16> m_players;
+    std::optional<int> m_catchup;
 
   private:
     GameConnectConfig m_connection_config;

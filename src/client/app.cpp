@@ -87,6 +87,10 @@ int run() {
     uint32_t frame = {};
     double time = {};
 
+    constexpr double fixed_dt = 1.0 / tick_rate;
+    double speed_up_dt = 0.0;
+    constexpr double speed_up_fraction = 0.05;
+
     while (1) {
         bool quit = false;
 
@@ -115,13 +119,12 @@ int run() {
         using namespace Input;
 
 
-        constexpr double fixed_dt = 1.0 / tick_rate;
 
         while (accumulator >= fixed_dt) {
-            accumulator -= fixed_dt;
+            accumulator = accumulator - fixed_dt + speed_up_dt;
             frame++;
             time += fixed_dt;
-            printf("frame:%d %fs\n", frame, time);
+            // printf("frame:%d %fs\n", frame, time);
 
             input.begin_frame();
 
@@ -192,13 +195,19 @@ int run() {
                 printf("asdf\n");
             }
 
-            if (input.mouse_down(SDL_BUTTON_LEFT)) {
+            if (input.mouse_down(SDL_BUTTON_LEFT) || input.key_down(SDL_SCANCODE_F)) {
                 player_input.fire = true;
             }
 
             // printf("upate\n");
 
-            client.Update(fixed_dt, player_input, input);
+            int throttle_ticks{};
+            client.Update(fixed_dt, player_input, input, &throttle_ticks);
+
+            speed_up_dt = throttle_ticks * fixed_dt * speed_up_fraction;
+
+            // accumulator += fixed_dt * throttle_ticks;
+
             input.end_frame();
         }
 

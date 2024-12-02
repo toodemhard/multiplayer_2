@@ -128,10 +128,6 @@ void GameServer::Update(double time, double dt) {
                         // auto& input = inputs[client_index];
                         // printf("%d %d %d %d\n", input.up, input.down, input.left, input.right);
                     } break;
-
-                    case (int)GameMessageType::ThrottleComplete:
-                        throttle_sending[client_index] = false;
-                        break;
                     default:
                         break;
                     }
@@ -157,14 +153,13 @@ void GameServer::Update(double time, double dt) {
                 // printf("input_pop: %d\n", (int)input_buffer.size());
             }
             printf("received: %d, input buffer: %d\n", inputs_this_frame, (int)input_buffer.size());
-            if (input_buffer.size() != target_input_buffer_size && !throttle_sending[client_index]) {
-                auto message = (ThrottleCommand*)m_server.CreateMessage(client_index, (int)GameMessageType::ThrottleCommand);
-                message->ticks = target_input_buffer_size - input_buffer.size();
-                m_server.SendMessage(client_index, (int)GameChannel::Reliable, message);
+            {
+                auto message = (ThrottleInfo*)m_server.CreateMessage(client_index, (int)GameMessageType::ThrottleInfo);
+                message->input_buffer_size = input_buffer.size();
+                m_server.SendMessage(client_index, (int)GameChannel::Unreliable, message);
                 m_server.SendPackets();
-
-                throttle_sending[client_index] = true;
             }
+
         }
 
         // update(m_state, inputs, dt);

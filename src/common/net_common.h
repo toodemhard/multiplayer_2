@@ -12,10 +12,10 @@
 
 constexpr uint8_t default_private_key[yojimbo::KeyBytes] = {0};
 
-constexpr int input_buffer_capacity = 10;
+constexpr int input_buffer_capacity = 16;
 constexpr int target_input_buffer_size = 3;
 
-constexpr int tick_rate = 128;
+constexpr int tick_rate = 32;
 const inline yojimbo::Address server_address(127, 0, 0, 1, 5000);
 
 enum class GameMessageType {
@@ -23,7 +23,7 @@ enum class GameMessageType {
     Snapshot,
     Input,
     Init,
-    ThrottleCommand,
+    ThrottleInfo,
     ThrottleComplete,
     Count,
 };
@@ -105,11 +105,11 @@ public:
 };
 
 
-class ThrottleCommand : public yojimbo::Message {
+class ThrottleInfo : public yojimbo::Message {
 public:
-    int ticks;
+    int input_buffer_size;
     template <typename Stream> bool Serialize(Stream& stream) {
-        serialize_int(stream, ticks, -input_buffer_capacity, input_buffer_capacity);
+        serialize_int(stream, input_buffer_size, 0, input_buffer_capacity);
 
         return true;
     }
@@ -132,7 +132,7 @@ YOJIMBO_DECLARE_MESSAGE_TYPE((int)GameMessageType::Test, TestMessage);
 YOJIMBO_DECLARE_MESSAGE_TYPE((int)GameMessageType::Snapshot, SnapshotMessage);
 YOJIMBO_DECLARE_MESSAGE_TYPE((int)GameMessageType::Input, InputMessage);
 YOJIMBO_DECLARE_MESSAGE_TYPE((int)GameMessageType::Init, InitMessage);
-YOJIMBO_DECLARE_MESSAGE_TYPE((int)GameMessageType::ThrottleCommand, ThrottleCommand);
+YOJIMBO_DECLARE_MESSAGE_TYPE((int)GameMessageType::ThrottleInfo, ThrottleInfo);
 YOJIMBO_DECLARE_MESSAGE_TYPE((int)GameMessageType::ThrottleComplete, ThrottleComplete);
 YOJIMBO_MESSAGE_FACTORY_FINISH();
 

@@ -33,5 +33,6 @@ class GameServer {
     ring_buffer<PlayerInput, input_buffer_capacity> m_input_buffers[max_player_count]{};
 
     //send once only send again once client responds
-    bool throttle_sending[max_player_count]{};
+    // bool throttle_sending[max_player_count]{};
+
 };
