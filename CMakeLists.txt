@@ -39,21 +39,51 @@ add_subdirectory(lib/glm)
 #     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor.cpp"
 # )
 
-file(GLOB_RECURSE SRC_CLIENT CONFIGURE_DEPENDS src/client/*.cpp)
+set(imgui_dir lib/imgui)
 
-file(GLOB_RECURSE SRC_COMMON CONFIGURE_DEPENDS src/common/*.cpp)
+file(GLOB imgui CONFIGURE_DEPENDS lib/imgui/*.cpp lib/imgui/*.h)
+list(APPEND imgui lib/imgui/backends/imgui_impl_sdl3.cpp lib/imgui/backends/imgui_impl_sdl3.h ${imgui_dir}/backends/imgui_impl_sdlrenderer3.cpp)
+
+
+file(GLOB_RECURSE src_client CONFIGURE_DEPENDS src/client/*.cpp)
+
+file(GLOB_RECURSE src_common CONFIGURE_DEPENDS src/common/*.cpp)
+
+
+add_library(common ${src_common})
+
+target_link_libraries(common PUBLIC
+    glm::glm
+    ${yojimbo_lib}
+    EASTL
+)
+
 file(GLOB_RECURSE PLS CONFIGURE_DEPENDS src/common/*.h)
 set(COMMON_DIR ${CMAKE_SOURCE_DIR}/src/common/)
 
-add_executable(client ${SRC_CLIENT} ${SRC_COMMON} ${PLS})
+set(kys_dir ${CMAKE_SOURCE_DIR}/src/client)
+
+set(die
+    ${kys_dir}/imgui_impl_sdl3.cpp
+    ${kys_dir}/imgui_impl_sdl3.h
+    ${kys_dir}/imgui_impl_sdlrenderer3.cpp
+    ${kys_dir}//imgui_impl_sdlrenderer3.h
+)
+
+list(REMOVE_ITEM src_client ${die})
+
+message(STATUS "Source files: ${src_client}")
+
+add_executable(client ${src_client} ${imgui})
 
 target_include_directories(client PRIVATE
     lib/stb
     lib/glm/include
     lib/SDL/include
 
-    ${COMMON_DIR}
+    lib/imgui
 
+    ${COMMON_DIR}
 
     ${yojimbo_DIR}/include
     ${yojimbo_DIR}/serialize
@@ -64,7 +94,6 @@ target_include_directories(client PRIVATE
 
 set(yojimbo_build_dir ${yojimbo_DIR}/bin/Debug)
 set(yojimbo_lib
-
     ${yojimbo_build_dir}/sodium-builtin.lib
     ${yojimbo_build_dir}/tlsf.lib
     ${yojimbo_build_dir}/netcode.lib
@@ -78,8 +107,9 @@ target_link_libraries(client PRIVATE
     SDL3::SDL3
     glm::glm
     ${yojimbo_lib}
-    # GameNetworkingSockets::static
     EASTL
+    common
+    # GameNetworkingSockets::static
 )
 
 file(GLOB_RECURSE src_server CONFIGURE_DEPENDS src/server/*.cpp)
@@ -99,6 +129,7 @@ target_include_directories(server PRIVATE
 target_link_libraries(server PRIVATE
     glm::glm
     ${yojimbo_lib}
+    common
     EASTL
 )
 

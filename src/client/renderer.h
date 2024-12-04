@@ -21,6 +21,7 @@ struct Renderer {
     SDL_GPUDevice* device;
     SDL_GPUGraphicsPipeline* textured_rect_pipeline;
     SDL_GPUGraphicsPipeline* wire_rect_pipeline;
+    SDL_GPUGraphicsPipeline* vertex_buffer_pipeline;
 
     SDL_GPUGraphicsPipeline* world_textured_rect_pipeline;
 
@@ -43,6 +44,18 @@ struct Image {
 struct Camera2D {
     glm::vec2 position;
     glm::vec2 scale;
+};
+
+inline glm::vec2 screen_to_world_pos(const Camera2D& cam, glm::vec2 screen_pos, int s_w, int s_h) {
+    screen_pos.y = s_h - screen_pos.y;
+
+    return cam.position + (screen_pos / glm::vec2((float)s_w, (float)s_h) - 0.5f) * cam.scale;
+}
+
+struct PositionColorVertex {
+    glm::vec2 position;
+    glm::vec2 uv;
+    RGBA color;
 };
 
 namespace renderer {
@@ -82,5 +95,7 @@ void begin_rendering(Renderer& renderer, SDL_Window* window);
 void end_rendering(Renderer& renderer);
 
 Texture load_texture(Renderer& renderer, const Image& image);
+
+void render_geometry_raw(Renderer& renderer, const Texture& texture, const PositionColorVertex* vertices, int num_vertices);
 
 } // namespace renderer

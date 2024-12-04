@@ -14,3 +14,6 @@
 [submodule "lib/EASTL"]
 	path = lib/EASTL
 	url = https://github.com/electronicarts/EASTL.git
+[submodule "lib/imgui"]
+	path = lib/imgui
+	url = https://github.com/ocornut/imgui.git

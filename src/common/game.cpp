@@ -8,6 +8,8 @@ void* operator new[](size_t size, size_t alignment, size_t alignmentOffset, cons
     return malloc(size);
 }
 
+const static float bullet_speed = 10.0f;
+
 void update(State& state, PlayerInput inputs[], double time, double dt) {
     auto& bullets = state.bullets;
     // for (int i = 0; i < bullets_capacity; i++) {
@@ -18,6 +20,10 @@ void update(State& state, PlayerInput inputs[], double time, double dt) {
     for (int i = 0; i < bullets_capacity; i++) {
         if (time - 1.0 > bullets.create_time[i]) {
             bullets.alive[i] = false;
+        }
+
+        if (bullets.alive[i]){
+            bullets.position[i] += bullets.direction_normal[i] * bullet_speed * (float)dt;
         }
     }
     
@@ -52,12 +58,11 @@ void update(State& state, PlayerInput inputs[], double time, double dt) {
                 if (!state.bullets.alive[bullet_index]) {
                     state.bullets.alive[bullet_index] = true;
                     state.bullets.position[bullet_index] = players.position[player_index];
+                    bullets.direction_normal[bullet_index] = glm::normalize(input.cursor_world_pos - players.position[player_index]);
                     bullets.create_time[bullet_index] = time;
                     break;
                 }
-
             }
-
         }
     }
 }
