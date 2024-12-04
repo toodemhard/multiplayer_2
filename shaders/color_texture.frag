@@ -10,5 +10,5 @@ layout(location = 0) in struct {
 layout (set = 2, binding = 0) uniform sampler2D Sampler;
 
 void main() {
-    FragColor = texture(Sampler, In.UV);
+    FragColor = In.Color * texture(Sampler, In.UV);
 }

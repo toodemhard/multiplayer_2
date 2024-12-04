@@ -5,6 +5,8 @@
 #include "codegen/shaders.h"
 #include <SDL3/SDL.h>
 
+#include "imgui.h"
+
 #include <chrono>
 #include <future>
 #include <glm/glm.hpp>
@@ -18,6 +20,8 @@
 #include "glm/ext/quaternion_geometric.hpp"
 #include "glm/fwd.hpp"
 #include "glm/geometric.hpp"
+#include "imgui_impl_sdl3.h"
+#include "imgui_impl_sdlrenderer3.h"
 #include "renderer.h"
 #include "stb_image.h"
 
@@ -81,8 +85,19 @@ int run() {
     }
     font_future.wait();
 
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+    ImGui_ImplSDL3_InitForSDLRenderer(window, &renderer);
+    ImGui_ImplSDLRenderer3_Init(&renderer);
+
+
 
     auto last_frame_time = std::chrono::high_resolution_clock::now();
+    double last_render_duration = 0.0;
     double accumulator = 0.0;
     uint32_t frame = {};
     double time = {};
@@ -134,6 +149,8 @@ int run() {
                     quit = true;
                     break;
                 }
+
+                ImGui_ImplSDL3_ProcessEvent(&event);
                 switch (event.type) {
                     case SDL_EVENT_MOUSE_WHEEL:
                         input.wheel += event.wheel.y;
@@ -159,6 +176,9 @@ int run() {
                         break;
                 }
             }
+
+
+
 
             if (quit) {
                 break;
@@ -215,6 +235,32 @@ int run() {
             break;
         }
 
+        ImGui_ImplSDLRenderer3_NewFrame();
+        ImGui_ImplSDL3_NewFrame();
+        ImGui::NewFrame();
+
+        ImGui::Begin("asdf");
+        ImGui::Text("asdf");
+        ImGui::End();
+
+        ImGui::Begin("asdf");
+        ImGui::Text("asdf");
+        ImGui::End();
+
+
+        PositionColorVertex vertices[] = {
+            {{220,20}, {1.0,1.0}, {255,0,0,255} },
+            {{220,220}, {1.0,0.0}, {255,0,0,255} },
+            {{20,220}, {0.0,1.0}, {255,0,0,255} },
+            {{20,20}, {0.0,0.0}, {255,0,0,255} },
+            // {{-0.5,-0.5}, {0,1}, {255,0,0,255} },
+            // {{0.5,0.5}, {1,0}, {255,0,0,255} },
+            // {{-0.5,0.5}, {0,0}, {255,0,0,255} },
+        };
+
+        uint16_t indices[] = {0,1,2, 0,2,3};
+
+        auto render_begin_time = std::chrono::high_resolution_clock::now();
 
 
 
@@ -243,13 +289,28 @@ int run() {
             draw_world_textured_rect(renderer, camera, {}, {{bullets.position[i]}, {1, 1}}, bullet_texture);
         }
         // draw_world_textured_rect(renderer, camera, nullptr, {client.m_pos, {1, 1}}, amogus_texture);
-
-
-        auto string = std::format("{} {}", player_position.x, player_position.y);
+        auto string = std::format("render: {:.3f}ms", last_render_duration * 1000.0);
         font::draw_text(renderer, font, string.data(), 64, {20, 30});
 
 
+        // auto viewport = SDL_GPUViewport {
+        //     .x = 0,
+        //     .y = 0,
+        //     .w = (float)renderer.window_width,
+        //     .h = (float)renderer.window_height,
+        // };
+        // SDL_SetGPUViewport(renderer.render_pass, &viewport);
+        renderer::render_geometry_raw(renderer, font.atlas_texture, vertices, 4, indices, 6, sizeof(uint16_t));
+
+
+        ImGui::Render();
+        ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), &renderer);
+
+
         end_rendering(renderer);
+
+        last_render_duration = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - render_begin_time).count();
+
         // printf("render\n");
 
 

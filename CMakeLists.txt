@@ -42,7 +42,7 @@ add_subdirectory(lib/glm)
 set(imgui_dir lib/imgui)
 
 file(GLOB imgui CONFIGURE_DEPENDS lib/imgui/*.cpp lib/imgui/*.h)
-list(APPEND imgui lib/imgui/backends/imgui_impl_sdl3.cpp lib/imgui/backends/imgui_impl_sdl3.h ${imgui_dir}/backends/imgui_impl_sdlrenderer3.cpp)
+# list(APPEND imgui lib/imgui/backends/imgui_impl_sdl3.cpp lib/imgui/backends/imgui_impl_sdl3.h ${imgui_dir}/backends/imgui_impl_sdlrenderer3.cpp)
 
 
 file(GLOB_RECURSE src_client CONFIGURE_DEPENDS src/client/*.cpp)
@@ -63,14 +63,14 @@ set(COMMON_DIR ${CMAKE_SOURCE_DIR}/src/common/)
 
 set(kys_dir ${CMAKE_SOURCE_DIR}/src/client)
 
-set(die
-    ${kys_dir}/imgui_impl_sdl3.cpp
-    ${kys_dir}/imgui_impl_sdl3.h
-    ${kys_dir}/imgui_impl_sdlrenderer3.cpp
-    ${kys_dir}//imgui_impl_sdlrenderer3.h
-)
-
-list(REMOVE_ITEM src_client ${die})
+# set(die
+#     ${kys_dir}/imgui_impl_sdl3.cpp
+#     ${kys_dir}/imgui_impl_sdl3.h
+#     ${kys_dir}/imgui_impl_sdlrenderer3.cpp
+#     ${kys_dir}//imgui_impl_sdlrenderer3.h
+# )
+#
+# list(REMOVE_ITEM src_client ${die})
 
 message(STATUS "Source files: ${src_client}")
 

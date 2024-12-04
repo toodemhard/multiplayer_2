@@ -15,7 +15,7 @@ constexpr uint8_t default_private_key[yojimbo::KeyBytes] = {0};
 constexpr int input_buffer_capacity = 16;
 constexpr int target_input_buffer_size = 3;
 
-constexpr int tick_rate = 32;
+constexpr int tick_rate = 128;
 const inline yojimbo::Address server_address(127, 0, 0, 1, 5000);
 
 enum class GameMessageType {
@@ -84,6 +84,7 @@ class InputMessage : public yojimbo::Message {
         serialize_bool(stream, input.left);
         serialize_bool(stream, input.right);
         serialize_bool(stream, input.fire);
+        serialize_bytes(stream, (uint8_t*)&input.cursor_world_pos, sizeof(glm::vec2));
 
         return true;
     }

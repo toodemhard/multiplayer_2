@@ -12,5 +12,10 @@ layout(location = 0) out struct {
 void main() {
     Out.Color = Color;
     Out.UV = Uv;
-    gl_Position = vec4(Position, 0, 1);
+
+    vec2 scale = vec2(2.0/1024.0, 2.0/768.0);
+    vec2 translate = vec2(-1.0f, -1.0f);
+    vec2 idk = Position * scale + translate;
+    idk.y *= -1;
+    gl_Position = vec4(idk, 0, 1);
 }

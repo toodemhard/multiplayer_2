@@ -12,7 +12,7 @@ GameClient::GameClient(const yojimbo::Address& server_address)
     m_client.InsecureConnect(default_private_key, client_id, server_address);
 
     // m_client.SetLatency(100);
-    // m_client.SetJitter(5);
+    m_client.SetJitter(5);
     // m_client.SetPacketLoss(1);
 }
 
@@ -27,7 +27,6 @@ void GameClient::ClientDisconnected(int client_index) {}
 void GameClient::Update(float dt, PlayerInput input, Input::Input& input_2, int* throttle_ticks) {
     m_client.AdvanceTime(m_client.GetTime() + dt);
     m_client.ReceivePackets();
-
 
     if (m_client.IsConnected()) {
         for (int i = 0; i < m_connection_config.numChannels; i++) {
@@ -50,7 +49,7 @@ void GameClient::Update(float dt, PlayerInput input, Input::Input& input_2, int*
                     break;
                 case (int)GameMessageType::ThrottleInfo: {
                     auto throttle_info = (ThrottleInfo*)message;
-                    printf("thing: %d\n", throttle_info->input_buffer_size);
+                    // printf("thing: %d\n", throttle_info->input_buffer_size);
                     *throttle_ticks = target_input_buffer_size - throttle_info->input_buffer_size;
 
                 } break;
@@ -107,12 +106,13 @@ void GameClient::ProcessMessage(yojimbo::Message* message) {
         //     printf("%f %f", pos.x, pos.y);
         // }
         break;
-    // case (int)GameMessageType::ThrottleCommand:
-    //     printf("thing: %d\n", ((ThrottleCommand*)message)->ticks);
-    //
-    //     auto message = (ThrottleComplete*)m_client.CreateMessage((int)GameMessageType::ThrottleComplete);
+        // case (int)GameMessageType::ThrottleCommand:
+        //     printf("thing: %d\n", ((ThrottleCommand*)message)->ticks);
+        //
+        //     auto message = (ThrottleComplete*)m_client.CreateMessage((int)GameMessageType::ThrottleComplete);
         // m_client.SendMessage(int channelIndex, Message* message)
 
-            default : break;
+    default:
+        break;
     }
 }

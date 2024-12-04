@@ -29,6 +29,8 @@ struct Renderer {
 
     SDL_GPUCommandBuffer* draw_command_buffer;
     SDL_GPURenderPass* render_pass;
+
+    bool null_swapchain = false;
 };
 
 struct Rect {
@@ -96,6 +98,6 @@ void end_rendering(Renderer& renderer);
 
 Texture load_texture(Renderer& renderer, const Image& image);
 
-void render_geometry_raw(Renderer& renderer, const Texture& texture, const PositionColorVertex* vertices, int num_vertices);
+void render_geometry_raw(Renderer& renderer, const Texture& texture, const PositionColorVertex* vertices, int num_vertices, const void* indices, int num_indices, int index_size);
 
 } // namespace renderer
