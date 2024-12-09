@@ -42,7 +42,7 @@ add_subdirectory(lib/glm)
 set(imgui_dir lib/imgui)
 
 file(GLOB imgui CONFIGURE_DEPENDS lib/imgui/*.cpp lib/imgui/*.h)
-# list(APPEND imgui lib/imgui/backends/imgui_impl_sdl3.cpp lib/imgui/backends/imgui_impl_sdl3.h ${imgui_dir}/backends/imgui_impl_sdlrenderer3.cpp)
+list(APPEND imgui lib/imgui/backends/imgui_impl_sdl3.cpp lib/imgui/backends/imgui_impl_sdl3.h ${imgui_dir}/backends/imgui_impl_sdlrenderer3.cpp)
 
 
 file(GLOB_RECURSE src_client CONFIGURE_DEPENDS src/client/*.cpp)
@@ -115,18 +115,21 @@ target_link_libraries(client PRIVATE
 file(GLOB_RECURSE src_server CONFIGURE_DEPENDS src/server/*.cpp)
 set(COMMON_DIR ${CMAKE_SOURCE_DIR}/src/common/)
 
-add_executable(server ${src_server} ${SRC_COMMON})
+add_executable(server ${src_server} ${imgui})
 
 target_include_directories(server PRIVATE
     # lib/stb
     # lib/glm/include
     # lib/SDL/include
+    lib/imgui
+
     ${COMMON_DIR}
     ${yojimbo_DIR}/include
     ${yojimbo_DIR}/serialize
 )
 
 target_link_libraries(server PRIVATE
+    SDL3::SDL3
     glm::glm
     ${yojimbo_lib}
     common

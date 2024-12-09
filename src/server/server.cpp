@@ -1,6 +1,13 @@
 #include "EASTL/fixed_vector.h"
+#include "imgui.h"
+#include "SDL3/SDL_init.h"
+#include "SDL3/SDL_render.h"
+#include "SDL3/SDL_video.h"
+#include "backends/imgui_impl_sdl3.h"
+#include "backends/imgui_impl_sdlrenderer3.h"
 #include "game.h"
 #include "server.h"
+#include "glm/detail/qualifier.hpp"
 #include "net_common.h"
 #include "yojimbo_allocator.h"
 #include "yojimbo_client.h"
@@ -47,15 +54,36 @@ void GameServer::ClientDisconnected(int client_index) {
     remove_player(m_state, client_index);
 }
 
+#define GUI
+
 void GameServer::Run() {
+#ifdef GUI
+    SDL_Init(SDL_INIT_VIDEO);
+
+    SDL_Window* window;
+    SDL_Renderer* renderer;
+    SDL_CreateWindowAndRenderer("server", 640, 480, 0, &window, &renderer);
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+    ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
+    ImGui_ImplSDLRenderer3_Init(renderer);
+
+    glm::vec<4, int> clear_color(0,0,0,255);
+#endif
+
     double fixed_dt = 1.0 / tick_rate;
     auto last_frame_time = std::chrono::high_resolution_clock::now();
     double accumulator = 0.0;
 
-    uint32_t frame = 0;
+    uint32_t current_tick = 0;
     double time = 0.0;
 
-    while (1) {
+    bool quit = false;
+    while (!quit) {
         auto this_frame_time = std::chrono::high_resolution_clock::now();
         double delta_time = std::chrono::duration_cast<std::chrono::duration<double>>(this_frame_time - last_frame_time).count();
         // double delta_time = duration.count();
@@ -63,8 +91,24 @@ void GameServer::Run() {
         last_frame_time = this_frame_time;
         // printf("frame:%d %fs\n", frame, time);
 
+#ifdef GUI
+        SDL_Event event;
+        while (SDL_PollEvent(&event))
+        {
+            ImGui_ImplSDL3_ProcessEvent(&event);
+            if (event.type == SDL_EVENT_QUIT)
+                quit = true;
+            if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window))
+                quit = true;
+        }
+
+        ImGui_ImplSDLRenderer3_NewFrame();
+        ImGui_ImplSDL3_NewFrame();
+        ImGui::NewFrame();
+#endif
+
         while (accumulator >= fixed_dt) {
-            frame++;
+            current_tick++;
             accumulator -= fixed_dt;
             time += fixed_dt;
             // printf("frame:%d %fs\n", frame, time);
@@ -72,9 +116,37 @@ void GameServer::Run() {
 
             Update(time, fixed_dt);
             m_time += fixed_dt;
+
+            // printf("tick\n");
         }
 
+#ifdef GUI
+        ImGui::Begin("net info");
+        ImGui::Text("current tick: %d", current_tick);
+        ImGui::End();
+#endif
+
+#ifdef GUI
+        ImGui::Render();
+        //SDL_RenderSetScale(renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
+        SDL_SetRenderDrawColorFloat(renderer, clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+        SDL_RenderClear(renderer);
+        ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
+        SDL_RenderPresent(renderer);
+#endif
     }
+    m_server.Stop();
+
+#ifdef GUI
+    // Cleanup
+    ImGui_ImplSDLRenderer3_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
+    ImGui::DestroyContext();
+
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+#endif
 }
 
 
