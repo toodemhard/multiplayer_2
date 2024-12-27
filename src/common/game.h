@@ -3,6 +3,12 @@
 #include "glm/glm.hpp"
 #include <EASTL/fixed_vector.h>
 
+enum class PlayerAnimationState {
+    Idle,
+    Moving,
+    Count,
+};
+
 struct PlayerInput {
     bool up;
     bool down;
@@ -13,10 +19,10 @@ struct PlayerInput {
 };
 
 constexpr int max_player_count = 8;
-struct Players {
-    bool alive[max_player_count];
-    glm::vec2 position[max_player_count];
-
+struct Player {
+    int health = 3;
+    glm::vec2 position;
+    PlayerAnimationState anim_state;
     // eastl::fixed_vector<int, max_player_count> free_list;
 };
 
@@ -26,17 +32,20 @@ struct Players {
 // }
 
 constexpr int bullets_capacity = 16;
-struct Bullets {
-    bool alive[bullets_capacity];
-    glm::vec2 position[bullets_capacity];
-    glm::vec2 direction_normal[bullets_capacity];
-    float create_time[bullets_capacity];
+
+struct Bullet {
+    glm::vec2 position;
+    glm::vec2 direction_normalized;
+    float create_time;
 };
 
 
 struct State {
-    Players players;
-    Bullets bullets;
+    bool players_active[max_player_count];
+    Player players[max_player_count];
+
+    bool bullets_active[bullets_capacity];
+    Bullet bullets[bullets_capacity];
 };
 
 void update(State& state, PlayerInput inputs[], double time, double dt);
