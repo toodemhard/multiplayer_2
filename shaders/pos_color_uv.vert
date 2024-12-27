@@ -13,6 +13,7 @@ void main() {
     Out.Color = Color;
     Out.UV = Uv;
 
+    //TODO: dont hard code resolution
     vec2 scale = vec2(2.0/1024.0, 2.0/768.0);
     vec2 translate = vec2(-1.0f, -1.0f);
     vec2 idk = Position * scale + translate;

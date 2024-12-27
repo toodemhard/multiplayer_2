@@ -42,7 +42,6 @@ add_subdirectory(lib/glm)
 set(imgui_dir lib/imgui)
 
 file(GLOB imgui CONFIGURE_DEPENDS lib/imgui/*.cpp lib/imgui/*.h)
-list(APPEND imgui lib/imgui/backends/imgui_impl_sdl3.cpp lib/imgui/backends/imgui_impl_sdl3.h ${imgui_dir}/backends/imgui_impl_sdlrenderer3.cpp)
 
 
 file(GLOB_RECURSE src_client CONFIGURE_DEPENDS src/client/*.cpp)
@@ -113,6 +112,8 @@ target_link_libraries(client PRIVATE
 )
 
 file(GLOB_RECURSE src_server CONFIGURE_DEPENDS src/server/*.cpp)
+list(APPEND src_server lib/imgui/backends/imgui_impl_sdl3.cpp lib/imgui/backends/imgui_impl_sdl3.h ${imgui_dir}/backends/imgui_impl_sdlrenderer3.cpp)
+
 set(COMMON_DIR ${CMAKE_SOURCE_DIR}/src/common/)
 
 add_executable(server ${src_server} ${imgui})
@@ -149,7 +150,7 @@ add_custom_target(copy_build_script
 add_dependencies(client copy_assets compile_shaders copy_build_script)
 
 add_custom_command(TARGET client POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_RUNTIME_DLLS:client> $<TARGET_FILE_DIR:client>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:client> $<TARGET_FILE_DIR:client>
     COMMAND_EXPAND_LISTS
 )
 #

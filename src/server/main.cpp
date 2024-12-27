@@ -9,25 +9,24 @@
 #include <EASTL/array.h>
 
 int main() {
-
-    ring_buffer<int, 5> stuff{};
-    stuff.push_back(12);
-    stuff.push_back(12);
-    stuff.push_back(12);
-    stuff.pop_front();
-    stuff.pop_front();
-    stuff.push_back(5);
-    stuff.push_back(5);
-    stuff.push_back(5);
-    stuff.push_back(5);
-    stuff.pop_front();
-    stuff.pop_front();
-    stuff.push_back(90);
-    stuff.pop_front();
-    stuff.pop_front();
-    stuff.pop_front();
-    stuff.pop_front();
-    stuff.pop_front();
+    // ring_buffer<int, 5> stuff{};
+    // stuff.push_back(12);
+    // stuff.push_back(12);
+    // stuff.push_back(12);
+    // stuff.pop_front();
+    // stuff.pop_front();
+    // stuff.push_back(5);
+    // stuff.push_back(5);
+    // stuff.push_back(5);
+    // stuff.push_back(5);
+    // stuff.pop_front();
+    // stuff.pop_front();
+    // stuff.push_back(90);
+    // stuff.pop_front();
+    // stuff.pop_front();
+    // stuff.pop_front();
+    // stuff.pop_front();
+    // stuff.pop_front();
 
     // eastl::fixed_ring_buffer<typename T, size_t N>
     // eastl::ring_buffer<int, eastl::vector<int>> asdf;
@@ -46,4 +45,5 @@ int main() {
 
     GameServer server(server_address);
     server.Run();
+
 }

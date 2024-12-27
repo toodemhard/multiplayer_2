@@ -8,6 +8,7 @@
 #include "game.h"
 #include "server.h"
 #include "glm/detail/qualifier.hpp"
+#include "imgui_internal.h"
 #include "net_common.h"
 #include "yojimbo_allocator.h"
 #include "yojimbo_client.h"
@@ -37,7 +38,7 @@ void GameServer::ClientConnected(int client_index) {
     std::cout << std::format("client {} connected\n", client_index);
 
     auto message = (InitMessage*)m_server.CreateMessage(client_index, (int)GameMessageType::Init);
-    message->frame = m_frame;
+    message->current_tick = m_current_tick;
     m_server.SendMessage(client_index, (int)GameChannel::Reliable, message);
     m_server.SendPackets();
 
@@ -62,7 +63,7 @@ void GameServer::Run() {
 
     SDL_Window* window;
     SDL_Renderer* renderer;
-    SDL_CreateWindowAndRenderer("server", 640, 480, 0, &window, &renderer);
+    SDL_CreateWindowAndRenderer("server", 1024, 768, 0, &window, &renderer);
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -79,7 +80,7 @@ void GameServer::Run() {
     auto last_frame_time = std::chrono::high_resolution_clock::now();
     double accumulator = 0.0;
 
-    uint32_t current_tick = 0;
+    // uint32_t current_tick = 0;
     double time = 0.0;
 
     bool quit = false;
@@ -108,21 +109,50 @@ void GameServer::Run() {
 #endif
 
         while (accumulator >= fixed_dt) {
-            current_tick++;
+            // current_tick++;
+
             accumulator -= fixed_dt;
             time += fixed_dt;
             // printf("frame:%d %fs\n", frame, time);
             // printf("update\n");
 
-            Update(time, fixed_dt);
+            fixed_update(time, fixed_dt);
             m_time += fixed_dt;
 
             // printf("tick\n");
+            m_current_tick++;
         }
 
 #ifdef GUI
         ImGui::Begin("net info");
-        ImGui::Text("current tick: %d", current_tick);
+        ImGui::Text("current tick: %d", m_current_tick);
+        // ImGui::BeginListBox("asdf");
+        auto num_clients = m_server.GetNumConnectedClients();
+
+        for (int client_index = 0; client_index < max_player_count; client_index++) {
+            if (m_server.IsClientConnected(client_index)) {
+                ImGui::Text("client %d input buffer:", client_index);
+                ImGui::BeginColumns("input buffer", input_buffer_capacity);
+
+                auto& input_buffer = m_input_buffers[client_index];
+
+                for (int i = 0; i < input_buffer_capacity; i++) {
+                    ImGui::SetColumnWidth(i, 80);
+                    if (i < input_buffer.size()) {
+                        ImGui::Text("x");
+                    }
+                    ImGui::NextColumn();
+                }
+
+                ImGui::EndColumns();
+            }
+        }
+        // ImGui::Text("sdfkjh");
+        // ImGui::NextColumn();
+        // ImGui::Text("sdfkjh");
+        // ImGui::EndColumns();
+        // ImGui::BeginMenu("")
+        // ImGui::EndListBox();
         ImGui::End();
 #endif
 
@@ -150,7 +180,7 @@ void GameServer::Run() {
 }
 
 
-void GameServer::Update(double time, double dt) {
+void GameServer::fixed_update(double time, double dt) {
     // if (!m_server.IsRunning()) {
     //     m_running = false;
     //     return;
@@ -179,7 +209,11 @@ void GameServer::Update(double time, double dt) {
                         m_server.SendMessage(client_index, (int)GameChannel::Reliable, return_test_message);
                     } break;
                     case (int)GameMessageType::Input: {
-                        inputs[client_index] = ((InputMessage*)message)->input;
+                        auto input_message = (InputMessage*)message;
+                        if (input_message->tick < m_current_tick) {
+                            break;
+                        }
+                        inputs[client_index] = input_message->input;
                         auto& input = inputs[client_index];
                         // m_input_buffer.push_back()
                         // printf("frame %d: %d %d %d %d %d\n", frame, input.up, input.down, input.left, input.right, input.fire);
@@ -236,8 +270,8 @@ void GameServer::Update(double time, double dt) {
 
         // update(m_state, inputs, dt);
 
-        m_frame++;
     }
+    // m_current_tick++;
     // m_server.ReceiveMessage(i,)
 
     // printf("input buffer: %d\n", (int)m_input_buffer.size());

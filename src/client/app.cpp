@@ -17,16 +17,17 @@
 #include "color.h"
 #include "font.h"
 #include "game.h"
-#include "glm/ext/quaternion_geometric.hpp"
 #include "glm/fwd.hpp"
 #include "glm/geometric.hpp"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
+#include "net_common.h"
 #include "renderer.h"
 #include "stb_image.h"
 
 #include "input.h"
 #include "assets.h"
+#include "ui.h"
 
 namespace app {
 
@@ -106,6 +107,19 @@ int run() {
     double speed_up_dt = 0.0;
     constexpr double speed_up_fraction = 0.05;
 
+    // tick is update
+    // frame is animation keyframe
+
+    int current_tick = 0;
+
+    float idle_period = 0.2;
+    int idle_count = 2;
+    int idle_period_ticks = idle_period * tick_rate;
+    int idle_cycle_period_ticks = idle_period * idle_count * tick_rate;
+
+
+    UI ui(&font);
+
     while (1) {
         bool quit = false;
 
@@ -119,6 +133,7 @@ int run() {
         auto& pot_texture = textures[(int)ImageID::pot_jpg];
         auto& amogus_texture = textures[(int)ImageID::amogus_png];
         auto& bullet_texture = textures[(int)ImageID::bullet_png];
+        auto& char_sheet = textures[(int)ImageID::char_sheet_png];
 
         auto src = Rect{.position{0, 0}, .scale{pot_texture.w, pot_texture.h}};
         auto src_2 = Rect{.position{0, 0}, .scale{amogus_texture.w, amogus_texture.h}};
@@ -132,8 +147,6 @@ int run() {
             {200, 200},
         };
         using namespace Input;
-
-
 
         while (accumulator >= fixed_dt) {
             accumulator = accumulator - fixed_dt + speed_up_dt;
@@ -219,36 +232,48 @@ int run() {
                 player_input.fire = true;
             }
 
+            player_input.cursor_world_pos = screen_to_world_pos(camera, input.mouse_pos, window_width, window_height);
             // printf("upate\n");
 
             int throttle_ticks{};
-            client.Update(fixed_dt, player_input, input, &throttle_ticks);
+            client.fixed_update(fixed_dt, player_input, input, &throttle_ticks);
+            auto& pos = client.m_state.players[0].position;
+
+            std::cout << std::format("{} {}\n", pos.x, pos.y);
 
             speed_up_dt = throttle_ticks * fixed_dt * speed_up_fraction;
 
             // accumulator += fixed_dt * throttle_ticks;
 
             input.end_frame();
+
+            current_tick++;
         }
 
         if (quit) {
             break;
         }
 
+
+        // yojimbo::NetworkInfo net_info;
+        // client.m_client.GetNetworkInfo(net_info);
+        // net_info.RTT
+
+        // ImGui::Begin("asdf");
+        // ImGui::Text("rtt: %f", net_info.RTT);
+        // ImGui::End();
+
+        // ImGui::Begin("asdf");
+        // ImGui::Text("asdf");
+        // ImGui::End();
         ImGui_ImplSDLRenderer3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
 
-        ImGui::Begin("asdf");
-        ImGui::Text("asdf");
-        ImGui::End();
-
-        ImGui::Begin("asdf");
-        ImGui::Text("asdf");
-        ImGui::End();
+        client.update();
 
 
-        PositionColorVertex vertices[] = {
+        PositionUvColorVertex vertices[] = {
             {{220,20}, {1.0,1.0}, {255,0,0,255} },
             {{220,220}, {1.0,0.0}, {255,0,0,255} },
             {{20,220}, {0.0,1.0}, {255,0,0,255} },
@@ -258,13 +283,31 @@ int run() {
             // {{-0.5,0.5}, {0,0}, {255,0,0,255} },
         };
 
+
         uint16_t indices[] = {0,1,2, 0,2,3};
 
         auto render_begin_time = std::chrono::high_resolution_clock::now();
 
+        ui.input(input);
+        ui.begin_frame(window_width, window_height);
+
+        ui.begin_row({.stack_direction=StackDirection::Vertical});
+        ui.text("ajkdhfsk", {});
+        ui.text("ajkdhfsk", {});
+        ui.text("ajkdhfsk", {});
+
+        ui.end_row();
+
+        ui.end_frame();
+
 
 
         begin_rendering(renderer, window);
+
+        ui.draw(renderer);
+
+        draw_rect(renderer, {{824,0}, {200, 200}}, color::red);
+        draw_rect(renderer, {{500,500}, {200, 200}}, color::white);
 
         draw_textured_rect(renderer, src, rect, pot_texture);
         draw_wire_rect(renderer, rect_2, {0, 0, 255, 255});
@@ -273,20 +316,29 @@ int run() {
 
         const auto& state = client.m_state;
 
+        int idle_frame = current_tick % idle_cycle_period_ticks / idle_period_ticks;
+
+        ImGui::Begin("animation");
+        ImGui::Text("idle frame: %d", idle_frame);
+        ImGui::End();
+
+
         for (int i = 0; i < max_player_count; i++) {
-            if (state.players.alive[i]) {
-                draw_world_textured_rect(renderer, camera, {}, {state.players.position[i], {1, 1}}, amogus_texture);
+            if (state.players_active[i]) {
+                auto& player = state.players[i];
+                // draw_world_textured_rect(renderer, camera, {}, {state.players.position[i], {1, 1}}, amogus_texture);
+                draw_world_textured_rect(renderer, camera, Rect{{16 * idle_frame + 2,0}, {16,16}}, {player.position, {1, 1}}, char_sheet);
             }
         }
 
         for (int i = 0; i < bullets_capacity; i++) {
-            auto& bullets = state.bullets;
 
-            if (!bullets.alive[i]) {
+            if (!state.bullets_active[i]) {
                 continue;
             }
+            auto& bullet = state.bullets[i];
 
-            draw_world_textured_rect(renderer, camera, {}, {{bullets.position[i]}, {1, 1}}, bullet_texture);
+            draw_world_textured_rect(renderer, camera, {}, {{bullet.position}, {0.5, 0.5}}, bullet_texture);
         }
         // draw_world_textured_rect(renderer, camera, nullptr, {client.m_pos, {1, 1}}, amogus_texture);
         auto string = std::format("render: {:.3f}ms", last_render_duration * 1000.0);
@@ -300,7 +352,7 @@ int run() {
         //     .h = (float)renderer.window_height,
         // };
         // SDL_SetGPUViewport(renderer.render_pass, &viewport);
-        renderer::render_geometry_raw(renderer, font.atlas_texture, vertices, 4, indices, 6, sizeof(uint16_t));
+        // renderer::render_geometry_raw(renderer, font.atlas_texture, vertices, 4, indices, 6, sizeof(uint16_t));
 
 
         ImGui::Render();

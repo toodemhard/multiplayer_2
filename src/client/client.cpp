@@ -1,6 +1,8 @@
 #include "client.h"
 #include "EASTL/internal/move_help.h"
+#include "imgui.h"
 #include "net_common.h"
+#include "yojimbo_network_info.h"
 #include <chrono>
 #include <format>
 #include <iostream>
@@ -24,7 +26,22 @@ void GameClient::ClientConnected(int client_index) {}
 
 void GameClient::ClientDisconnected(int client_index) {}
 
-void GameClient::Update(float dt, PlayerInput input, Input::Input& input_2, int* throttle_ticks) {
+void GameClient::update() {
+    yojimbo::NetworkInfo net_info;
+    m_client.GetNetworkInfo(net_info);
+    ImGui::Begin("net debug");
+    ImGui::Text("RTT: %fms", net_info.RTT);
+    ImGui::Text("Jitter: %f", net_info.averageJitter);
+    ImGui::Text("Loss: %f%%", net_info.packetLoss);
+    ImGui::Text("Up Bandwidth: %fkbps", net_info.sentBandwidth);
+    ImGui::Text("Down Bandwidth: %fkbps", net_info.receivedBandwidth);
+
+    ImGui::Text("Current Tick: %d", m_current_tick);
+
+    ImGui::End();
+}
+
+void GameClient::fixed_update(float dt, PlayerInput input, Input::Input& input_2, int* throttle_ticks) {
     m_client.AdvanceTime(m_client.GetTime() + dt);
     m_client.ReceivePackets();
 
@@ -33,6 +50,9 @@ void GameClient::Update(float dt, PlayerInput input, Input::Input& input_2, int*
             yojimbo::Message* message = m_client.ReceiveMessage(i);
             while (message != NULL) {
                 switch (message->GetType()) {
+                case (int)GameMessageType::Init:
+                    m_current_tick = ((InitMessage*)message)->current_tick;
+                    break;
                 case (int)GameMessageType::Test:
                     // std::cout << std::format("ping: {}\n",
                     // std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() -
@@ -54,7 +74,7 @@ void GameClient::Update(float dt, PlayerInput input, Input::Input& input_2, int*
 
                 } break;
                 default:
-                    break;
+                        break;
                 }
                 m_client.ReleaseMessage(message);
                 message = m_client.ReceiveMessage(i);
@@ -64,6 +84,7 @@ void GameClient::Update(float dt, PlayerInput input, Input::Input& input_2, int*
 
         auto message = (InputMessage*)m_client.CreateMessage((int)GameMessageType::Input);
         message->input = input;
+        message->tick = m_current_tick;
         m_client.SendMessage((int)GameChannel::Reliable, message);
 
         if (input_2.key_down(SDL_SCANCODE_SPACE)) {
@@ -78,9 +99,13 @@ void GameClient::Update(float dt, PlayerInput input, Input::Input& input_2, int*
         //     auto message = (ThrottleComplete*)m_client.CreateMessage((int)GameMessageType::ThrottleComplete);
         //     m_client.SendMessage((int)GameChannel::Reliable, message);
         // }
+
+        m_current_tick++;
     }
 
     m_client.SendPackets();
+
+
 }
 
 void GameClient::ProcessMessages() {}

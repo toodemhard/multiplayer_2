@@ -18,7 +18,8 @@ class GameClient {
   public:
     GameClient(const yojimbo::Address& server_address);
     ~GameClient();
-    void Update(float dt, PlayerInput input, Input::Input& input_2, int* throttle_ticks);
+    void update();
+    void fixed_update(float dt, PlayerInput input, Input::Input& input_2, int* throttle_ticks);
     void ProcessMessages();
     void ProcessMessage(yojimbo::Message* message);
     void ClientConnected(int client_index);
@@ -36,5 +37,7 @@ class GameClient {
     GameConnectConfig m_connection_config;
     GameAdapter<GameClient> m_adapter;
     yojimbo::Client m_client;
+
+    uint32_t m_current_tick;
 };
 
