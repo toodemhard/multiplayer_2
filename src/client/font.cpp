@@ -244,7 +244,7 @@ namespace font {
     using namespace renderer;
     using namespace font;
 
-    void draw_text(Renderer& renderer, Font font, const char* text, float font_size, glm::vec2 position, RGBA color, float max_width) {
+    void draw_text(Renderer& renderer, Font& font, const char* text, float font_size, glm::vec2 position, RGBA color, float max_width) {
         ZoneScoped;
 
         if (text == nullptr) {
@@ -281,7 +281,7 @@ namespace font {
         }
     }
 
-    glm::vec2 text_dimensions(Font font, const char* text, float font_size) {
+    glm::vec2 text_dimensions(Font& font, const char* text, float font_size) {
         float max_width = 0;
         float width = 0;
 
