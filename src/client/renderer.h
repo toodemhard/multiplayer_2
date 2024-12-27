@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SDL3/SDL.h>
+#include <cstdint>
 #include <glm/glm.hpp>
 
 #include <optional>
@@ -14,6 +15,11 @@ struct Texture {
     int w, h;
 };
 
+struct PositionColorVertex {
+    glm::vec2 position;
+    RGBA color;
+};
+
 struct Renderer {
     const int window_width = 1024;
     const int window_height = 768;
@@ -21,7 +27,8 @@ struct Renderer {
     SDL_GPUDevice* device;
     SDL_GPUGraphicsPipeline* textured_rect_pipeline;
     SDL_GPUGraphicsPipeline* wire_rect_pipeline;
-    SDL_GPUGraphicsPipeline* vertex_buffer_pipeline;
+    SDL_GPUGraphicsPipeline* raw_mesh_textured_pipeline;
+
 
     SDL_GPUGraphicsPipeline* world_textured_rect_pipeline;
 
@@ -29,6 +36,16 @@ struct Renderer {
 
     SDL_GPUCommandBuffer* draw_command_buffer;
     SDL_GPURenderPass* render_pass;
+
+
+    SDL_GPUGraphicsPipeline* raw_mesh_pipeline;
+    std::vector<PositionColorVertex> vertices_collect;
+    std::vector<uint16_t> indices_collect;
+
+    SDL_GPUBuffer* vertex_buffer;
+    SDL_GPUBuffer* index_buffer;
+    SDL_GPUTransferBuffer* transfer_buffer;
+
 
     bool null_swapchain = false;
 };
@@ -54,7 +71,7 @@ inline glm::vec2 screen_to_world_pos(const Camera2D& cam, glm::vec2 screen_pos, 
     return cam.position + (screen_pos / glm::vec2((float)s_w, (float)s_h) - 0.5f) * cam.scale;
 }
 
-struct PositionColorVertex {
+struct PositionUvColorVertex {
     glm::vec2 position;
     glm::vec2 uv;
     RGBA color;
@@ -76,7 +93,7 @@ void draw_textured_rect(
     const std::optional<Rect>& src_rect,
     const Rect& dst_rect,
     const Texture& texture,
-    const RGBA& color_mod = rgba::white
+    const RGBA& color_mod = color::white
 );
 
 void draw_world_textured_rect(
@@ -85,8 +102,10 @@ void draw_world_textured_rect(
     const std::optional<Rect>& src_rect,
     const Rect& world_rect,
     const Texture& texture,
-    const RGBA& color_mod = rgba::white
+    const RGBA& color_mod = color::white
 );
+
+void draw_rect(Renderer& renderer, Rect rect, RGBA rgba);
 
 void draw_wire_rect(Renderer& renderer, const Rect& rect, const RGBA& color);
 
@@ -98,6 +117,7 @@ void end_rendering(Renderer& renderer);
 
 Texture load_texture(Renderer& renderer, const Image& image);
 
-void render_geometry_raw(Renderer& renderer, const Texture& texture, const PositionColorVertex* vertices, int num_vertices, const void* indices, int num_indices, int index_size);
+void render_geometry(Renderer& renderer, const Texture& texture, const PositionUvColorVertex* vertices, int num_vertices, const void* indices, int num_indices, int index_size);
+void render_geometry_textured(Renderer& renderer, const Texture& texture, const PositionUvColorVertex* vertices, int num_vertices, const void* indices, int num_indices, int index_size);
 
 } // namespace renderer
