@@ -20,11 +20,10 @@
 #include "dev_macros.h"
 #include "renderer.h"
 
-std::vector<char> read_file(const char* file_name) {
-    std::string path = "assets/" + std::string(file_name);
-    std::ifstream file{path, std::ios::binary | std::ios::ate};
+std::vector<char> read_file(const char* file_path) {
+    std::ifstream file{file_path, std::ios::binary | std::ios::ate};
     if (!file) {
-        DEV_PANIC(std::format("{} not found", file_name));
+        panic("{} not found", file_path);
     }
 
     auto size = file.tellg();
