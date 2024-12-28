@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "SDL3/SDL_render.h"
+#include "panic.h"
 #include "font.h"
 
 #define STB_RECT_PACK_IMPLEMENTATION
@@ -64,7 +65,7 @@ namespace font {
         auto bitmap_length = w * h;
         auto bitmap = std::vector<unsigned char>(bitmap_length);
 
-        auto ttf_buffer = read_file("Avenir LT Std 95 Black.ttf");
+        auto ttf_buffer = read_file(ttf_path);
         stbtt_pack_context spc;
         stbtt_PackBegin(&spc, bitmap.data(), w, h, 0, 1, nullptr);
         stbtt_PackFontRange(&spc, (unsigned char*)ttf_buffer.data(), 0, font_size, char_start, num_chars, font_output->char_data.data());
