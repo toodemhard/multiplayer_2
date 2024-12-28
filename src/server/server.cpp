@@ -285,7 +285,7 @@ void GameServer::fixed_update(double time, double dt) {
     //     m_input_buffers[i].pop_back();
     // }
 
-    update(m_state, inputs, time, dt);
+    update_state(m_state, inputs, time, dt);
 
     // for (int i = 0; i < max_players; i++) {
     //     if (m_server.IsClientConnected(i)) {

@@ -10,7 +10,7 @@ void* operator new[](size_t size, size_t alignment, size_t alignmentOffset, cons
 
 const static float bullet_speed = 10.0f;
 
-void update(State& state, PlayerInput inputs[], double time, double dt) {
+void update_state(State& state, PlayerInput inputs[max_player_count], double time, double dt) {
     auto& bullets = state.bullets;
     // for (int i = 0; i < bullets_capacity; i++) {
     //

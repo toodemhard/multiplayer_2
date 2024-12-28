@@ -48,7 +48,7 @@ struct State {
     Bullet bullets[bullets_capacity];
 };
 
-void update(State& state, PlayerInput inputs[], double time, double dt);
+void update_state(State& state, PlayerInput inputs[max_player_count], double time, double dt);
 
 void create_player(State& state);
 
