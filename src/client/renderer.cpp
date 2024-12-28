@@ -5,6 +5,8 @@
 #include "color.h"
 #include <cstdint>
 #include <cstring>
+#include <format>
+#include <iostream>
 
 namespace renderer {
 
@@ -129,31 +131,38 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
         auto vertex_shader = load_shader(device, shaders::raw_vertex_buffer_vert, 0, 0, 0, 0);
         auto fragment_shader = load_shader(device, shaders::solid_color_frag, 1, 0, 0, 0);
 
+        SDL_GPUVertexBufferDescription descriptions[] =  {
+            SDL_GPUVertexBufferDescription{
+                .slot = 0,
+                .pitch = sizeof(PositionColorVertex),
+                .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX,
+                .instance_step_rate = 0,
+            }
+        };
+
+        SDL_GPUVertexAttribute attributes[] = {
+            SDL_GPUVertexAttribute{
+                .location = 0,
+                .buffer_slot = 0,
+                .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
+                .offset = 0,
+            },
+            SDL_GPUVertexAttribute{
+                .location = 1,
+                .buffer_slot = 0,
+                .format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM,
+                .offset = sizeof(glm::vec2),
+            },
+        };
+
+
         auto pipeline_create_info = SDL_GPUGraphicsPipelineCreateInfo{
             .vertex_shader = vertex_shader,
             .fragment_shader = fragment_shader,
             .vertex_input_state = SDL_GPUVertexInputState{
-                .vertex_buffer_descriptions = (SDL_GPUVertexBufferDescription[]) {SDL_GPUVertexBufferDescription{
-                    .slot = 0,
-                    .pitch = sizeof(PositionColorVertex),
-                    .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX,
-                    .instance_step_rate = 0,
-                }},
+                .vertex_buffer_descriptions = descriptions,
                 .num_vertex_buffers = 1,
-                .vertex_attributes = (SDL_GPUVertexAttribute[]) {
-                SDL_GPUVertexAttribute{
-                    .location = 0,
-                    .buffer_slot = 0,
-                    .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
-                    .offset = 0,
-                },
-                SDL_GPUVertexAttribute {
-                    .location = 1,
-                    .buffer_slot = 0,
-                    .format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM,
-                    .offset = sizeof(glm::vec2),
-                },
-                },
+                .vertex_attributes = attributes,
                 .num_vertex_attributes = 2,
             },
             .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
@@ -162,6 +171,7 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
                 .num_color_targets = 1,
             },
         };
+
         // create_info.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
         renderer->raw_mesh_pipeline = SDL_CreateGPUGraphicsPipeline(device, &pipeline_create_info);
         renderer->device = device;
@@ -189,37 +199,43 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
         auto vertex_shader = load_shader(device, shaders::pos_color_uv_vert, 0, 0, 0, 0);
         auto fragment_shader = load_shader(device, shaders::color_texture_frag, 1, 0, 0, 0);
 
+        SDL_GPUVertexBufferDescription descriptions[] = {
+            SDL_GPUVertexBufferDescription{
+                .slot = 0,
+                .pitch = sizeof(PositionUvColorVertex),
+                .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX,
+                .instance_step_rate = 0,
+            },
+        };
+
+        SDL_GPUVertexAttribute attributes[] = {
+            SDL_GPUVertexAttribute{
+                .location = 0,
+                .buffer_slot = 0,
+                .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
+                .offset = 0,
+            },
+            SDL_GPUVertexAttribute {
+                .location = 1,
+                .buffer_slot = 0,
+                .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
+                .offset = sizeof(glm::vec2),
+            },
+            SDL_GPUVertexAttribute {
+                .location = 2,
+                .buffer_slot = 0,
+                .format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM,
+                .offset = sizeof(glm::vec2) * 2,
+            },
+        };
+
         auto pipeline_create_info = SDL_GPUGraphicsPipelineCreateInfo{
             .vertex_shader = vertex_shader,
             .fragment_shader = fragment_shader,
             .vertex_input_state = SDL_GPUVertexInputState{
-                .vertex_buffer_descriptions = (SDL_GPUVertexBufferDescription[]) {SDL_GPUVertexBufferDescription{
-                    .slot = 0,
-                    .pitch = sizeof(PositionUvColorVertex),
-                    .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX,
-                    .instance_step_rate = 0,
-                }},
+                .vertex_buffer_descriptions = descriptions,
                 .num_vertex_buffers = 1,
-                .vertex_attributes = (SDL_GPUVertexAttribute[]) {
-                SDL_GPUVertexAttribute{
-                    .location = 0,
-                    .buffer_slot = 0,
-                    .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
-                    .offset = 0,
-                },
-                SDL_GPUVertexAttribute {
-                    .location = 1,
-                    .buffer_slot = 0,
-                    .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
-                    .offset = sizeof(glm::vec2),
-                },
-                SDL_GPUVertexAttribute {
-                    .location = 2,
-                    .buffer_slot = 0,
-                    .format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM,
-                    .offset = sizeof(glm::vec2) * 2,
-                },
-                },
+                .vertex_attributes = attributes,
                 .num_vertex_attributes = 3,
             },
             .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
