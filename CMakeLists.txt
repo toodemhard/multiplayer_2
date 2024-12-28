@@ -91,7 +91,12 @@ target_include_directories(client PRIVATE
 
 # add_library(kys SHARED kys.cpp)
 
-set(yojimbo_build_dir ${yojimbo_DIR}/bin/Debug)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(yojimbo_build_dir ${yojimbo_DIR}/bin/Debug)
+else()
+    set(yojimbo_build_dir ${yojimbo_DIR}/bin/Release)
+endif()
+
 set(yojimbo_lib
     ${yojimbo_build_dir}/sodium-builtin.lib
     ${yojimbo_build_dir}/tlsf.lib
@@ -99,6 +104,7 @@ set(yojimbo_lib
     ${yojimbo_build_dir}/reliable.lib
     ${yojimbo_build_dir}/yojimbo.lib
 )
+
 
 target_link_libraries(client PUBLIC TracyClient)
 
