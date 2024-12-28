@@ -328,6 +328,10 @@ bool rect_point_intersect(glm::vec2 point, glm::vec2 position, glm::vec2 scale) 
 void UI::input(Input::Input& input) {
     ZoneScoped;
 
+    m_input_called = false;
+    m_begin_frame_called = false;
+    m_end_frame_called = false;
+
     m_input_called = true;
 
     if (input.mouse_up(SDL_BUTTON_LMASK)) {

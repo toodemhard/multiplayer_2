@@ -78,21 +78,25 @@ bool serialize_vector(Stream& stream, Vector& vector, int max) {
 
 class SnapshotMessage : public yojimbo::Message {
   public:
+    uint32_t tick;
     State state{};
     // eastl::fixed_vector<glm::vec2, 16> players;
 
 
     template <typename Stream> bool Serialize(Stream& stream) {
-        eastl::fixed_vector<int, max_player_count> player_indices;
+        // eastl::fixed_vector<int, max_player_count> player_indices;
+        //
+        // if (Stream::IsWriting) {
+        //     for (int i = 0; i < max_player_count; i++) {
+        //         if (state.players_active[i]) {
+        //             // serialize_bytes(stream, (uint8_t*)&state.players, sizeof(Player));
+        //             player_indices.push_back(i);
+        //         }
+        //     }
+        // }
 
-        if (Stream::IsWriting) {
-            for (int i = 0; i < max_player_count; i++) {
-                if (state.players_active[i]) {
-                    // serialize_bytes(stream, (uint8_t*)&state.players, sizeof(Player));
-                    player_indices.push_back(i);
-                }
-            }
-        }
+        serialize_bytes(stream, (uint8_t*)&tick, sizeof(uint32_t));
+
 
 
         serialize_bytes(stream, (uint8_t*)&state.players_active, sizeof(state.players_active));
@@ -246,6 +250,13 @@ public:
             m_end = 0;
 
         }
+    }
+
+
+    T& at(int index) {
+
+
+
     }
 
     T& front() {
