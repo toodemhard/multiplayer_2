@@ -1,4 +1,5 @@
 #include "client.h"
+#include "EASTL/bonus/ring_buffer.h"
 #include "EASTL/internal/move_help.h"
 #include "imgui.h"
 #include "net_common.h"
@@ -7,15 +8,19 @@
 #include <format>
 #include <iostream>
 
-GameClient::GameClient(const yojimbo::Address& server_address)
+GameClient::GameClient()
     : m_adapter(this), m_client(yojimbo::GetDefaultAllocator(), yojimbo::Address("0.0.0.0"), m_connection_config, m_adapter, 0.0) {
-    uint64_t client_id;
-    yojimbo_random_bytes((uint8_t*)&client_id, 8);
-    m_client.InsecureConnect(default_private_key, client_id, server_address);
 
     // m_client.SetLatency(100);
-    m_client.SetJitter(5);
+    // m_client.SetJitter(5);
     // m_client.SetPacketLoss(1);
+}
+
+void GameClient::connect(const yojimbo::Address& server_address) {
+    uint64_t client_id;
+    yojimbo_random_bytes((uint8_t*)&client_id, 8);
+
+    m_client.InsecureConnect(default_private_key, client_id, server_address);
 }
 
 GameClient::~GameClient() {
@@ -81,6 +86,8 @@ void GameClient::fixed_update(float dt, PlayerInput input, Input::Input& input_2
             }
         }
         // printf("%d %d %d %d\n", input.up, input.down, input.left, input.right);
+
+        eastl::ring_buffer<int> asdf;
 
         auto message = (InputMessage*)m_client.CreateMessage((int)GameMessageType::Input);
         message->input = input;

@@ -6,6 +6,7 @@
 #include "input.h"
 #include "net_common.h"
 
+constexpr int max_rollback_ticks = 16;
 
 class ClientAdapter : public yojimbo::Adapter {
   public:
@@ -16,8 +17,9 @@ class ClientAdapter : public yojimbo::Adapter {
 
 class GameClient {
   public:
-    GameClient(const yojimbo::Address& server_address);
+    GameClient();
     ~GameClient();
+    void connect(const yojimbo::Address& server_address);
     void update();
     void fixed_update(float dt, PlayerInput input, Input::Input& input_2, int* throttle_ticks);
     void ProcessMessages();
@@ -25,7 +27,8 @@ class GameClient {
     void ClientConnected(int client_index);
     void ClientDisconnected(int client_index);
 
-    State m_state;
+    State m_state{};
+    ring_buffer<Player, max_rollback_ticks> player_history;
 
     std::chrono::time_point<std::chrono::steady_clock> m_packet_sent_time;
 

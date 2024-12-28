@@ -22,6 +22,7 @@
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
 #include "net_common.h"
+#include "panic.h"
 #include "renderer.h"
 #include "stb_image.h"
 
@@ -29,13 +30,217 @@
 #include "assets.h"
 #include "ui.h"
 
+constexpr double fixed_dt = 1.0 / tick_rate;
+constexpr double speed_up_fraction = 0.05;
+
+constexpr int window_width = 1024;
+constexpr int window_height = 768;
+
+class LocalScene {
+
+};
+
+void poll_event() {
+
+}
+
+void accumulate_input_events(Input::Input& accumulator, Input::Input& new_frame) {
+    for (int i = 0; i < SDL_SCANCODE_COUNT; i++) {
+        accumulator.keyboard_up[i] |= new_frame.keyboard_up[i];
+        accumulator.keyboard_down[i] |= new_frame.keyboard_down[i];
+        accumulator.keyboard_repeat[i] |= new_frame.keyboard_repeat[i];
+
+        accumulator.button_up_flags |= new_frame.button_up_flags;
+        accumulator.button_down_flags |= new_frame.button_down_flags;
+    }
+}
+
+// void begin_tick_input(input ) {
+//
+//     inpubutton_held_flags = SDL_GetMouseState(&mouse_pos.x, &mouse_pos.y);
+//     mod_state = SDL_GetModState();
+// }
+
+class MultiplayerScene {
+public:
+    Input::Input& m_input;
+    Font* m_font;
+
+    double accumulator = 0.0;
+    uint32_t frame = {};
+    double time = {};
+    int current_tick = 0;
+
+    double speed_up_dt = 0.0;
+
+    float idle_period = 0.2;
+    int idle_count = 2;
+    int idle_period_ticks = idle_period * tick_rate;
+    int idle_cycle_period_ticks = idle_period * idle_count * tick_rate;
+
+    UI ui;
+
+    Input::Input m_tick_input;
+
+    Camera2D m_camera{
+        {0, 0},
+        {1 * 4.0f/3.0f, 1},
+    };
+
+    GameClient client;
+
+    MultiplayerScene(Input::Input& input, Font* font) : m_input(input), ui(font), m_font(font) {
+        m_camera.scale *= 5.0f;
+
+        m_tick_input.init_keybinds(Input::default_keybindings);
+    }
+
+    void connect() {
+        client.connect(yojimbo::Address(127, 0, 0, 1, 5000));
+    }
+
+    void update(double delta_time) {
+        using namespace Input;
+
+        accumulator += delta_time;
+        ImGui_ImplSDLRenderer3_NewFrame();
+        ImGui_ImplSDL3_NewFrame();
+        ImGui::NewFrame();
+
+        accumulate_input_events(m_tick_input, m_input);
+        
+        while (accumulator >= fixed_dt) {
+            m_tick_input.begin_frame();
+            accumulator = accumulator - fixed_dt + speed_up_dt;
+            frame++;
+            time += fixed_dt;
+            // printf("frame:%d %fs\n", frame, time);
+
+
+
+            glm::vec2 move_input{};
+
+            if (m_input.key_down(SDL_SCANCODE_R)) {
+                accumulator += fixed_dt;
+            }
+
+            if (m_input.key_down(SDL_SCANCODE_E)) {
+                accumulator -= fixed_dt;
+            }
+
+            PlayerInput player_input{};
+            if (m_tick_input.action_held(ActionID::move_up)) {
+                player_input.up = true;
+            }
+            if (m_tick_input.action_held(ActionID::move_down)) {
+                player_input.down = true;
+            }
+            if (m_tick_input.action_held(ActionID::move_left)) {
+                player_input.left = true;
+            }
+            if (m_tick_input.action_held(ActionID::move_right)) {
+                player_input.right = true;
+            }
+            // if (glm::length(move_input) > 0) {
+            //     player_position += glm::normalize(move_input) * (float)delta_time * 4.0f;
+            // }
+
+            if (m_tick_input.key_down(SDL_SCANCODE_F)) {
+                printf("asdf\n");
+            }
+
+            if (m_tick_input.mouse_down(SDL_BUTTON_LEFT) || m_input.key_down(SDL_SCANCODE_F)) {
+                player_input.fire = true;
+            }
+
+            player_input.cursor_world_pos = screen_to_world_pos(m_camera, m_tick_input.mouse_pos, window_width, window_height);
+            // printf("upate\n");
+
+            // ImGui_ImplSDLRenderer3_NewFrame();
+            // ImGui_ImplSDL3_NewFrame();
+            // ImGui::NewFrame();
+
+            int throttle_ticks{};
+            client.fixed_update(fixed_dt, player_input, m_input, &throttle_ticks);
+
+            speed_up_dt = throttle_ticks * fixed_dt * speed_up_fraction;
+
+            // accumulator += fixed_dt * throttle_ticks;
+
+            current_tick++;
+
+            m_tick_input.end_frame();
+        }
+
+        client.update();
+    }
+
+    void render(Renderer& renderer, SDL_Window* window, Texture textures[(int)ImageID::count]) {
+        using namespace renderer;
+
+        auto& char_sheet = textures[(int)ImageID::char_sheet_png];
+        auto& bullet_texture = textures[(int)ImageID::bullet_png];
+
+
+        // ui.draw(renderer);
+
+
+
+        const auto& state = client.m_state;
+
+        int idle_frame = current_tick % idle_cycle_period_ticks / idle_period_ticks;
+
+
+
+        for (int i = 0; i < max_player_count; i++) {
+            if (state.players_active[i]) {
+                auto& player = state.players[i];
+                // draw_world_textured_rect(renderer, camera, {}, {state.players.position[i], {1, 1}}, amogus_texture);
+                draw_world_textured_rect(renderer, m_camera, Rect{{16 * idle_frame + 2,0}, {16,16}}, {player.position, {1, 1}}, char_sheet);
+            }
+        }
+
+        for (int i = 0; i < bullets_capacity; i++) {
+
+            if (!state.bullets_active[i]) {
+                continue;
+            }
+            auto& bullet = state.bullets[i];
+
+            draw_world_textured_rect(renderer, m_camera, {}, {{bullet.position}, {0.5, 0.5}}, bullet_texture);
+        }
+
+        // draw_world_textured_rect(renderer, camera, nullptr, {client.m_pos, {1, 1}}, amogus_texture);
+        // auto string = std::format("render: {:.3f}ms", last_render_duration * 1000.0);
+        // font::draw_text(renderer, m_font, string.data(), 64, {20, 30});
+
+
+        // auto viewport = SDL_GPUViewport {
+        //     .x = 0,
+        //     .y = 0,
+        //     .w = (float)renderer.window_width,
+        //     .h = (float)renderer.window_height,
+        // };
+        // SDL_SetGPUViewport(renderer.render_pass, &viewport);
+        // renderer::render_geometry_raw(renderer, font.atlas_texture, vertices, 4, indices, 6, sizeof(uint16_t));
+
+
+        ImGui::Render();
+        ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), &renderer);
+
+
+
+        // last_render_duration = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - render_begin_time).count();
+    }
+};
+
 namespace app {
 
 int run() {
     using namespace renderer;
 
-    constexpr int window_width = 1024;
-    constexpr int window_height = 768;
+
+    // panic("asasdf {} {}", 234, 65345);
 
     auto flags = SDL_WINDOW_INPUT_FOCUS; // | SDL_WINDOW_FULLSCREEN;
 
@@ -70,15 +275,10 @@ int run() {
 
     glm::vec2 player_position(0, 0);
 
-    Camera2D camera{
-        {0, 0},
-        {1 * 4.0f/3.0f, 1},
-    };
-    camera.scale *= 5.0f;
+    // __debugbreak();
 
 
     InitializeYojimbo();
-    GameClient client(yojimbo::Address(127, 0, 0, 1, 5000));
 
 
     for (int i = 0; i < (int)ImageID::count; i++) {
@@ -103,22 +303,15 @@ int run() {
     uint32_t frame = {};
     double time = {};
 
-    constexpr double fixed_dt = 1.0 / tick_rate;
-    double speed_up_dt = 0.0;
-    constexpr double speed_up_fraction = 0.05;
 
     // tick is update
     // frame is animation keyframe
 
-    int current_tick = 0;
 
-    float idle_period = 0.2;
-    int idle_count = 2;
-    int idle_period_ticks = idle_period * tick_rate;
-    int idle_cycle_period_ticks = idle_period * idle_count * tick_rate;
+    MultiplayerScene multi_scene(input, &font);
+    multi_scene.connect();
 
 
-    UI ui(&font);
 
     while (1) {
         bool quit = false;
@@ -127,245 +320,59 @@ int run() {
         double delta_time = std::chrono::duration_cast<std::chrono::duration<double>>(this_frame_time - last_frame_time).count();
         last_frame_time = this_frame_time;
 
-        accumulator += delta_time;
+        input.begin_frame();
 
-
-        auto& pot_texture = textures[(int)ImageID::pot_jpg];
-        auto& amogus_texture = textures[(int)ImageID::amogus_png];
-        auto& bullet_texture = textures[(int)ImageID::bullet_png];
-        auto& char_sheet = textures[(int)ImageID::char_sheet_png];
-
-        auto src = Rect{.position{0, 0}, .scale{pot_texture.w, pot_texture.h}};
-        auto src_2 = Rect{.position{0, 0}, .scale{amogus_texture.w, amogus_texture.h}};
-
-        auto rect = Rect{
-            {300, 300},
-            {200, 200},
-        };
-        auto rect_2 = Rect{
-            {300, 300},
-            {200, 200},
-        };
-        using namespace Input;
-
-        while (accumulator >= fixed_dt) {
-            accumulator = accumulator - fixed_dt + speed_up_dt;
-            frame++;
-            time += fixed_dt;
-            // printf("frame:%d %fs\n", frame, time);
-
-            input.begin_frame();
-
-            SDL_Event event;
-            while (SDL_PollEvent(&event)) {
-                if (event.type == SDL_EVENT_QUIT) {
-                    quit = true;
-                    break;
-                }
-
-                ImGui_ImplSDL3_ProcessEvent(&event);
-                switch (event.type) {
-                    case SDL_EVENT_MOUSE_WHEEL:
-                        input.wheel += event.wheel.y;
-                        break;
-                    case SDL_EVENT_KEY_DOWN:
-                        input.keyboard_repeat[event.key.scancode] = true;
-
-                        if (!event.key.repeat) {
-                            input.keyboard_down[event.key.scancode] = true;
-                        }
-                        break;
-                    case SDL_EVENT_KEY_UP:
-                        input.keyboard_up[event.key.scancode] = true;
-                        break;
-                    case SDL_EVENT_MOUSE_BUTTON_DOWN:
-                        input.button_down_flags |= SDL_BUTTON_MASK(event.button.button);
-                    case SDL_EVENT_MOUSE_BUTTON_UP:
-                        if (event.button.down) {
-                            break;
-                        }
-                        input.button_up_flags |= SDL_BUTTON_MASK(event.button.button);
-                    default:
-                        break;
-                }
-            }
-
-
-
-
-            if (quit) {
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_EVENT_QUIT) {
+                quit = true;
                 break;
             }
 
-            glm::vec2 move_input{};
+            ImGui_ImplSDL3_ProcessEvent(&event);
+            switch (event.type) {
+                case SDL_EVENT_MOUSE_WHEEL:
+                    input.wheel += event.wheel.y;
+                    break;
+                case SDL_EVENT_KEY_DOWN:
+                    input.keyboard_repeat[event.key.scancode] = true;
 
-            if (input.key_down(SDL_SCANCODE_R)) {
-                accumulator += fixed_dt;
+                    if (!event.key.repeat) {
+                        input.keyboard_down[event.key.scancode] = true;
+                    }
+                    break;
+                case SDL_EVENT_KEY_UP:
+                    input.keyboard_up[event.key.scancode] = true;
+                    break;
+                case SDL_EVENT_MOUSE_BUTTON_DOWN:
+                    input.button_down_flags |= SDL_BUTTON_MASK(event.button.button);
+                case SDL_EVENT_MOUSE_BUTTON_UP:
+                    if (event.button.down) {
+                        break;
+                    }
+                    input.button_up_flags |= SDL_BUTTON_MASK(event.button.button);
+                default:
+                    break;
             }
-
-            if (input.key_down(SDL_SCANCODE_E)) {
-                accumulator -= fixed_dt;
-            }
-
-            PlayerInput player_input{};
-            if (input.action_held(ActionID::move_up)) {
-                player_input.up = true;
-            }
-            if (input.action_held(ActionID::move_down)) {
-                player_input.down = true;
-            }
-            if (input.action_held(ActionID::move_left)) {
-                player_input.left = true;
-            }
-            if (input.action_held(ActionID::move_right)) {
-                player_input.right = true;
-            }
-            // if (glm::length(move_input) > 0) {
-            //     player_position += glm::normalize(move_input) * (float)delta_time * 4.0f;
-            // }
-
-            if (input.key_down(SDL_SCANCODE_F)) {
-                printf("asdf\n");
-            }
-
-            if (input.mouse_down(SDL_BUTTON_LEFT) || input.key_down(SDL_SCANCODE_F)) {
-                player_input.fire = true;
-            }
-
-            player_input.cursor_world_pos = screen_to_world_pos(camera, input.mouse_pos, window_width, window_height);
-            // printf("upate\n");
-
-            int throttle_ticks{};
-            client.fixed_update(fixed_dt, player_input, input, &throttle_ticks);
-            auto& pos = client.m_state.players[0].position;
-
-            std::cout << std::format("{} {}\n", pos.x, pos.y);
-
-            speed_up_dt = throttle_ticks * fixed_dt * speed_up_fraction;
-
-            // accumulator += fixed_dt * throttle_ticks;
-
-            input.end_frame();
-
-            current_tick++;
         }
 
         if (quit) {
             break;
         }
 
-
-        // yojimbo::NetworkInfo net_info;
-        // client.m_client.GetNetworkInfo(net_info);
-        // net_info.RTT
-
-        // ImGui::Begin("asdf");
-        // ImGui::Text("rtt: %f", net_info.RTT);
-        // ImGui::End();
-
-        // ImGui::Begin("asdf");
-        // ImGui::Text("asdf");
-        // ImGui::End();
-        ImGui_ImplSDLRenderer3_NewFrame();
-        ImGui_ImplSDL3_NewFrame();
-        ImGui::NewFrame();
-
-        client.update();
-
-
-        PositionUvColorVertex vertices[] = {
-            {{220,20}, {1.0,1.0}, {255,0,0,255} },
-            {{220,220}, {1.0,0.0}, {255,0,0,255} },
-            {{20,220}, {0.0,1.0}, {255,0,0,255} },
-            {{20,20}, {0.0,0.0}, {255,0,0,255} },
-            // {{-0.5,-0.5}, {0,1}, {255,0,0,255} },
-            // {{0.5,0.5}, {1,0}, {255,0,0,255} },
-            // {{-0.5,0.5}, {0,0}, {255,0,0,255} },
-        };
-
-
-        uint16_t indices[] = {0,1,2, 0,2,3};
+        multi_scene.update(delta_time);
 
         auto render_begin_time = std::chrono::high_resolution_clock::now();
-
-        ui.input(input);
-        ui.begin_frame(window_width, window_height);
-
-        ui.begin_row({.stack_direction=StackDirection::Vertical});
-        ui.text("ajkdhfsk", {});
-        ui.text("ajkdhfsk", {});
-        ui.text("ajkdhfsk", {});
-
-        ui.end_row();
-
-        ui.end_frame();
-
-
-
         begin_rendering(renderer, window);
+        multi_scene.render(renderer, window, textures);
 
-        ui.draw(renderer);
-
-        draw_rect(renderer, {{824,0}, {200, 200}}, color::red);
-        draw_rect(renderer, {{500,500}, {200, 200}}, color::white);
-
-        draw_textured_rect(renderer, src, rect, pot_texture);
-        draw_wire_rect(renderer, rect_2, {0, 0, 255, 255});
-        draw_textured_rect(renderer, {}, {{200, 300}, {200, 200}}, amogus_texture);
-
-
-        const auto& state = client.m_state;
-
-        int idle_frame = current_tick % idle_cycle_period_ticks / idle_period_ticks;
-
-        ImGui::Begin("animation");
-        ImGui::Text("idle frame: %d", idle_frame);
-        ImGui::End();
-
-
-        for (int i = 0; i < max_player_count; i++) {
-            if (state.players_active[i]) {
-                auto& player = state.players[i];
-                // draw_world_textured_rect(renderer, camera, {}, {state.players.position[i], {1, 1}}, amogus_texture);
-                draw_world_textured_rect(renderer, camera, Rect{{16 * idle_frame + 2,0}, {16,16}}, {player.position, {1, 1}}, char_sheet);
-            }
-        }
-
-        for (int i = 0; i < bullets_capacity; i++) {
-
-            if (!state.bullets_active[i]) {
-                continue;
-            }
-            auto& bullet = state.bullets[i];
-
-            draw_world_textured_rect(renderer, camera, {}, {{bullet.position}, {0.5, 0.5}}, bullet_texture);
-        }
-        // draw_world_textured_rect(renderer, camera, nullptr, {client.m_pos, {1, 1}}, amogus_texture);
         auto string = std::format("render: {:.3f}ms", last_render_duration * 1000.0);
-        font::draw_text(renderer, font, string.data(), 64, {20, 30});
-
-
-        // auto viewport = SDL_GPUViewport {
-        //     .x = 0,
-        //     .y = 0,
-        //     .w = (float)renderer.window_width,
-        //     .h = (float)renderer.window_height,
-        // };
-        // SDL_SetGPUViewport(renderer.render_pass, &viewport);
-        // renderer::render_geometry_raw(renderer, font.atlas_texture, vertices, 4, indices, 6, sizeof(uint16_t));
-
-
-        ImGui::Render();
-        ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), &renderer);
-
-
+        font::draw_text(renderer, font, string.data(), 24, {20, 30});
         end_rendering(renderer);
 
         last_render_duration = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - render_begin_time).count();
 
-        // printf("render\n");
-
-
+        input.end_frame();
     }
 
     SDL_DestroyWindow(window);
