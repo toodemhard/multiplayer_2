@@ -802,7 +802,7 @@ void UI::draw(Renderer& renderer) {
                 // SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
                 // SDL_SetRenderDrawColor(renderer, bg_color.r, bg_color.g, bg_color.b, bg_color.a);
                 // SDL_RenderFillRect(renderer, &frect);
-                renderer::draw_rect(renderer, rect, bg_color);
+                renderer::draw_screen_rect(renderer, rect, bg_color);
             }
 
             {

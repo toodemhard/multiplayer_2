@@ -26,7 +26,6 @@ struct Renderer {
 
     SDL_GPUDevice* device;
     SDL_GPUGraphicsPipeline* textured_rect_pipeline;
-    SDL_GPUGraphicsPipeline* wire_rect_pipeline;
     SDL_GPUGraphicsPipeline* raw_mesh_textured_pipeline;
 
 
@@ -37,13 +36,16 @@ struct Renderer {
     SDL_GPUCommandBuffer* draw_command_buffer;
     SDL_GPURenderPass* render_pass;
 
+    SDL_GPUGraphicsPipeline* wire_pipeline;
+    std::vector<PositionColorVertex>  line_vertices;
+    std::vector<uint16_t> line_indices;
 
     SDL_GPUGraphicsPipeline* raw_mesh_pipeline;
-    std::vector<PositionColorVertex> vertices_collect;
-    std::vector<uint16_t> indices_collect;
+    std::vector<PositionColorVertex> mesh_vertices;
+    std::vector<uint16_t> mesh_indices;
 
-    SDL_GPUBuffer* vertex_buffer;
-    SDL_GPUBuffer* index_buffer;
+    SDL_GPUBuffer* dynamic_vertex_buffer;
+    SDL_GPUBuffer* dynamic_index_buffer;
     SDL_GPUTransferBuffer* transfer_buffer;
 
 
@@ -105,7 +107,9 @@ void draw_world_textured_rect(
     const RGBA& color_mod = color::white
 );
 
-void draw_rect(Renderer& renderer, Rect rect, RGBA rgba);
+void draw_lines(Renderer& renderer, glm::vec2* vertices, int vert_count, RGBA color);
+
+void draw_screen_rect(Renderer& renderer, Rect rect, RGBA rgba);
 
 void draw_wire_rect(Renderer& renderer, const Rect& rect, const RGBA& color);
 
