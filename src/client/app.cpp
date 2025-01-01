@@ -1,6 +1,9 @@
 #include "SDL3/SDL_events.h"
 #include "SDL3/SDL_gpu.h"
 #include "SDL3/SDL_mouse.h"
+#include "box2d/box2d.h"
+#include "box2d/collision.h"
+#include "box2d/types.h"
 #include "client.h"
 #include "codegen/shaders.h"
 #include <SDL3/SDL.h>
@@ -13,6 +16,7 @@
 #include <iostream>
 #include <numeric>
 #include <optional>
+#include <tracy/Tracy.hpp>
 
 #include "color.h"
 #include "font.h"
@@ -72,6 +76,14 @@ void render_state(Renderer& renderer, SDL_Window* window, Texture textures[(int)
 
         draw_world_textured_rect(renderer, camera, {}, {{bullet.position}, {0.5, 0.5}}, bullet_texture);
     }
+
+    // {
+    //     auto pos =  b2Body_GetPosition(state.body_id);
+    //
+    //     draw_world_textured_rect(renderer, camera, {}, {.position={pos.x, pos.y}, .scale={1,1}}, bullet_texture);
+    // }
+
+    
 }
 
 void accumulate_input_events(Input::Input& accumulator, Input::Input& new_frame) {
@@ -118,6 +130,28 @@ PlayerInput input_state(Input::Input& input, const Camera2D& camera) {
     return player_input;
 }
 
+RGBA hex_to_rgba(b2HexColor hex) {
+    RGBA color;
+    color.r = (hex >> 16) & 0xFF;
+    color.g = (hex >> 8) & 0xFF;
+    color.b = (hex & 0xFF);
+    color.a = 200;
+
+    return color;
+}
+void draw_polygon( const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context ) {
+    auto& renderer = *(Renderer*)context;
+
+    auto asdf = hex_to_rgba(color);
+
+    renderer::draw_world_polygon(renderer, *renderer.active_camera, (glm::vec2*)vertices, vertexCount, hex_to_rgba(color));
+    // std::cout << "asdfkjh\n";
+    // renderer
+}
+
+void adsf( b2Transform transform, const b2Vec2* vertices, int vertexCount, float radius, b2HexColor color, void* context ){
+    std::cout << "jfkh\n";
+}
 
 class LocalScene {
 public:
@@ -129,6 +163,7 @@ public:
 
     State m_state{};
 
+
     double accumulator = 0.0;
     uint32_t frame = {};
     double time = {};
@@ -136,13 +171,35 @@ public:
 
     PlayerInput inputs[max_player_count];
 
-    LocalScene(Input::Input& input) : m_input(input) {
+    b2DebugDraw m_debug_draw{};
+
+    LocalScene(Input::Input& input, Renderer* renderer) : m_input(input) {
+        renderer->active_camera = &m_camera;
+
         m_state.players_active[0] = true;
         m_tick_input.init_keybinds(Input::default_keybindings);
+
+        init_state(m_state);
+
+        m_debug_draw = b2DefaultDebugDraw();
+        m_debug_draw.context = renderer;
+        m_debug_draw.DrawPolygon = &draw_polygon;
+        // m_debug_draw.DrawSolidPolygon = &adsf;
+        m_debug_draw.drawShapes = true;
+        m_debug_draw.drawAABBs = true;
+        // debug_draw.drawShapes
+        //
+        // debug_draw.drawShapes
+
+
+        // b2World_Draw(m_state.world_id, b2DebugDraw *draw)
     }
     
 
     void update(double delta_time) {
+        ZoneScoped;
+
+
         accumulator += delta_time;
         accumulate_input_events(m_tick_input, m_input);
 
@@ -170,6 +227,11 @@ public:
             update_state(m_state, inputs, time, fixed_dt);
 
 
+            m_camera.position = m_state.players[0].position;
+            // auto pos = b2Body_GetPosition(m_state.body_id);
+            // std::cout << std::format("{} {}\n", pos.x, pos.y);
+
+
             // accumulator += fixed_dt * throttle_ticks;
 
             current_tick++;
@@ -182,8 +244,10 @@ public:
 
     void render(Renderer& renderer, SDL_Window* window, Texture textures[(int)ImageID::count]) {
         render_state(renderer, window, textures, m_state, current_tick, m_camera);
-    }
+        renderer::draw_world_rect(renderer, m_camera, {{-3.5, 0}, {1,1}}, color::red);
 
+        b2World_Draw(m_state.world_id, &m_debug_draw);
+    }
 };
 
 void poll_event() {
@@ -282,6 +346,8 @@ public:
     void render(Renderer& renderer, SDL_Window* window, Texture textures[(int)ImageID::count]) {
         render_state(renderer, window, textures, m_client.m_state, current_tick, m_camera);
 
+        // renderer::draw_screen_rect(Renderer &renderer, Rect rect, RGBA rgba)
+
         ImGui::Render();
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), &renderer);
     }
@@ -302,7 +368,7 @@ int run() {
         SDL_Log("CreateWindow failed: %s", SDL_GetError());
     }
 
-    Renderer renderer;
+    Renderer renderer{};
     if (init_renderer(&renderer, window) != 0) {
         return 1;
     }
@@ -365,10 +431,13 @@ int run() {
     multi_scene.connect();
 
 
-    LocalScene local_scene(input);
+    LocalScene local_scene(input, &renderer);
 
 
     while (1) {
+        FrameMarkEnd("frame");
+        ZoneScopedN("update");
+
         bool quit = false;
 
         auto this_frame_time = std::chrono::high_resolution_clock::now();
@@ -418,21 +487,39 @@ int run() {
             break;
         }
 
-        // multi_scene.update(delta_time);
-        local_scene.update(delta_time);
+        // update
+        {
+            // multi_scene.update(delta_time);
+            local_scene.update(delta_time);
+        }
 
-        auto render_begin_time = std::chrono::high_resolution_clock::now();
-        begin_rendering(renderer, window);
-        // multi_scene.render(renderer, window, textures);
-        local_scene.render(renderer, window, textures);
+        // render
+        {
+            auto render_begin_time = std::chrono::high_resolution_clock::now();
+            begin_rendering(renderer, window);
+            // multi_scene.render(renderer, window, textures);
+            local_scene.render(renderer, window, textures);
 
-        auto string = std::format("render: {:.3f}ms", last_render_duration * 1000.0);
-        font::draw_text(renderer, font, string.data(), 24, {20, 30});
-        end_rendering(renderer);
+            auto string = std::format("render: {:.3f}ms", last_render_duration * 1000.0);
+            font::draw_text(renderer, font, string.data(), 24, {20, 30});
 
-        last_render_duration = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - render_begin_time).count();
+            glm::vec2 stuff[] = {
+                {0,0},
+                {0.5,0.5},
+                {0.5,-0.5},
+                {0.0,-0.5},
+            };
+
+            renderer::draw_screen_rect(renderer, {.position={0,0}, .scale={100,100}}, color::red);
+            renderer::draw_lines(renderer, stuff, 4, color::red);
+            end_rendering(renderer);
+
+            last_render_duration = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - render_begin_time).count();
+        }
 
         input.end_frame();
+
+        FrameMarkEnd("frame");
     }
 
     SDL_DestroyWindow(window);

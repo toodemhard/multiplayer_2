@@ -1,4 +1,5 @@
 #include "game.h"
+#include "box2d/box2d.h"
 
 void* operator new[](size_t size, const char* pName, int flags, unsigned debugFlags, const char* file, int line) {
     return malloc(size);
@@ -9,8 +10,40 @@ void* operator new[](size_t size, size_t alignment, size_t alignmentOffset, cons
 }
 
 const static float bullet_speed = 10.0f;
+const static int substep_count = 4;
+
+void init_state(State& state) {
+
+    b2WorldDef world_def = b2DefaultWorldDef();
+    world_def.gravity = b2Vec2{0.0f, 0.0f};
+    state.world_id = b2CreateWorld(&world_def);
+
+    // auto ground_body_def = b2DefaultBodyDef();
+    // state.ground_id = b2CreateBody(state.world_id, &ground_body_def);
+    //
+    // auto ground_box = b2MakeBox(50.0, 10.0);
+    // auto ground_shape_def = b2DefaultShapeDef();
+    // b2CreatePolygonShape(state.ground_id, &ground_shape_def, &ground_box);
+
+
+    auto body_def = b2DefaultBodyDef();
+    body_def.type = b2_dynamicBody;
+    body_def.position = b2Vec2{0.0, 0.0};
+
+    state.body_id = b2CreateBody(state.world_id, &body_def);
+
+    auto dynamic_box = b2MakeBox(0.5f, 0.5f);
+    auto shape_def = b2DefaultShapeDef();
+    shape_def.density = 1.0;
+    shape_def.friction = 0.3;
+
+    b2CreatePolygonShape(state.body_id, &shape_def, &dynamic_box);
+
+    b2Body_SetGravityScale(state.body_id, 0.0f);
+}
 
 void update_state(State& state, PlayerInput inputs[max_player_count], double time, double dt) {
+
     auto& bullets = state.bullets;
     // for (int i = 0; i < bullets_capacity; i++) {
     //
@@ -73,6 +106,8 @@ void update_state(State& state, PlayerInput inputs[max_player_count], double tim
             }
         }
     }
+
+    b2World_Step(state.world_id, dt, substep_count);
 }
 
 void create_player(State& state) {

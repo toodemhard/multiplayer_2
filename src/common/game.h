@@ -1,7 +1,9 @@
 #pragma once
+#include "box2d/id.h"
 #include "glm/ext/vector_float2.hpp"
 #include "glm/glm.hpp"
 #include <EASTL/fixed_vector.h>
+#include "box2d/box2d.h"
 
 enum class PlayerAnimationState {
     Idle,
@@ -46,7 +48,14 @@ struct State {
 
     bool bullets_active[bullets_capacity];
     Bullet bullets[bullets_capacity];
+
+
+    b2WorldId world_id;
+    b2BodyId ground_id;
+    b2BodyId body_id;
 };
+
+void init_state(State& state);
 
 void update_state(State& state, PlayerInput inputs[max_player_count], double time, double dt);
 
