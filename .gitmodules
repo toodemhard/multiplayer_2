@@ -17,3 +17,6 @@
 [submodule "lib/imgui"]
 	path = lib/imgui
 	url = https://github.com/ocornut/imgui.git
+[submodule "lib/box2d"]
+	path = lib/box2d
+	url = https://github.com/erincatto/box2d.git
