@@ -32,6 +32,7 @@ option(TRACY_ON_DEMAND "" OFF)
 add_subdirectory(lib/EASTL)
 add_subdirectory(lib/tracy)
 add_subdirectory(lib/glm)
+add_subdirectory(lib/box2d)
 
 
 # list(REMOVE_ITEM SRC_CLIENT 
@@ -55,6 +56,7 @@ target_link_libraries(common PUBLIC
     glm::glm
     ${yojimbo_lib}
     EASTL
+    box2d
 )
 
 file(GLOB_RECURSE PLS CONFIGURE_DEPENDS src/common/*.h)
@@ -114,6 +116,9 @@ target_link_libraries(client PRIVATE
     ${yojimbo_lib}
     EASTL
     common
+
+    # box2d::box2d
+
     # GameNetworkingSockets::static
 )
 
