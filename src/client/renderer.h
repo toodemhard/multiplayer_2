@@ -20,9 +20,16 @@ struct PositionColorVertex {
     RGBA color;
 };
 
+struct Camera2D {
+    glm::vec2 position;
+    glm::vec2 scale;
+};
+
 struct Renderer {
     const int window_width = 1024;
     const int window_height = 768;
+
+    Camera2D* active_camera;
 
     SDL_GPUDevice* device;
     SDL_GPUGraphicsPipeline* textured_rect_pipeline;
@@ -62,10 +69,6 @@ struct Image {
     void* data;
 };
 
-struct Camera2D {
-    glm::vec2 position;
-    glm::vec2 scale;
-};
 
 inline glm::vec2 screen_to_world_pos(const Camera2D& cam, glm::vec2 screen_pos, int s_w, int s_h) {
     screen_pos.y = s_h - screen_pos.y;
@@ -107,8 +110,11 @@ void draw_world_textured_rect(
     const RGBA& color_mod = color::white
 );
 
+void draw_world_lines(Renderer& renderer, const Camera2D& camera, glm::vec2* vertices, int vert_count, RGBA color);
+
 void draw_lines(Renderer& renderer, glm::vec2* vertices, int vert_count, RGBA color);
 
+void draw_world_rect(Renderer& renderer, Camera2D camera, Rect rect, RGBA rgba);
 void draw_screen_rect(Renderer& renderer, Rect rect, RGBA rgba);
 
 void draw_wire_rect(Renderer& renderer, const Rect& rect, const RGBA& color);
@@ -120,6 +126,8 @@ void begin_rendering(Renderer& renderer, SDL_Window* window);
 void end_rendering(Renderer& renderer);
 
 Texture load_texture(Renderer& renderer, const Image& image);
+
+void draw_world_polygon(Renderer& renderer, const Camera2D& camera, glm::vec2* verts, int vert_count, RGBA color);
 
 void render_geometry(Renderer& renderer, const Texture& texture, const PositionUvColorVertex* vertices, int num_vertices, const void* indices, int num_indices, int index_size);
 void render_geometry_textured(Renderer& renderer, const Texture& texture, const PositionUvColorVertex* vertices, int num_vertices, const void* indices, int num_indices, int index_size);

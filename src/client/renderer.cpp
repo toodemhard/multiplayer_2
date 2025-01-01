@@ -4,6 +4,7 @@
 #include "SDL3/SDL_stdinc.h"
 #include "codegen/shaders.h"
 #include "color.h"
+#include "glm/ext/vector_float2.hpp"
 #include <cstdint>
 #include <cstring>
 #include <format>
@@ -391,6 +392,10 @@ void draw_textured_rect(
     SDL_DrawGPUPrimitives(renderer.render_pass, 4, 1, 0, 0);
 }
 
+glm::vec2 world_to_normalized(Camera2D camera, glm::vec2 world_pos) {
+    return ((world_pos - camera.position) / camera.scale * 2.0f);
+}
+
 Rect world_rect_to_normalized(Camera2D camera, Rect world_rect) {
     return Rect{
         (world_rect.position - camera.position) / camera.scale * 2.0f,
@@ -696,6 +701,36 @@ void draw_lines(Renderer& renderer, glm::vec2* vertices, int vert_count, RGBA co
     }
 }
 
+void draw_world_lines(Renderer& renderer, const Camera2D& camera, glm::vec2* vertices, int vert_count, RGBA color) {
+    int start_index = renderer.line_vertices.size();
+    for (int i = start_index; i < start_index + vert_count - 1; i++) {
+        renderer.line_indices.emplace_back(i);
+        renderer.line_indices.emplace_back(i + 1);
+    }
+
+    for (int i = 0; i < vert_count; i++) {
+        renderer.line_vertices.emplace_back(PositionColorVertex{
+            .position = world_to_normalized(camera, vertices[i]),
+            .color = color,
+        });
+    }
+}
+
+// void draw_world_lines(Renderer& renderer, const Camera2D& camera, glm::vec2* vertices, int vert_count, RGBA color) {
+//     int start_index = renderer.line_vertices.size();
+//     for (int i = start_index; i < start_index + vert_count - 1; i++) {
+//         renderer.line_indices.emplace_back(i);
+//         renderer.line_indices.emplace_back(i + 1);
+//     }
+//
+//     for (int i = 0; i < vert_count; i++) {
+//         renderer.line_vertices.emplace_back(PositionColorVertex{
+//             .position = world_to_normalized(camera, vertices[i]),
+//             .color = color,
+//         });
+//     }
+// }
+
 void draw_lines_indexed(Renderer& renderer, glm::vec2* vertices, int vert_count, uint16_t* indices, int indices_count, RGBA color) {
     for (int i = 0; i < indices_count; i++) {
         indices[i] += renderer.line_vertices.size();
@@ -709,6 +744,22 @@ void draw_lines_indexed(Renderer& renderer, glm::vec2* vertices, int vert_count,
     }
 
     renderer.line_indices.insert(renderer.mesh_indices.end(), indices, indices + indices_count);
+}
+
+void draw_world_polygon(Renderer& renderer, const Camera2D& camera, glm::vec2* verts, int vert_count, RGBA color) {
+    int start_index = renderer.mesh_vertices.size();
+    for (int i = 1; i < vert_count - 1; i++) {
+        renderer.mesh_indices.emplace_back(start_index + 0);
+        renderer.mesh_indices.emplace_back(start_index + i);
+        renderer.mesh_indices.emplace_back(start_index + i+1);
+    }
+
+    for (int i = 0; i < vert_count; i++) {
+        renderer.mesh_vertices.emplace_back(PositionColorVertex{
+            .position = world_to_normalized(camera, verts[i]),
+            .color = color,
+        });
+    }
 }
 
 void draw_geometry(Renderer& renderer, glm::vec2* vertices, int vert_count, uint16_t* indices, int indices_count, RGBA color) {
@@ -752,7 +803,6 @@ void draw_rect(Renderer& renderer, Rect normalized_rect, RGBA rgba) {
     for (int i = 0; i < 4; i++) {
         auto& vert = vertices[i].position;
         vert = vert * normalized_rect.scale + normalized_rect.position;
-        vert.y *= -1;
         vertices[i].color = rgba;
     }
 
@@ -761,7 +811,9 @@ void draw_rect(Renderer& renderer, Rect normalized_rect, RGBA rgba) {
 }
 
 Rect screen_rect_to_normalized(Rect& rect, glm::vec2 resolution) {
-    return Rect{.position = rect.position / resolution * 2.0f - 1.0f, .scale = rect.scale / resolution * 2.0f};
+    auto normal_rect = Rect{.position = rect.position / resolution * 2.0f - 1.0f, .scale = rect.scale / resolution * 2.0f};
+    normal_rect.position.y *= -1 + normal_rect.scale.y;
+    return normal_rect;
 }
 
 void draw_world_rect(Renderer& renderer, Camera2D camera, Rect rect, RGBA rgba) {
