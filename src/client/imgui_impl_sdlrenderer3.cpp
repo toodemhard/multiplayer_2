@@ -280,7 +280,7 @@ bool ImGui_ImplSDLRenderer3_CreateFontsTexture()
 
     // Upload texture to graphics system
     // (Bilinear sampling is required by default. Set 'io.Fonts->Flags |= ImFontAtlasFlags_NoBakedLines' or 'style.AntiAliasedLinesUseTex = false' to allow point/nearest sampling)
-    bd->FontTexture = renderer::load_texture(*bd->Renderer, Image{.w = width, .h=height, .data = pixels});
+    bd->FontTexture = renderer::load_texture(*bd->Renderer, {}, Image{.w = width, .h=height, .data = pixels});
     // SDL_CreateTexture(bd->Renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, width, height);
     // if (bd->FontTexture == nullptr)
     // {

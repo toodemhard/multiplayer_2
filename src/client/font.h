@@ -19,13 +19,13 @@
 //
 // void kms();
 struct Font {
-    Texture atlas_texture;
+    TextureID texture_atlas;
     std::vector<stbtt_packedchar> char_data;
     int w, h, baked_font_size;
 };
 
 namespace font {
-    void load_font(Font* font_output, Renderer renderer, const char* ttf_path, int w, int h, int font_size);
+    void load_font(Font* font_output, Renderer& renderer, FontID font_id, int w, int h, int font_size);
     void draw_text(Renderer& renderer, Font& font, const char* text, float font_size, glm::vec2 position, RGBA color=color::white, float max_width = 99999);
     glm::vec2 text_dimensions(Font& font, const char* text, float font_size);
     float text_height(const char* text, float font_size);

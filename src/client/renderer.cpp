@@ -2,6 +2,7 @@
 #include "SDL3/SDL_gpu.h"
 #include "SDL3/SDL_render.h"
 #include "SDL3/SDL_stdinc.h"
+#include "assets.h"
 #include "codegen/shaders.h"
 #include "color.h"
 #include "glm/ext/vector_float2.hpp"
@@ -45,28 +46,6 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
                 .enable_blend = true,
             }
     };
-
-    {
-        auto vertex_shader = load_shader(device, shaders::textured_rect_vert, 0, 2, 0, 0);
-        auto fragment_shader = load_shader(device, shaders::textured_rect_frag, 1, 1, 0, 0);
-
-        auto create_info = SDL_GPUGraphicsPipelineCreateInfo{
-            .vertex_shader = vertex_shader,
-            .fragment_shader = fragment_shader,
-            .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLESTRIP,
-            .target_info =
-                {
-                    .color_target_descriptions = &color_target_description, .num_color_targets = 1,
-                    // .depth_stencil_format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
-                },
-        };
-        // create_info.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
-        renderer->textured_rect_pipeline = SDL_CreateGPUGraphicsPipeline(device, &create_info);
-        renderer->device = device;
-
-        SDL_ReleaseGPUShader(device, vertex_shader);
-        SDL_ReleaseGPUShader(device, fragment_shader);
-    }
 
     // lines pipeline
     {
@@ -113,39 +92,13 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
                 },
         };
         // create_info.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
-        renderer->wire_pipeline = SDL_CreateGPUGraphicsPipeline(device, &create_info);
+        renderer->line_pipeline = SDL_CreateGPUGraphicsPipeline(device, &create_info);
         renderer->device = device;
 
         SDL_ReleaseGPUShader(device, vertex_shader);
         SDL_ReleaseGPUShader(device, fragment_shader);
     }
 
-    // reusable buffers
-    {
-        auto index_buffer_size = (uint32_t)(2 * 1500);
-        auto vertex_buffer_size = (uint32_t)(sizeof(PositionColorVertex) * 1000);
-
-        auto vertex_buffer_create_info = SDL_GPUBufferCreateInfo{
-            .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
-            .size = vertex_buffer_size,
-        };
-
-        renderer->dynamic_vertex_buffer = SDL_CreateGPUBuffer(renderer->device, &vertex_buffer_create_info);
-
-        auto index_buffer_create_info = SDL_GPUBufferCreateInfo{
-            .usage = SDL_GPU_BUFFERUSAGE_INDEX,
-            .size = index_buffer_size,
-        };
-
-        renderer->dynamic_index_buffer = SDL_CreateGPUBuffer(renderer->device, &index_buffer_create_info);
-
-        auto transfer_buffer_create_info = SDL_GPUTransferBufferCreateInfo{
-            .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-            .size = vertex_buffer_size + index_buffer_size,
-        };
-
-        renderer->transfer_buffer = SDL_CreateGPUTransferBuffer(renderer->device, &transfer_buffer_create_info);
-    }
 
     // auto transfer_data = (PositionUvColorVertex*)SDL_MapGPUTransferBuffer(renderer->device, renderer->transfer_buffer, false);
 
@@ -195,14 +148,14 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
         };
 
         // create_info.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
-        renderer->raw_mesh_pipeline = SDL_CreateGPUGraphicsPipeline(device, &pipeline_create_info);
+        renderer->solid_mesh_pipeline = SDL_CreateGPUGraphicsPipeline(device, &pipeline_create_info);
         renderer->device = device;
 
         SDL_ReleaseGPUShader(device, vertex_shader);
         SDL_ReleaseGPUShader(device, fragment_shader);
     }
 
-    // raw mesh textured pipeline
+    // mesh textured pipeline
     {
         auto color_target_description = SDL_GPUColorTargetDescription{
             .format = SDL_GetGPUSwapchainTextureFormat(device, window),
@@ -269,11 +222,38 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
                 },
         };
         // create_info.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
-        renderer->raw_mesh_textured_pipeline = SDL_CreateGPUGraphicsPipeline(device, &pipeline_create_info);
+        renderer->textured_mesh_pipeline = SDL_CreateGPUGraphicsPipeline(device, &pipeline_create_info);
         renderer->device = device;
 
         SDL_ReleaseGPUShader(device, vertex_shader);
         SDL_ReleaseGPUShader(device, fragment_shader);
+    }
+
+    // reusable buffers
+    {
+        auto index_buffer_size = (uint32_t)(2 * 1500);
+        auto vertex_buffer_size = (uint32_t)(sizeof(PositionColorVertex) * 1000);
+
+        auto vertex_buffer_create_info = SDL_GPUBufferCreateInfo{
+            .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
+            .size = vertex_buffer_size,
+        };
+
+        renderer->dynamic_vertex_buffer = SDL_CreateGPUBuffer(renderer->device, &vertex_buffer_create_info);
+
+        auto index_buffer_create_info = SDL_GPUBufferCreateInfo{
+            .usage = SDL_GPU_BUFFERUSAGE_INDEX,
+            .size = index_buffer_size,
+        };
+
+        renderer->dynamic_index_buffer = SDL_CreateGPUBuffer(renderer->device, &index_buffer_create_info);
+
+        auto transfer_buffer_create_info = SDL_GPUTransferBufferCreateInfo{
+            .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+            .size = vertex_buffer_size + index_buffer_size,
+        };
+
+        renderer->transfer_buffer = SDL_CreateGPUTransferBuffer(renderer->device, &transfer_buffer_create_info);
     }
 
     return 0;
@@ -329,68 +309,68 @@ SDL_GPUShader* load_shader(
     return shader;
 }
 
-void draw_wire_rect(Renderer& renderer, const Rect& rect, const RGBA& color) {
-    if (renderer.null_swapchain) {
-        return;
-    }
+// void draw_wire_rect(Renderer& renderer, const Rect& rect, const RGBA& color) {
+//     if (renderer.null_swapchain) {
+//         return;
+//     }
+//
+//     SDL_BindGPUGraphicsPipeline(renderer.render_pass, renderer.line_pipeline);
+//     auto resolution = glm::vec2{renderer.window_width, renderer.window_height};
+//
+//     auto normalized_screen_rect =
+//         Rect{.position = (rect.position + rect.scale / 2.0f) / resolution * 2.0f - 1.0f, .scale = rect.scale / resolution};
+//     normalized_screen_rect.position.y *= -1;
+//
+//     auto color_normalized = glm::vec4(color.r, color.g, color.b, color.a) / 255.0f;
+//
+//     SDL_PushGPUVertexUniformData(renderer.draw_command_buffer, 0, &normalized_screen_rect, sizeof(Rect));
+//     SDL_PushGPUFragmentUniformData(renderer.draw_command_buffer, 0, &color_normalized, sizeof(glm::vec4));
+//
+//     SDL_DrawGPUPrimitives(renderer.render_pass, 5, 1, 0, 0);
+// }
 
-    SDL_BindGPUGraphicsPipeline(renderer.render_pass, renderer.wire_pipeline);
-    auto resolution = glm::vec2{renderer.window_width, renderer.window_height};
-
-    auto normalized_screen_rect =
-        Rect{.position = (rect.position + rect.scale / 2.0f) / resolution * 2.0f - 1.0f, .scale = rect.scale / resolution};
-    normalized_screen_rect.position.y *= -1;
-
-    auto color_normalized = glm::vec4(color.r, color.g, color.b, color.a) / 255.0f;
-
-    SDL_PushGPUVertexUniformData(renderer.draw_command_buffer, 0, &normalized_screen_rect, sizeof(Rect));
-    SDL_PushGPUFragmentUniformData(renderer.draw_command_buffer, 0, &color_normalized, sizeof(glm::vec4));
-
-    SDL_DrawGPUPrimitives(renderer.render_pass, 5, 1, 0, 0);
-}
-
-void draw_textured_rect(
-    Renderer& renderer,
-    const std::optional<Rect>& src_rect,
-    const Rect& dst_rect,
-    const Texture& texture,
-    const RGBA& color_mod
-) {
-    ZoneScoped;
-
-    if (renderer.null_swapchain) {
-        return;
-    }
-
-    SDL_BindGPUGraphicsPipeline(renderer.render_pass, renderer.textured_rect_pipeline);
-
-    auto texture_sampler_binding = SDL_GPUTextureSamplerBinding{.texture = texture.texture, .sampler = texture.sampler};
-    SDL_BindGPUFragmentSamplers(renderer.render_pass, 0, &texture_sampler_binding, 1);
-
-    auto resolution = glm::vec2{renderer.window_width, renderer.window_height};
-
-    auto normalized_screen_rect =
-        Rect{.position = (dst_rect.position + dst_rect.scale / 2.0f) / resolution * 2.0f - 1.0f, .scale = dst_rect.scale / resolution};
-    normalized_screen_rect.position.y *= -1;
-
-    Rect normalized_texture_rect;
-    if (src_rect.has_value()) {
-        normalized_texture_rect = {
-            .position = src_rect->position / glm::vec2{texture.w, texture.h},
-            .scale = src_rect->scale / glm::vec2{texture.w, texture.h},
-        };
-    } else {
-        normalized_texture_rect = Rect{{0, 0}, {1, 1}};
-    }
-
-    auto color_mod_normalized = glm::vec4{color_mod.r, color_mod.g, color_mod.b, color_mod.a} / 255.0f;
-
-    SDL_PushGPUVertexUniformData(renderer.draw_command_buffer, 0, &normalized_screen_rect, sizeof(Rect));
-    SDL_PushGPUVertexUniformData(renderer.draw_command_buffer, 1, &normalized_texture_rect, sizeof(Rect));
-    SDL_PushGPUFragmentUniformData(renderer.draw_command_buffer, 0, &color_mod_normalized, sizeof(glm::vec4));
-
-    SDL_DrawGPUPrimitives(renderer.render_pass, 4, 1, 0, 0);
-}
+// void draw_textured_rect(
+//     Renderer& renderer,
+//     const std::optional<Rect>& src_rect,
+//     const Rect& dst_rect,
+//     const Texture& texture,
+//     const RGBA& color_mod
+// ) {
+//     ZoneScoped;
+//
+//     if (renderer.null_swapchain) {
+//         return;
+//     }
+//
+//     SDL_BindGPUGraphicsPipeline(renderer.render_pass, renderer.textured_rect_pipeline);
+//
+//     auto texture_sampler_binding = SDL_GPUTextureSamplerBinding{.texture = texture.texture, .sampler = texture.sampler};
+//     SDL_BindGPUFragmentSamplers(renderer.render_pass, 0, &texture_sampler_binding, 1);
+//
+//     auto resolution = glm::vec2{renderer.window_width, renderer.window_height};
+//
+//     auto normalized_screen_rect =
+//         Rect{.position = (dst_rect.position + dst_rect.scale / 2.0f) / resolution * 2.0f - 1.0f, .scale = dst_rect.scale / resolution};
+//     normalized_screen_rect.position.y *= -1;
+//
+//     Rect normalized_texture_rect;
+//     if (src_rect.has_value()) {
+//         normalized_texture_rect = {
+//             .position = src_rect->position / glm::vec2{texture.w, texture.h},
+//             .scale = src_rect->scale / glm::vec2{texture.w, texture.h},
+//         };
+//     } else {
+//         normalized_texture_rect = Rect{{0, 0}, {1, 1}};
+//     }
+//
+//     auto color_mod_normalized = glm::vec4{color_mod.r, color_mod.g, color_mod.b, color_mod.a} / 255.0f;
+//
+//     SDL_PushGPUVertexUniformData(renderer.draw_command_buffer, 0, &normalized_screen_rect, sizeof(Rect));
+//     SDL_PushGPUVertexUniformData(renderer.draw_command_buffer, 1, &normalized_texture_rect, sizeof(Rect));
+//     SDL_PushGPUFragmentUniformData(renderer.draw_command_buffer, 0, &color_mod_normalized, sizeof(glm::vec4));
+//
+//     SDL_DrawGPUPrimitives(renderer.render_pass, 4, 1, 0, 0);
+// }
 
 glm::vec2 world_to_normalized(Camera2D camera, glm::vec2 world_pos) {
     return ((world_pos - camera.position) / camera.scale * 2.0f);
@@ -403,48 +383,48 @@ Rect world_rect_to_normalized(Camera2D camera, Rect world_rect) {
     };
 }
 
-void draw_world_textured_rect(
-    Renderer& renderer,
-    const Camera2D& camera,
-    const std::optional<Rect>& src_rect,
-    const Rect& world_rect,
-    const Texture& texture,
-    const RGBA& color_mod
-) {
-    ZoneScoped;
-
-    if (renderer.null_swapchain) {
-        return;
-    }
-
-    SDL_BindGPUGraphicsPipeline(renderer.render_pass, renderer.textured_rect_pipeline);
-
-    auto texture_sampler_binding = SDL_GPUTextureSamplerBinding{.texture = texture.texture, .sampler = texture.sampler};
-    SDL_BindGPUFragmentSamplers(renderer.render_pass, 0, &texture_sampler_binding, 1);
-
-    auto normalized_screen_rect = Rect{
-        (world_rect.position - camera.position) / camera.scale * 2.0f,
-        world_rect.scale / camera.scale,
-    };
-
-    Rect normalized_texture_rect;
-    if (src_rect.has_value()) {
-        normalized_texture_rect = {
-            .position = src_rect->position / glm::vec2{texture.w, texture.h},
-            .scale = src_rect->scale / glm::vec2{texture.w, texture.h},
-        };
-    } else {
-        normalized_texture_rect = Rect{{0, 0}, {1, 1}};
-    }
-
-    auto color_mod_normalized = glm::vec4{color_mod.r, color_mod.g, color_mod.b, color_mod.a} / 255.0f;
-
-    SDL_PushGPUVertexUniformData(renderer.draw_command_buffer, 0, &normalized_screen_rect, sizeof(Rect));
-    SDL_PushGPUVertexUniformData(renderer.draw_command_buffer, 1, &normalized_texture_rect, sizeof(Rect));
-    SDL_PushGPUFragmentUniformData(renderer.draw_command_buffer, 0, &color_mod_normalized, sizeof(glm::vec4));
-
-    SDL_DrawGPUPrimitives(renderer.render_pass, 4, 1, 0, 0);
-}
+// void draw_world_textured_rect(
+//     Renderer& renderer,
+//     const Camera2D& camera,
+//     const std::optional<Rect>& src_rect,
+//     const Rect& world_rect,
+//     const Texture& texture,
+//     const RGBA& color_mod
+// ) {
+//     ZoneScoped;
+//
+//     if (renderer.null_swapchain) {
+//         return;
+//     }
+//
+//     SDL_BindGPUGraphicsPipeline(renderer.render_pass, renderer.textured_rect_pipeline);
+//
+//     auto texture_sampler_binding = SDL_GPUTextureSamplerBinding{.texture = texture.texture, .sampler = texture.sampler};
+//     SDL_BindGPUFragmentSamplers(renderer.render_pass, 0, &texture_sampler_binding, 1);
+//
+//     auto normalized_screen_rect = Rect{
+//         (world_rect.position - camera.position) / camera.scale * 2.0f,
+//         world_rect.scale / camera.scale,
+//     };
+//
+//     Rect normalized_texture_rect;
+//     if (src_rect.has_value()) {
+//         normalized_texture_rect = {
+//             .position = src_rect->position / glm::vec2{texture.w, texture.h},
+//             .scale = src_rect->scale / glm::vec2{texture.w, texture.h},
+//         };
+//     } else {
+//         normalized_texture_rect = Rect{{0, 0}, {1, 1}};
+//     }
+//
+//     auto color_mod_normalized = glm::vec4{color_mod.r, color_mod.g, color_mod.b, color_mod.a} / 255.0f;
+//
+//     SDL_PushGPUVertexUniformData(renderer.draw_command_buffer, 0, &normalized_screen_rect, sizeof(Rect));
+//     SDL_PushGPUVertexUniformData(renderer.draw_command_buffer, 1, &normalized_texture_rect, sizeof(Rect));
+//     SDL_PushGPUFragmentUniformData(renderer.draw_command_buffer, 0, &color_mod_normalized, sizeof(glm::vec4));
+//
+//     SDL_DrawGPUPrimitives(renderer.render_pass, 4, 1, 0, 0);
+// }
 
 void begin_rendering(Renderer& renderer, SDL_Window* window) {
     renderer.draw_command_buffer = SDL_AcquireGPUCommandBuffer(renderer.device);
@@ -472,13 +452,18 @@ void begin_rendering(Renderer& renderer, SDL_Window* window) {
 
     renderer.line_vertices.clear();
     renderer.line_indices.clear();
+
+    for (int i = 0; i < (int)TextureID::texture_count; i++) {
+        renderer.texture_draws[i].verts.clear();
+        renderer.texture_draws[i].indices.clear();
+    }
 }
 
 void* pointer_offset_bytes(void* ptr, int bytes) {
     return (uint8_t*)ptr + bytes;
 }
 
-struct PipelineResources {
+struct DrawResources {
     uint32_t vertex_data_size;
     uint32_t index_data_size;
 
@@ -501,15 +486,22 @@ void end_rendering(Renderer& renderer) {
 
     bool do_mesh_pipeline = renderer.mesh_vertices.size() > 0;
     bool do_line_pipeline = renderer.line_vertices.size() > 0;
+    bool do_texture[(int)TextureID::texture_count]{};
 
-    PipelineResources mesh_pipeline{};
-    PipelineResources line_pipeline{};
+    for (int i = 0; i < (int)TextureID::texture_count; i++) {
+        if (renderer.texture_draws[i].verts.size() > 0) {
+            do_texture[i] = true;
+        }
+    }
 
+    DrawResources mesh_pipeline{};
+    DrawResources line_pipeline{};
+    DrawResources texture_draws[(int)TextureID::texture_count]{};
 
     uint32_t vertex_buffer_offset = 0;
     uint32_t index_buffer_offset = 0;
 
-    // mesh data map
+    // map mesh data
     if (do_mesh_pipeline) {
         mesh_pipeline.vertex_buffer_offset = vertex_buffer_offset;
         mesh_pipeline.vertex_data_size = (uint32_t)(renderer.mesh_vertices.size() * sizeof(PositionColorVertex));
@@ -517,17 +509,17 @@ void end_rendering(Renderer& renderer) {
 
         mesh_pipeline.index_buffer_offset = index_buffer_offset;
         mesh_pipeline.index_data_size = (uint32_t)(renderer.mesh_indices.size() * sizeof(uint16_t));
-        index_buffer_offset += vertex_buffer_offset;
+        index_buffer_offset += mesh_pipeline.index_data_size;
 
         copy_to_transfer(&transfer_ptr, renderer.mesh_vertices.data(), mesh_pipeline.vertex_data_size);
         copy_to_transfer(&transfer_ptr, renderer.mesh_indices.data(), mesh_pipeline.index_data_size);
     }
 
-    // line data map
+    // map line data
     if (do_line_pipeline) {
         line_pipeline.vertex_buffer_offset = vertex_buffer_offset;
         line_pipeline.vertex_data_size = (uint32_t)(renderer.line_vertices.size() * sizeof(decltype(renderer.line_vertices)::value_type));
-        vertex_buffer_offset += line_pipeline.vertex_buffer_offset;
+        vertex_buffer_offset += line_pipeline.vertex_data_size;
 
         line_pipeline.index_buffer_offset = index_buffer_offset;
         line_pipeline.index_data_size = (uint32_t)(renderer.line_indices.size() * sizeof(uint16_t));
@@ -537,51 +529,82 @@ void end_rendering(Renderer& renderer) {
         copy_to_transfer(&transfer_ptr, renderer.line_indices.data(), line_pipeline.index_data_size);
     }
 
+    // map texture draw data
+    for (int i = 0; i < (int)TextureID::texture_count; i++) {
+        if (do_texture[i]) {
+            auto& draw_info = texture_draws[i];
+            auto& draw_data = renderer.texture_draws[i];
+            draw_info.vertex_buffer_offset = vertex_buffer_offset;
+            draw_info.vertex_data_size = draw_data.verts.size() * sizeof(decltype(draw_data.verts)::value_type);
+            vertex_buffer_offset += draw_info.vertex_data_size;
+
+            draw_info.index_buffer_offset = index_buffer_offset;
+            draw_info.index_data_size = draw_data.indices.size() * sizeof(uint16_t);
+            index_buffer_offset += draw_info.index_data_size;
+
+            copy_to_transfer(&transfer_ptr, draw_data.verts.data(), draw_info.vertex_data_size);
+            copy_to_transfer(&transfer_ptr, draw_data.indices.data(), draw_info.index_data_size);
+        }
+    }
+
     SDL_UnmapGPUTransferBuffer(renderer.device, renderer.transfer_buffer);
 
     auto upload_command_buffer = SDL_AcquireGPUCommandBuffer(renderer.device);
     auto copy_pass = SDL_BeginGPUCopyPass(upload_command_buffer);
 
-    uint32_t transfer_buffer_offset = 0;
-    auto upload_to_buffer =
-        [&renderer, &transfer_buffer_offset, &copy_pass](SDL_GPUBuffer* buffer, uint32_t offset, uint32_t size, bool cycle) {
-            auto transfer_buffer_location = SDL_GPUTransferBufferLocation{
-                .transfer_buffer = renderer.transfer_buffer,
-                .offset = transfer_buffer_offset,
+    //upload to buffers
+    {
+        uint32_t transfer_buffer_offset = 0;
+        auto upload_to_buffer =
+            [&renderer, &transfer_buffer_offset, &copy_pass](SDL_GPUBuffer* buffer, uint32_t offset, uint32_t size, bool cycle) {
+                auto transfer_buffer_location = SDL_GPUTransferBufferLocation{
+                    .transfer_buffer = renderer.transfer_buffer,
+                    .offset = transfer_buffer_offset,
+                };
+                transfer_buffer_offset += size;
+
+                auto gpu_buffer_region = SDL_GPUBufferRegion{
+                    .buffer = buffer,
+                        .offset = offset,
+                        .size = size,
+                };
+
+                SDL_UploadToGPUBuffer(copy_pass, &transfer_buffer_location, &gpu_buffer_region, cycle);
             };
-            transfer_buffer_offset += size;
-
-            auto gpu_buffer_region = SDL_GPUBufferRegion{
-                .buffer = buffer,
-                .offset = offset,
-                .size = size,
-            };
-
-            SDL_UploadToGPUBuffer(copy_pass, &transfer_buffer_location, &gpu_buffer_region, cycle);
-        };
 
 
-    bool cycle = true;
-    if (do_mesh_pipeline) {
-        upload_to_buffer(renderer.dynamic_vertex_buffer, mesh_pipeline.vertex_buffer_offset, mesh_pipeline.vertex_data_size, cycle);
-        upload_to_buffer(renderer.dynamic_index_buffer, mesh_pipeline.index_buffer_offset, mesh_pipeline.index_data_size, cycle);
+        bool cycle = true;
+        if (do_mesh_pipeline) {
+            upload_to_buffer(renderer.dynamic_vertex_buffer, mesh_pipeline.vertex_buffer_offset, mesh_pipeline.vertex_data_size, cycle);
+            upload_to_buffer(renderer.dynamic_index_buffer, mesh_pipeline.index_buffer_offset, mesh_pipeline.index_data_size, cycle);
 
-        cycle = false;
-    }
+            cycle = false;
+        }
 
-    if (do_line_pipeline) {
-        upload_to_buffer(renderer.dynamic_vertex_buffer, line_pipeline.vertex_buffer_offset, line_pipeline.vertex_data_size, cycle);
-        upload_to_buffer(renderer.dynamic_index_buffer, line_pipeline.index_buffer_offset, line_pipeline.index_data_size, cycle);
+        if (do_line_pipeline) {
+            upload_to_buffer(renderer.dynamic_vertex_buffer, line_pipeline.vertex_buffer_offset, line_pipeline.vertex_data_size, cycle);
+            upload_to_buffer(renderer.dynamic_index_buffer, line_pipeline.index_buffer_offset, line_pipeline.index_data_size, cycle);
 
-        cycle = false;
+            cycle = false;
+        }
+
+        for (int i = 0; i < (int)TextureID::texture_count; i++) {
+            if (do_texture[i]) {
+                const auto& draw_info = texture_draws[i];
+                upload_to_buffer(renderer.dynamic_vertex_buffer, draw_info.vertex_buffer_offset, draw_info.vertex_data_size, cycle);
+                upload_to_buffer(renderer.dynamic_index_buffer, draw_info.index_buffer_offset, draw_info.index_data_size, cycle);
+
+                cycle = false;
+            }
+        }
     }
 
     SDL_EndGPUCopyPass(copy_pass);
     SDL_SubmitGPUCommandBuffer(upload_command_buffer);
 
     // draw mesh pipeline
-    if (do_line_pipeline) {
-        SDL_BindGPUGraphicsPipeline(renderer.render_pass, renderer.raw_mesh_pipeline);
+    if (do_mesh_pipeline) {
+        SDL_BindGPUGraphicsPipeline(renderer.render_pass, renderer.solid_mesh_pipeline);
 
         auto buffer_binding = SDL_GPUBufferBinding{
             .buffer = renderer.dynamic_vertex_buffer,
@@ -603,7 +626,7 @@ void end_rendering(Renderer& renderer) {
 
     // draw line pipeline
     if (do_line_pipeline) {
-        SDL_BindGPUGraphicsPipeline(renderer.render_pass, renderer.wire_pipeline);
+        SDL_BindGPUGraphicsPipeline(renderer.render_pass, renderer.line_pipeline);
 
         auto buffer_binding = SDL_GPUBufferBinding{
             .buffer = renderer.dynamic_vertex_buffer,
@@ -623,11 +646,49 @@ void end_rendering(Renderer& renderer) {
         SDL_DrawGPUIndexedPrimitives(renderer.render_pass, renderer.line_indices.size(), 1, 0, 0, 0);
     }
 
+    SDL_BindGPUGraphicsPipeline(renderer.render_pass, renderer.textured_mesh_pipeline);
+    for (int i = 0; i < (int)TextureID::texture_count; i++) {
+        if (!do_texture[i]) {
+            continue;
+        }
+
+        auto& draw_info = texture_draws[i];
+        auto& draw_data = renderer.texture_draws[i];
+
+        auto buffer_binding = SDL_GPUBufferBinding{
+            .buffer = renderer.dynamic_vertex_buffer,
+            .offset = draw_info.vertex_buffer_offset,
+        };
+        SDL_BindGPUVertexBuffers(renderer.render_pass, 0, &buffer_binding, 1);
+
+        buffer_binding = SDL_GPUBufferBinding{
+            .buffer = renderer.dynamic_index_buffer,
+            .offset = draw_info.index_buffer_offset,
+        };
+
+        auto index_element_size = SDL_GPU_INDEXELEMENTSIZE_16BIT;
+
+        SDL_BindGPUIndexBuffer(renderer.render_pass, &buffer_binding, index_element_size);
+
+        auto& texture = renderer.textures[i];
+        auto sampler_binding = SDL_GPUTextureSamplerBinding{.texture=texture.texture, .sampler=texture.sampler};
+        SDL_BindGPUFragmentSamplers(renderer.render_pass, 0, &sampler_binding, 1);
+
+        SDL_DrawGPUIndexedPrimitives(renderer.render_pass, draw_data.indices.size(), 1, 0, 0, 0);
+    }
+
     SDL_EndGPURenderPass(renderer.render_pass);
     SDL_SubmitGPUCommandBuffer(renderer.draw_command_buffer);
 }
 
-Texture load_texture(Renderer& renderer, const Image& image) {
+// very retarded api
+// renderer can store texture refs for known stuff
+// other stuff user has to keep it
+// texture id only for renderer managed texture
+// renderer needs to know about textures for bucketing draw calls
+Texture load_texture(Renderer& renderer, std::optional<TextureID> texture_id, const Image& image) {
+    ZoneScoped;
+
     const int comp = 4;
 
     auto texture_create_info = SDL_GPUTextureCreateInfo{
@@ -683,7 +744,11 @@ Texture load_texture(Renderer& renderer, const Image& image) {
     SDL_SubmitGPUCommandBuffer(upload_command_buffer);
     SDL_ReleaseGPUTransferBuffer(renderer.device, texture_transfer_buffer);
 
-    return Texture{.texture = texture, .sampler = sampler, .w = image.w, .h = image.h};
+    auto texture_ref = Texture{.texture = texture, .sampler = sampler, .w = image.w, .h = image.h};
+    if (texture_id.has_value()) {
+        renderer.textures[(int)texture_id.value()] = texture_ref;
+    }
+    return texture_ref;
 }
 
 void draw_lines(Renderer& renderer, glm::vec2* vertices, int vert_count, RGBA color) {
@@ -825,6 +890,61 @@ void draw_screen_rect(Renderer& renderer, Rect rect, RGBA rgba) {
     draw_rect(renderer, screen_rect_to_normalized(rect, resolution), rgba);
 }
 
+
+void draw_world_textured_rect(Renderer& renderer, Camera2D camera, TextureID texture_id, std::optional<Rect> src_rect, Rect world_rect, RGBA rgba) {
+    auto rect = renderer::world_rect_to_normalized(camera, world_rect);
+    draw_textured_rect(renderer, texture_id, src_rect, rect, rgba);
+}
+
+void draw_textured_rect(Renderer& renderer, TextureID texture_id, std::optional<Rect> src_rect, Rect normalized_rect, RGBA rgba) {
+    auto& texture = renderer.textures[(int)texture_id];
+
+    auto normalized_texture_rect = Rect{{0,0}, {1,1}};
+    if (src_rect.has_value()) {
+        normalized_texture_rect = {
+            .position = src_rect->position / glm::vec2{texture.w, texture.h},
+            .scale = src_rect->scale / glm::vec2{texture.w, texture.h},
+        };
+    }
+
+    PositionUvColorVertex vertices[4] = {
+        {{0.0, 0.0}, {0,1}},
+        {{1.0, 0.0}, {1,1}},
+        {{0.0, 1.0}, {0,0}},
+        {{1.0, 1.0}, {1,0}},
+    };
+
+    uint16_t indices[6]{
+        0,
+        1,
+        2,
+        2,
+        1,
+        3,
+    };
+
+    for (int i = 0; i < 6; i++) {
+        indices[i] += renderer.mesh_vertices.size();
+    }
+
+    auto resolution = glm::vec2{renderer.window_width, renderer.window_height};
+    // normalized_screen_rect.position.y *= -1;
+
+    for (int i = 0; i < 4; i++) {
+        auto& vert_pos = vertices[i].position;
+        vert_pos = vert_pos * normalized_rect.scale + normalized_rect.position;
+
+        auto& vert_uv = vertices[i].uv;
+        vert_uv = vert_uv * normalized_texture_rect.scale + normalized_texture_rect.position;
+        // vert_uv.y *= -1;
+        vertices[i].color = rgba;
+    }
+
+    auto& draw_data = renderer.texture_draws[(int)texture_id];
+    draw_data.verts.insert(draw_data.verts.end(), vertices, vertices + 4);
+    draw_data.indices.insert(draw_data.indices.end(), indices, indices + 6);
+}
+
 // void render_geometry(Renderer& renderer, const Texture& texture, const PositionColorVertex* vertices, int num_vertices, const void*
 // indices, int num_indices, int index_size) {
 //     if (renderer.null_swapchain) {
@@ -930,7 +1050,7 @@ void render_geometry_textured(
     SDL_SubmitGPUCommandBuffer(upload_command_buffer);
     SDL_ReleaseGPUTransferBuffer(renderer.device, transfer_buffer);
 
-    SDL_BindGPUGraphicsPipeline(renderer.render_pass, renderer.raw_mesh_textured_pipeline);
+    SDL_BindGPUGraphicsPipeline(renderer.render_pass, renderer.textured_mesh_pipeline);
 
     auto texture_sampler_binding = SDL_GPUTextureSamplerBinding{.texture = texture.texture, .sampler = texture.sampler};
     SDL_BindGPUFragmentSamplers(renderer.render_pass, 0, &texture_sampler_binding, 1);
@@ -959,6 +1079,7 @@ void render_geometry_textured(
     SDL_ReleaseGPUBuffer(renderer.device, index_buffer);
 }
 
+//
 // SDL_RenderGeometryRaw(SDL_Renderer *renderer, SDL_Texture *texture, const float *xy, int xy_stride, const SDL_FColor *color, int
 // color_stride, const float *uv, int uv_stride, int num_vertices, const void *indices, int num_indices, int size_indices) return
 // SDL_RenderGeometryRaw(renderer, texture, xy, xy_stride, color3, sizeof(*color3), uv, uv_stride, num_vertices, indices, num_indices,

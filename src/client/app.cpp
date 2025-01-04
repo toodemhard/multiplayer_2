@@ -51,19 +51,21 @@ const Camera2D default_camera{
 };
 
 
-void render_state(Renderer& renderer, SDL_Window* window, Texture textures[(int)ImageID::count], State& state, int current_tick, Camera2D camera) {
+void render_state(Renderer& renderer, SDL_Window* window, State& state, int current_tick, Camera2D camera) {
     using namespace renderer;
 
-    auto& char_sheet = textures[(int)ImageID::char_sheet_png];
-    auto& bullet_texture = textures[(int)ImageID::bullet_png];
+    // auto& char_sheet = textures[(int)ImageID::char_sheet_png];
+    // auto& bullet_texture = textures[(int)ImageID::bullet_png];
 
     int idle_frame = current_tick % idle_cycle_period_ticks / idle_period_ticks;
+
 
     for (int i = 0; i < max_player_count; i++) {
         if (state.players_active[i]) {
             auto& player = state.players[i];
+            auto player_pos = b2vec_to_glmvec(b2Body_GetPosition(player.body_id));
             // draw_world_textured_rect(renderer, camera, {}, {state.players.position[i], {1, 1}}, amogus_texture);
-            draw_world_textured_rect(renderer, camera, Rect{{16 * idle_frame + 2,0}, {16,16}}, {player.position, {1, 1}}, char_sheet);
+            draw_world_textured_rect(renderer, camera, TextureID::char_sheet_png, Rect{{16 * idle_frame + 2,0}, {16,16}}, {player_pos, {1, 1}});
         }
     }
 
@@ -74,7 +76,7 @@ void render_state(Renderer& renderer, SDL_Window* window, Texture textures[(int)
         }
         auto& bullet = state.bullets[i];
 
-        draw_world_textured_rect(renderer, camera, {}, {{bullet.position}, {0.5, 0.5}}, bullet_texture);
+        draw_world_textured_rect(renderer, camera, TextureID::bullet_png, {}, {{bullet.position}, {0.5, 0.5}});
     }
 
     // {
@@ -127,6 +129,7 @@ PlayerInput input_state(Input::Input& input, const Camera2D& camera) {
 
     player_input.cursor_world_pos = screen_to_world_pos(camera, input.mouse_pos, window_width, window_height);
 
+
     return player_input;
 }
 
@@ -176,10 +179,12 @@ public:
     LocalScene(Input::Input& input, Renderer* renderer) : m_input(input) {
         renderer->active_camera = &m_camera;
 
-        m_state.players_active[0] = true;
+        init_state(m_state);
+        create_player(m_state);
+        // m_state.players_active[0] = true;
+
         m_tick_input.init_keybinds(Input::default_keybindings);
 
-        init_state(m_state);
 
         m_debug_draw = b2DefaultDebugDraw();
         m_debug_draw.context = renderer;
@@ -227,9 +232,10 @@ public:
             update_state(m_state, inputs, time, fixed_dt);
 
 
-            m_camera.position = m_state.players[0].position;
+            auto player_pos = b2vec_to_glmvec(b2Body_GetPosition(m_state.players[0].body_id));
+            m_camera.position = player_pos;
             // auto pos = b2Body_GetPosition(m_state.body_id);
-            // std::cout << std::format("{} {}\n", pos.x, pos.y);
+            std::cout << std::format("{} {}\n", player_pos.x, player_pos.y);
 
 
             // accumulator += fixed_dt * throttle_ticks;
@@ -242,9 +248,12 @@ public:
 
 
 
-    void render(Renderer& renderer, SDL_Window* window, Texture textures[(int)ImageID::count]) {
-        render_state(renderer, window, textures, m_state, current_tick, m_camera);
+    void render(Renderer& renderer, SDL_Window* window) {
+        render_state(renderer, window, m_state, current_tick, m_camera);
         renderer::draw_world_rect(renderer, m_camera, {{-3.5, 0}, {1,1}}, color::red);
+
+        auto rect = renderer::world_rect_to_normalized(m_camera, {{1,1}, {1,1}});
+        renderer::draw_textured_rect(renderer, TextureID::amogus_png, rect, {});
 
         b2World_Draw(m_state.world_id, &m_debug_draw);
     }
@@ -341,10 +350,11 @@ public:
         }
 
         m_client.update();
+
     }
 
-    void render(Renderer& renderer, SDL_Window* window, Texture textures[(int)ImageID::count]) {
-        render_state(renderer, window, textures, m_client.m_state, current_tick, m_camera);
+    void render(Renderer& renderer, SDL_Window* window) {
+        render_state(renderer, window, m_client.m_state, current_tick, m_camera);
 
         // renderer::draw_screen_rect(Renderer &renderer, Rect rect, RGBA rgba)
 
@@ -373,21 +383,21 @@ int run() {
         return 1;
     }
 
-    Texture textures[(int)ImageID::count];
-    std::future<void> texture_futures[(int)ImageID::count];
+    // Texture textures[(int)ImageID::image_count];
+    std::future<void> texture_futures[(int)ImageID::image_count];
 
-    auto image_to_texture = [](Renderer& renderer, Texture textures[], ImageID id) {
+    auto image_to_texture = [](Renderer& renderer, ImageID image_id) {
         int width, height, comp;
-        unsigned char* image = stbi_load(image_paths[(int)id], &width, &height, &comp, STBI_rgb_alpha);
-        textures[(int)id] = load_texture(renderer, Image{.w = width, .h = height, .data = image});
+        unsigned char* image = stbi_load(image_paths[(int)image_id], &width, &height, &comp, STBI_rgb_alpha);
+        renderer::load_texture(renderer, image_id_to_texture_id(image_id), Image{.w = width, .h = height, .data = image});
     };
 
-    for (int i = 0; i < (int)ImageID::count; i++) {
-        texture_futures[i] = std::async(std::launch::async, image_to_texture, std::ref(renderer), textures, (ImageID)i);
+    for (int i = 0; i < (int)ImageID::image_count; i++) {
+        texture_futures[i] = std::async(std::launch::async, image_to_texture, std::ref(renderer), (ImageID)i);
     }
 
     Font font;
-    auto font_future =  std::async(std::launch::async, font::load_font, &font, std::ref(renderer), font_paths[(int)FontID::Avenir_LT_Std_95_Black_ttf], 512, 512, 64);
+    auto font_future =  std::async(std::launch::async, font::load_font, &font, std::ref(renderer), FontID::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
 
     Input::Input input;
     input.init_keybinds(Input::default_keybindings);
@@ -400,7 +410,7 @@ int run() {
     InitializeYojimbo();
 
 
-    for (int i = 0; i < (int)ImageID::count; i++) {
+    for (int i = 0; i < (int)ImageID::image_count; i++) {
         texture_futures[i].wait();
     }
     font_future.wait();
@@ -490,7 +500,7 @@ int run() {
         // update
         {
             // multi_scene.update(delta_time);
-            local_scene.update(delta_time);
+            // local_scene.update(delta_time);
         }
 
         // render
@@ -498,21 +508,29 @@ int run() {
             auto render_begin_time = std::chrono::high_resolution_clock::now();
             begin_rendering(renderer, window);
             // multi_scene.render(renderer, window, textures);
-            local_scene.render(renderer, window, textures);
-
-            auto string = std::format("render: {:.3f}ms", last_render_duration * 1000.0);
-            font::draw_text(renderer, font, string.data(), 24, {20, 30});
-
+            // local_scene.render(renderer, window);
+            //
+            // auto string = std::format("render: {:.3f}ms", last_render_duration * 1000.0);
+            // font::draw_text(renderer, font, string.data(), 24, {20, 30});
+            //
             glm::vec2 stuff[] = {
                 {0,0},
                 {0.5,0.5},
                 {0.5,-0.5},
                 {0.0,-0.5},
             };
-
-            renderer::draw_screen_rect(renderer, {.position={0,0}, .scale={100,100}}, color::red);
+            Camera2D camera = Camera2D{
+                .position = {0,0},
+                .scale = {4,3},
+            };
+            //
+            // renderer::draw_screen_rect(renderer, {.position={0,0}, .scale={100,100}}, color::red);
             renderer::draw_lines(renderer, stuff, 4, color::red);
+            renderer::draw_screen_rect(renderer, {{200,200}, {600, 100}}, color::red);
+            // renderer::draw_world_textured_rect(renderer, camera, TextureID::pot_jpg, {}, {{1,0},{1,1}});
+            // renderer::draw_world_rect(renderer, camera, {{0,0}, {1,1}}, color::red);
             end_rendering(renderer);
+            // std::cout << "faksldhf\n";
 
             last_render_duration = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - render_begin_time).count();
         }

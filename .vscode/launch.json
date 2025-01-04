@@ -24,5 +24,15 @@
             "cwd": "${workspaceFolder}/build/debug",
             "visualizerFile": "${workspaceFolder}/lib/EASTL/doc/EASTL.natvis"
         }
+        {
+            "type": "cppvsdbg",
+            "request": "launch",
+            "name": "release-client",
+            "program": "${workspaceFolder}/build/release/client.exe",
+            "console": "integratedTerminal",
+            "args": [],
+            "cwd": "${workspaceFolder}/build/release",
+            "visualizerFile": "${workspaceFolder}/lib/EASTL/doc/EASTL.natvis"
+        },
     ]
 }

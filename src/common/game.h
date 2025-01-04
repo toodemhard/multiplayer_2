@@ -23,8 +23,10 @@ struct PlayerInput {
 constexpr int max_player_count = 8;
 struct Player {
     int health = 3;
-    glm::vec2 position;
+    // glm::vec2 position;
     PlayerAnimationState anim_state;
+
+    b2BodyId body_id;
     // eastl::fixed_vector<int, max_player_count> free_list;
 };
 
@@ -52,13 +54,16 @@ struct State {
 
     b2WorldId world_id;
     b2BodyId ground_id;
-    b2BodyId body_id;
+    // b2BodyId body_id;
 };
+
+glm::vec2 b2vec_to_glmvec(b2Vec2 vec);
 
 void init_state(State& state);
 
 void update_state(State& state, PlayerInput inputs[max_player_count], double time, double dt);
 
-void create_player(State& state);
+using PlayerID = int;
+PlayerID create_player(State& state);
 
 void remove_player(State& state, int player_index);
