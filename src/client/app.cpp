@@ -526,9 +526,10 @@ int run() {
             //
             // renderer::draw_screen_rect(renderer, {.position={0,0}, .scale={100,100}}, color::red);
             renderer::draw_lines(renderer, stuff, 4, color::red);
-            renderer::draw_screen_rect(renderer, {{200,200}, {600, 100}}, color::red);
-            // renderer::draw_world_textured_rect(renderer, camera, TextureID::pot_jpg, {}, {{1,0},{1,1}});
-            // renderer::draw_world_rect(renderer, camera, {{0,0}, {1,1}}, color::red);
+            // renderer::draw_screen_rect(renderer, {{200,200}, {600, 100}}, color::red);
+            renderer::draw_world_textured_rect(renderer, camera, TextureID::pot_jpg, {}, {{1,0},{1,1}});
+            renderer::draw_world_rect(renderer, camera, {{0,0}, {1,1}}, color::red);
+            renderer::draw_world_rect(renderer, camera, {{1,0}, {2,2}}, RGBA{255,255,0,255});
             end_rendering(renderer);
             // std::cout << "faksldhf\n";
 

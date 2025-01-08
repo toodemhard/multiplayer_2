@@ -5,6 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "logging": {"moduleLoad": true},
             "type": "cppvsdbg",
             "request": "launch",
             "name": "debug-client",
@@ -12,7 +13,8 @@
             "console": "integratedTerminal",
             "args": [],
             "cwd": "${workspaceFolder}/build/debug",
-            "visualizerFile": "${workspaceFolder}/lib/EASTL/doc/EASTL.natvis"
+            "visualizerFile": "${workspaceFolder}/lib/EASTL/doc/EASTL.natvis",
+            "requireExactSource": true,
         },
         {
             "type": "cppvsdbg",
@@ -23,7 +25,7 @@
             "args": [],
             "cwd": "${workspaceFolder}/build/debug",
             "visualizerFile": "${workspaceFolder}/lib/EASTL/doc/EASTL.natvis"
-        }
+        },
         {
             "type": "cppvsdbg",
             "request": "launch",
