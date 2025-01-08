@@ -1,4 +1,5 @@
 #include "renderer.h"
+#include "SDL3/SDL_error.h"
 #include "SDL3/SDL_gpu.h"
 #include "SDL3/SDL_render.h"
 #include "SDL3/SDL_stdinc.h"
@@ -6,6 +7,7 @@
 #include "codegen/shaders.h"
 #include "color.h"
 #include "glm/ext/vector_float2.hpp"
+#include "panic.h"
 #include <cstdint>
 #include <cstring>
 #include <format>
@@ -25,6 +27,7 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
         SDL_Log("CreateGPUDevice failed");
         return 1;
     }
+    renderer->device = device;
 
     if (!SDL_ClaimWindowForGPUDevice(device, window)) {
         SDL_Log("ClaimWindow failed");
@@ -93,7 +96,6 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
         };
         // create_info.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
         renderer->line_pipeline = SDL_CreateGPUGraphicsPipeline(device, &create_info);
-        renderer->device = device;
 
         SDL_ReleaseGPUShader(device, vertex_shader);
         SDL_ReleaseGPUShader(device, fragment_shader);
@@ -149,7 +151,9 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
 
         // create_info.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
         renderer->solid_mesh_pipeline = SDL_CreateGPUGraphicsPipeline(device, &pipeline_create_info);
-        renderer->device = device;
+        if (renderer->solid_mesh_pipeline == NULL) {
+            panic("{}", SDL_GetError());
+        }
 
         SDL_ReleaseGPUShader(device, vertex_shader);
         SDL_ReleaseGPUShader(device, fragment_shader);
@@ -223,7 +227,6 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
         };
         // create_info.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
         renderer->textured_mesh_pipeline = SDL_CreateGPUGraphicsPipeline(device, &pipeline_create_info);
-        renderer->device = device;
 
         SDL_ReleaseGPUShader(device, vertex_shader);
         SDL_ReleaseGPUShader(device, fragment_shader);
@@ -523,7 +526,7 @@ void end_rendering(Renderer& renderer) {
 
         line_pipeline.index_buffer_offset = index_buffer_offset;
         line_pipeline.index_data_size = (uint32_t)(renderer.line_indices.size() * sizeof(uint16_t));
-        index_buffer_offset += line_pipeline.index_buffer_offset;
+        index_buffer_offset += line_pipeline.index_data_size;
 
         copy_to_transfer(&transfer_ptr, renderer.line_vertices.data(), line_pipeline.vertex_data_size);
         copy_to_transfer(&transfer_ptr, renderer.line_indices.data(), line_pipeline.index_data_size);
@@ -843,9 +846,9 @@ void draw_geometry(Renderer& renderer, glm::vec2* vertices, int vert_count, uint
 
 void draw_rect(Renderer& renderer, Rect normalized_rect, RGBA rgba) {
     PositionColorVertex vertices[4] = {
-        {{0.0, 0.0}},
-        {{1.0, 0.0}},
-        {{0.0, 1.0}},
+        {{-1.0, -1.0}},
+        {{1.0, -1.0}},
+        {{-1.0, 1.0}},
         {{1.0, 1.0}},
     };
 
@@ -908,9 +911,9 @@ void draw_textured_rect(Renderer& renderer, TextureID texture_id, std::optional<
     }
 
     PositionUvColorVertex vertices[4] = {
-        {{0.0, 0.0}, {0,1}},
-        {{1.0, 0.0}, {1,1}},
-        {{0.0, 1.0}, {0,0}},
+        {{-1.0, -1.0}, {0,1}},
+        {{1.0, -1.0}, {1,1}},
+        {{-1.0, 1.0}, {0,0}},
         {{1.0, 1.0}, {1,0}},
     };
 
