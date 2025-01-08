@@ -1,4 +1,6 @@
-data/shaders
+data/
+dev_assets/
+scripts/__pycache__/
 build/
 .vs/
 # .vscode/

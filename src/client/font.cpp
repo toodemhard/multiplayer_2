@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "SDL3/SDL_render.h"
+#include "assets.h"
 #include "panic.h"
 #include "font.h"
 
@@ -58,14 +59,14 @@ namespace font {
     // TextFontAtlas text_font_atlas;
     // IconFontAtlas icon_font_atlas;
 
-    void load_font(Font* font_output, Renderer renderer, const char* ttf_path, int w, int h, int font_size) {
+    void load_font(Font* font_output, Renderer& renderer, FontID font_id, int w, int h, int font_size) {
 
         *font_output = Font{.char_data = std::vector<stbtt_packedchar>(num_chars), .w = w, .h = h, .baked_font_size = font_size};
 
         auto bitmap_length = w * h;
         auto bitmap = std::vector<unsigned char>(bitmap_length);
 
-        auto ttf_buffer = read_file(ttf_path);
+        auto ttf_buffer = read_file(font_paths[(int)font_id]);
         stbtt_pack_context spc;
         stbtt_PackBegin(&spc, bitmap.data(), w, h, 0, 1, nullptr);
         stbtt_PackFontRange(&spc, (unsigned char*)ttf_buffer.data(), 0, font_size, char_start, num_chars, font_output->char_data.data());
@@ -80,15 +81,18 @@ namespace font {
             image[i * 4 + 2] = 255;
             image[i * 4 + 3] = bitmap[i];
         }
-
-        font_output->atlas_texture = renderer::load_texture(
+        
+        auto texture_id = font_id_to_texture_id(font_id);
+        renderer::load_texture(
             renderer,
+            texture_id,
             Image{
                 .w = w,
                 .h = h,
                 .data = image.data(),
             }
         );
+        font_output->texture_atlas = texture_id;
     }
 
     // void generate_font_atlas(std::vector<unsigned char>* bitmap_output, int w, int h, int font_size) {
@@ -261,7 +265,7 @@ namespace font {
                 position.y += font_size;
                 x = position.x;
             } else {
-                auto texture = font.atlas_texture;
+                auto texture = font.texture_atlas;
                 stbtt_packedchar char_info = font.char_data[c - char_start];
 
                 float w = char_info.x1 - char_info.x0;
@@ -272,7 +276,7 @@ namespace font {
                     {w * size_ratio, h * size_ratio}
                 };
 
-                draw_textured_rect(renderer, src, dst, font.atlas_texture);
+                draw_textured_rect(renderer, font.texture_atlas, src, dst);
 
                 x += char_info.xadvance * size_ratio;
             }
