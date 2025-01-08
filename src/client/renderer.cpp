@@ -105,7 +105,7 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
     // filled mesh pipeline
     {
         auto vertex_shader = load_shader(device, shaders::raw_vertex_buffer_vert, 0, 0, 0, 0);
-        auto fragment_shader = load_shader(device, shaders::solid_color_frag, 1, 0, 0, 0);
+        auto fragment_shader = load_shader(device, shaders::solid_color_frag, 0, 0, 0, 0);
 
         SDL_GPUVertexBufferDescription descriptions[] = {SDL_GPUVertexBufferDescription{
             .slot = 0,
