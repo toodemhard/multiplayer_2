@@ -926,8 +926,10 @@ void draw_textured_rect(Renderer& renderer, TextureID texture_id, std::optional<
         3,
     };
 
+    auto& draw_data = renderer.texture_draws[(int)texture_id];
+
     for (int i = 0; i < 6; i++) {
-        indices[i] += renderer.mesh_vertices.size();
+        indices[i] += draw_data.verts.size();
     }
 
     auto resolution = glm::vec2{renderer.window_width, renderer.window_height};
@@ -943,7 +945,6 @@ void draw_textured_rect(Renderer& renderer, TextureID texture_id, std::optional<
         vertices[i].color = rgba;
     }
 
-    auto& draw_data = renderer.texture_draws[(int)texture_id];
     draw_data.verts.insert(draw_data.verts.end(), vertices, vertices + 4);
     draw_data.indices.insert(draw_data.indices.end(), indices, indices + 6);
 }
