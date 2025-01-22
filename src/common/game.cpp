@@ -1,32 +1,99 @@
 #include "game.h"
 #include "box2d/box2d.h"
+#include "box2d/collision.h"
 #include "box2d/math_functions.h"
+#include "box2d/types.h"
 #include "panic.h"
+#include <cstdio>
 
 void* operator new[](size_t size, const char* pName, int flags, unsigned debugFlags, const char* file, int line) {
     return malloc(size);
 }
 
-void* operator new[](size_t size, size_t alignment, size_t alignmentOffset, const char* pName, int flags, unsigned debugFlags, const char* file, int line) {
+void* operator new[](
+    size_t size,
+    size_t alignment,
+    size_t alignmentOffset,
+    const char* pName,
+    int flags,
+    unsigned debugFlags,
+    const char* file,
+    int line
+) {
     return malloc(size);
+}
+
+glm::vec2 b2vec_to_glmvec(b2Vec2 vec) {
+    return glm::vec2{vec.x, vec.y};
+}
+
+b2Vec2 glmvec_to_b2vec(glm::vec2 vec) {
+    return b2Vec2{vec.x, vec.y};
 }
 
 const static float bullet_speed = 10.0f;
 const static int substep_count = 4;
 
-void init_state(State& state) {
+void create_box(State& state, glm::vec2 position) {
+    for (int i = 0; i < boxes_capacity; i++) {
+        if (state.boxes_active[i] == false) {
+            auto& box = state.boxes[i];
 
+            auto body_def = b2DefaultBodyDef();
+            body_def.type = b2_dynamicBody;
+            body_def.position = glmvec_to_b2vec(position);
+            body_def.linearDamping = 1;
+            body_def.fixedRotation = true;
+            auto body_id = b2CreateBody(state.world_id, &body_def);
+
+            auto polygon = b2MakeBox(0.5, 0.5);
+            auto shape_def = b2DefaultShapeDef();
+            shape_def.userData = &box.sensor_ref;
+            b2CreatePolygonShape(body_id, &shape_def, &polygon);
+            
+            state.boxes_active[i] = true;
+            state.boxes[i] = {
+                .sensor_ref =
+                    {
+                        .type = EntityType::Box,
+                        .index = i,
+                    },
+                .body_id = body_id,
+            };
+
+            return;
+        }
+    }
+}
+
+void init_state(State& state) {
     b2WorldDef world_def = b2DefaultWorldDef();
     world_def.gravity = b2Vec2{0.0f, 0.0f};
     state.world_id = b2CreateWorld(&world_def);
 
-    // auto ground_body_def = b2DefaultBodyDef();
-    // state.ground_id = b2CreateBody(state.world_id, &ground_body_def);
-    //
-    // auto ground_box = b2MakeBox(50.0, 10.0);
-    // auto ground_shape_def = b2DefaultShapeDef();
-    // b2CreatePolygonShape(state.ground_id, &ground_shape_def, &ground_box);
+    {
+        // auto body_def = b2DefaultBodyDef();
+        // body_def.position = {0, -2};
+        //
+        // auto body_id = b2CreateBody(state.world_id, &body_def);
+        //
+        // auto polygon = b2MakeBox(8, 2);
+        // auto shape_def = b2DefaultShapeDef();
+        //
+        // b2CreatePolygonShape(body_id, &shape_def, &polygon);
+    }
 
+    auto ground_body_def = b2DefaultBodyDef();
+    state.ground_id = b2CreateBody(state.world_id, &ground_body_def);
+
+    auto ground_box = b2MakeBox(2.0, 0.5);
+    auto ground_shape_def = b2DefaultShapeDef();
+    b2CreatePolygonShape(state.ground_id, &ground_shape_def, &ground_box);
+
+    {
+        create_box(state, {1,1});
+
+    }
 
     // auto body_def = b2DefaultBodyDef();
     // body_def.type = b2_dynamicBody;
@@ -44,11 +111,45 @@ void init_state(State& state) {
     // b2Body_SetGravityScale(state.body_id, 0.0f);
 }
 
-glm::vec2 b2vec_to_glmvec(b2Vec2 vec) {
-    return glm::vec2{vec.x, vec.y};
+
+void remove_bullet(State& state, int index) {
+    state.bullets_active[index] = false;
+    b2DestroyBody( state.bullets[index].body_id);
 }
 
+
 void update_state(State& state, PlayerInput inputs[max_player_count], double time, double dt) {
+    b2World_Step(state.world_id, dt, substep_count);
+
+    b2SensorEvents sensorEvents = b2World_GetSensorEvents(state.world_id);
+    for (int i = 0; i < sensorEvents.beginCount; ++i) {
+        b2SensorBeginTouchEvent* beginTouch = sensorEvents.beginEvents + i;
+        auto sensor_ref = (EntityRef*)b2Shape_GetUserData(beginTouch->sensorShapeId);
+        auto visitor_ref = (EntityRef*)b2Shape_GetUserData(beginTouch->visitorShapeId);
+
+        if (visitor_ref != NULL && visitor_ref->type == EntityType::Box) {
+            auto& box = state.boxes[visitor_ref->index];
+            auto& bullet = state.bullets[sensor_ref->index];
+            auto inc_dir = glm::normalize(b2vec_to_glmvec(b2Body_GetLinearVelocity(bullet.body_id)));
+            b2Body_ApplyLinearImpulse(box.body_id, glmvec_to_b2vec(inc_dir * 2.0f), b2Body_GetWorldCenterOfMass(box.body_id), true);
+
+            remove_bullet(state, sensor_ref->index);
+        }
+   //      if (ref != NULL) {
+			// switch (((SensorRef*)ref)->type) {
+			// 	case EntityType::Bullet: {
+			// 		//remove_bullet(state, ref.index);
+			// 	}
+			// 	break;
+			// 	case EntityType::Box: {
+			// 		//remove_bullet(state, ref.index);
+			// 	}
+			// 	break;
+			// }
+   //      }
+
+        // process begin event
+    }
 
     auto& bullets = state.bullets;
     // for (int i = 0; i < bullets_capacity; i++) {
@@ -64,12 +165,13 @@ void update_state(State& state, PlayerInput inputs[max_player_count], double tim
         auto& bullet = state.bullets[i];
 
         if (time - 1.0 > bullet.create_time) {
-            state.bullets_active[i] = false;
-        } else {
-            bullet.position += bullet.direction_normalized * bullet_speed * (float)dt;
-        }
+            remove_bullet(state, i);
+        } 
+        // else {
+        //     bullet.position += bullet.direction_normalized * bullet_speed * (float)dt;
+        // }
     }
-    
+
     for (int player_index = 0; player_index < max_player_count; player_index++) {
         if (!state.players_active[player_index]) {
             continue;
@@ -92,23 +194,57 @@ void update_state(State& state, PlayerInput inputs[max_player_count], double tim
             move_input.x += 1;
         }
 
+        auto velocity = glm::vec2{0, 0};
         // move_input.x += 1;
         if (glm::length(move_input) > 0) {
-            auto velocity = glm::normalize(move_input) * (float)dt * 4.0f;
-            b2Body_SetLinearVelocity(player.body_id, b2Vec2{velocity.x, velocity.y});
+            velocity = glm::normalize(move_input) * 4.0f;
+            // printf("%f, %f\n", velocity.x, velocity.y);
         }
+        b2Body_SetLinearVelocity(player.body_id, b2Vec2{velocity.x, velocity.y});
 
-        auto player_pos =  b2vec_to_glmvec(b2Body_GetPosition(player.body_id));
+        auto player_pos = b2vec_to_glmvec(b2Body_GetPosition(player.body_id));
+
+        auto count = 0;
+        for (int bullet_index = 0; bullet_index < bullets_capacity; bullet_index++) {
+            if (state.bullets_active[bullet_index]) {
+                count++;
+            }
+        }
+        // printf("%d\n", count);
 
         if (input.fire) {
             for (int bullet_index = 0; bullet_index < bullets_capacity; bullet_index++) {
                 if (!state.bullets_active[bullet_index]) {
+                    auto body_def = b2DefaultBodyDef();
+                    body_def.type = b2_dynamicBody;
+                    body_def.position = glmvec_to_b2vec(player_pos);
+                    body_def.linearVelocity = glmvec_to_b2vec(glm::normalize(input.cursor_world_pos - player_pos) * bullet_speed);
+                    body_def.fixedRotation = true;
+
+                    auto body_id = b2CreateBody(state.world_id, &body_def);
+
+                    auto polygon = b2MakeBox(0.25, 0.25);
+                    auto shape_def = b2DefaultShapeDef();
+                    shape_def.isSensor = true;
+                    shape_def.friction = 0;
+                    shape_def.userData = &state.bullets[bullet_index].sensor_ref;
+
+                    auto shape_id = b2CreatePolygonShape(body_id, &shape_def, &polygon);
+
                     state.bullets_active[bullet_index] = true;
                     auto& bullet = state.bullets[bullet_index];
 
-                    bullet.position = player_pos;
-                    bullet.direction_normalized = glm::normalize(input.cursor_world_pos - player_pos);
-                    bullet.create_time = time;
+                    bullet = Bullet{
+                        .sensor_ref = {
+                            .type = EntityType::Bullet,
+                            .index = bullet_index,
+                        },
+                        .body_id = body_id,
+                        .create_time = (float)time,
+                    };
+
+                    void* stuff = b2Shape_GetUserData(shape_id);
+                    // bullet.direction_normalized = glm::normalize(input.cursor_world_pos - player_pos);
 
                     break;
                 }
@@ -116,7 +252,6 @@ void update_state(State& state, PlayerInput inputs[max_player_count], double tim
         }
     }
 
-    b2World_Step(state.world_id, dt, substep_count);
 }
 
 PlayerID create_player(State& state) {
@@ -124,14 +259,21 @@ PlayerID create_player(State& state) {
         if (!state.players_active[i]) {
             state.players_active[i] = true;
 
-
             auto body_def = b2DefaultBodyDef();
             body_def.type = b2_dynamicBody;
             body_def.position = b2Vec2{0.0, 1.0};
+            body_def.fixedRotation = true;
 
+            auto body_id = b2CreateBody(state.world_id, &body_def);
             state.players[i] = {
-                .body_id = b2CreateBody(state.world_id, &body_def),
+                .body_id = body_id,
             };
+
+            auto polygon = b2MakeBox(0.5, 0.5);
+            auto shape_def = b2DefaultShapeDef();
+            shape_def.friction = 0;
+
+            b2CreatePolygonShape(body_id, &shape_def, &polygon);
 
             return i;
         }

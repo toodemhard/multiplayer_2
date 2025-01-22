@@ -4,6 +4,7 @@
 #include "glm/glm.hpp"
 #include <EASTL/fixed_vector.h>
 #include "box2d/box2d.h"
+#include <vector>
 
 enum class PlayerAnimationState {
     Idle,
@@ -34,13 +35,30 @@ struct Player {
 //     glm::vec2 position;
 //     glm::vec2 direction_normal;
 // }
+enum class EntityType {
+    Bullet,
+    Box,
+};
+
+struct EntityRef {
+    EntityType type;
+    int index;
+};
 
 constexpr int bullets_capacity = 16;
+constexpr int boxes_capacity = 64;
+
 
 struct Bullet {
-    glm::vec2 position;
-    glm::vec2 direction_normalized;
+    EntityRef sensor_ref;
+    b2BodyId body_id;
     float create_time;
+};
+
+struct Box {
+    EntityRef sensor_ref;
+    b2BodyId body_id;
+    b2ShapeId shape_id;
 };
 
 
@@ -54,6 +72,10 @@ struct State {
 
     b2WorldId world_id;
     b2BodyId ground_id;
+
+    bool boxes_active[boxes_capacity];
+    Box boxes[boxes_capacity];
+
     // b2BodyId body_id;
 };
 
