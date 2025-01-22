@@ -47,9 +47,8 @@ constexpr int idle_cycle_period_ticks = idle_period * idle_count * tick_rate;
 
 const Camera2D default_camera{
     {0, 0},
-    glm::vec2{1 * 4.0f/3.0f, 1} * 5.0f,
+    glm::vec2{1 * 4.0f/3.0f, 1} * 8.0f,
 };
-
 
 void render_state(Renderer& renderer, SDL_Window* window, State& state, int current_tick, Camera2D camera) {
     using namespace renderer;
@@ -76,8 +75,30 @@ void render_state(Renderer& renderer, SDL_Window* window, State& state, int curr
         }
         auto& bullet = state.bullets[i];
 
-        draw_world_textured_rect(renderer, camera, TextureID::bullet_png, {}, {{bullet.position}, {0.5, 0.5}});
+
+        auto pos = b2vec_to_glmvec(b2Body_GetPosition(bullet.body_id));
+        draw_world_textured_rect(renderer, camera, TextureID::bullet_png, {}, {pos, {0.5, 0.5}});
     }
+
+    for (int i = 0; i < boxes_capacity; i++) {
+
+        if (!state.boxes_active[i]) {
+            continue;
+        }
+        auto& box = state.boxes[i];
+
+
+        auto pos = b2vec_to_glmvec(b2Body_GetPosition(box.body_id));
+        draw_world_textured_rect(renderer, camera, TextureID::box_png, {}, {pos, {1, 1}});
+    }
+
+
+    
+    // for (auto& thing : state.boxes) {
+    //     b2Shape_GetPolygon(thing.shape_id);
+    // }
+
+
 
     // {
     //     auto pos =  b2Body_GetPosition(state.body_id);
@@ -142,12 +163,44 @@ RGBA hex_to_rgba(b2HexColor hex) {
 
     return color;
 }
-void draw_polygon( const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context ) {
+
+void DrawSolidPolygon( b2Transform transform, const b2Vec2* vertices, int vertexCount, float radius, b2HexColor color, void* context ) {
     auto& renderer = *(Renderer*)context;
 
     auto asdf = hex_to_rgba(color);
 
+    std::vector<b2Vec2> transed_verts(vertexCount);
+
+
+    for (int i = 0; i < vertexCount; i++) {
+        auto vert = vertices[i];
+
+        auto q = transform.q ;
+        float x = vert.x * q.c - vert.y * q.s;
+        float y = vert.x * q.s + vert.y * q.c;
+
+        vert.x = x;
+        vert.y = y;
+
+        vert.x += transform.p.x;
+        vert.y += transform.p.y;
+
+        transed_verts[i] = vert;
+    }
+
+    renderer::draw_world_polygon(renderer, *renderer.active_camera, (glm::vec2*)transed_verts.data(), vertexCount, hex_to_rgba(color));
+
+    // printf("solid poly\n");
+}
+
+void DrawPolygon( const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context ) {
+    auto& renderer = *(Renderer*)context;
+
+    auto asdf = hex_to_rgba(color);
+
+
     renderer::draw_world_polygon(renderer, *renderer.active_camera, (glm::vec2*)vertices, vertexCount, hex_to_rgba(color));
+    printf("poly\n");
     // std::cout << "asdfkjh\n";
     // renderer
 }
@@ -188,10 +241,11 @@ public:
 
         m_debug_draw = b2DefaultDebugDraw();
         m_debug_draw.context = renderer;
-        m_debug_draw.DrawPolygon = &draw_polygon;
+        m_debug_draw.DrawPolygon = &DrawPolygon;
+        m_debug_draw.DrawSolidPolygon = &DrawSolidPolygon;
         // m_debug_draw.DrawSolidPolygon = &adsf;
         m_debug_draw.drawShapes = true;
-        m_debug_draw.drawAABBs = true;
+        // m_debug_draw.drawAABBs = true;
         // debug_draw.drawShapes
         //
         // debug_draw.drawShapes
@@ -235,7 +289,7 @@ public:
             auto player_pos = b2vec_to_glmvec(b2Body_GetPosition(m_state.players[0].body_id));
             m_camera.position = player_pos;
             // auto pos = b2Body_GetPosition(m_state.body_id);
-            std::cout << std::format("{} {}\n", player_pos.x, player_pos.y);
+            // std::cout << std::format("{} {}\n", player_pos.x, player_pos.y);
 
 
             // accumulator += fixed_dt * throttle_ticks;
@@ -251,9 +305,10 @@ public:
     void render(Renderer& renderer, SDL_Window* window) {
         render_state(renderer, window, m_state, current_tick, m_camera);
         renderer::draw_world_rect(renderer, m_camera, {{-3.5, 0}, {1,1}}, color::red);
+        renderer::draw_world_rect(renderer, m_camera, {{0.5, 1.5}, {0.5,0.5}}, RGBA{255,255,0,255});
 
-        auto rect = renderer::world_rect_to_normalized(m_camera, {{1,1}, {1,1}});
-        renderer::draw_textured_rect(renderer, TextureID::amogus_png, rect, {});
+        // auto rect = renderer::world_rect_to_normalized(m_camera, {{1,1}, {1,1}});
+        // renderer::draw_textured_rect(renderer, TextureID::amogus_png, rect, {});
 
         b2World_Draw(m_state.world_id, &m_debug_draw);
     }
@@ -500,7 +555,7 @@ int run() {
         // update
         {
             // multi_scene.update(delta_time);
-            // local_scene.update(delta_time);
+            local_scene.update(delta_time);
         }
 
         // render
@@ -508,7 +563,7 @@ int run() {
             auto render_begin_time = std::chrono::high_resolution_clock::now();
             begin_rendering(renderer, window);
             // multi_scene.render(renderer, window, textures);
-            // local_scene.render(renderer, window);
+            local_scene.render(renderer, window);
             //
             // auto string = std::format("render: {:.3f}ms", last_render_duration * 1000.0);
             // font::draw_text(renderer, font, string.data(), 24, {20, 30});
@@ -525,11 +580,13 @@ int run() {
             };
             //
             // renderer::draw_screen_rect(renderer, {.position={0,0}, .scale={100,100}}, color::red);
-            renderer::draw_lines(renderer, stuff, 4, color::red);
+            // renderer::draw_lines(renderer, stuff, 4, color::red);
             // renderer::draw_screen_rect(renderer, {{200,200}, {600, 100}}, color::red);
-            renderer::draw_world_textured_rect(renderer, camera, TextureID::pot_jpg, {}, {{1,0},{1,1}});
-            renderer::draw_world_rect(renderer, camera, {{0,0}, {1,1}}, color::red);
-            renderer::draw_world_rect(renderer, camera, {{1,0}, {2,2}}, RGBA{255,255,0,255});
+            // renderer::draw_world_textured_rect(renderer, camera, TextureID::pot_jpg, {}, {{1,0},{1,1}});
+            // renderer::draw_world_textured_rect(renderer, camera, TextureID::pot_jpg, {}, {{-1,0},{1,1}});
+            // renderer::draw_world_rect(renderer, camera, {{0,0}, {1,1}}, color::red);
+            // renderer::draw_world_rect(renderer, camera, {{1,0}, {2,2}}, RGBA{255,255,0,255});
+
             end_rendering(renderer);
             // std::cout << "faksldhf\n";
 
