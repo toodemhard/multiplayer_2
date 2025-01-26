@@ -262,7 +262,7 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
 
     // create static normalized rect buffers
     {
-        float x = 0.5;
+        float x = 1.0f;
         RectVertex verts[] = {
             {{-x, x}, {0, 0}},
             {{x, x}, {1, 0}},
