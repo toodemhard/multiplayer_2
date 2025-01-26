@@ -34,6 +34,7 @@ b2Vec2 glmvec_to_b2vec(glm::vec2 vec) {
 const static float bullet_speed = 10.0f;
 const static int substep_count = 4;
 
+
 void create_box(State& state, glm::vec2 position) {
     for (int i = 0; i < boxes_capacity; i++) {
         if (state.boxes_active[i] == false) {
@@ -42,7 +43,7 @@ void create_box(State& state, glm::vec2 position) {
             auto body_def = b2DefaultBodyDef();
             body_def.type = b2_dynamicBody;
             body_def.position = glmvec_to_b2vec(position);
-            body_def.linearDamping = 1;
+            body_def.linearDamping = 4;
             body_def.fixedRotation = true;
             auto body_id = b2CreateBody(state.world_id, &body_def);
 
@@ -50,7 +51,7 @@ void create_box(State& state, glm::vec2 position) {
             auto shape_def = b2DefaultShapeDef();
             shape_def.userData = &box.sensor_ref;
             b2CreatePolygonShape(body_id, &shape_def, &polygon);
-            
+
             state.boxes_active[i] = true;
             state.boxes[i] = {
                 .sensor_ref =
@@ -91,8 +92,7 @@ void init_state(State& state) {
     b2CreatePolygonShape(state.ground_id, &ground_shape_def, &ground_box);
 
     {
-        create_box(state, {1,1});
-
+        create_box(state, {1, 1});
     }
 
     // auto body_def = b2DefaultBodyDef();
@@ -111,12 +111,16 @@ void init_state(State& state) {
     // b2Body_SetGravityScale(state.body_id, 0.0f);
 }
 
-
 void remove_bullet(State& state, int index) {
     state.bullets_active[index] = false;
-    b2DestroyBody( state.bullets[index].body_id);
+    b2DestroyBody(state.bullets[index].body_id);
 }
 
+const float player_speed = 6;
+const float dash_speed = 20;
+const float dash_distance = 3;
+
+const float dash_duration = dash_distance / dash_speed;
 
 void update_state(State& state, PlayerInput inputs[max_player_count], double time, double dt) {
     b2World_Step(state.world_id, dt, substep_count);
@@ -135,18 +139,18 @@ void update_state(State& state, PlayerInput inputs[max_player_count], double tim
 
             remove_bullet(state, sensor_ref->index);
         }
-   //      if (ref != NULL) {
-			// switch (((SensorRef*)ref)->type) {
-			// 	case EntityType::Bullet: {
-			// 		//remove_bullet(state, ref.index);
-			// 	}
-			// 	break;
-			// 	case EntityType::Box: {
-			// 		//remove_bullet(state, ref.index);
-			// 	}
-			// 	break;
-			// }
-   //      }
+        //      if (ref != NULL) {
+        // switch (((SensorRef*)ref)->type) {
+        // 	case EntityType::Bullet: {
+        // 		//remove_bullet(state, ref.index);
+        // 	}
+        // 	break;
+        // 	case EntityType::Box: {
+        // 		//remove_bullet(state, ref.index);
+        // 	}
+        // 	break;
+        // }
+        //      }
 
         // process begin event
     }
@@ -166,7 +170,7 @@ void update_state(State& state, PlayerInput inputs[max_player_count], double tim
 
         if (time - 1.0 > bullet.create_time) {
             remove_bullet(state, i);
-        } 
+        }
         // else {
         //     bullet.position += bullet.direction_normalized * bullet_speed * (float)dt;
         // }
@@ -196,11 +200,32 @@ void update_state(State& state, PlayerInput inputs[max_player_count], double tim
 
         auto velocity = glm::vec2{0, 0};
         // move_input.x += 1;
-        if (glm::length(move_input) > 0) {
-            velocity = glm::normalize(move_input) * 4.0f;
-            // printf("%f, %f\n", velocity.x, velocity.y);
+
+        if (player.state == PlayerState::Neutral) {
+            auto move_direction = glm::normalize(move_input);
+
+            if (input.dash) {
+                player.state = PlayerState::Dashing;
+                player.dash_direction = move_direction;
+                player.dash_start_time = time;
+            }
+
+
+            if (glm::length(move_input) > 0) {
+                velocity = move_direction * player_speed;
+                // printf("%f, %f\n", velocity.x, velocity.y);
+            }
+            b2Body_SetLinearVelocity(player.body_id, b2Vec2{velocity.x, velocity.y});
         }
-        b2Body_SetLinearVelocity(player.body_id, b2Vec2{velocity.x, velocity.y});
+
+        if (player.state == PlayerState::Dashing) {
+            velocity = player.dash_direction * dash_speed;
+            b2Body_SetLinearVelocity(player.body_id, b2Vec2{velocity.x, velocity.y});
+
+            if (time >= player.dash_start_time + dash_duration) {
+                player.state = PlayerState::Neutral;
+            }
+        }
 
         auto player_pos = b2vec_to_glmvec(b2Body_GetPosition(player.body_id));
 
@@ -235,10 +260,11 @@ void update_state(State& state, PlayerInput inputs[max_player_count], double tim
                     auto& bullet = state.bullets[bullet_index];
 
                     bullet = Bullet{
-                        .sensor_ref = {
-                            .type = EntityType::Bullet,
-                            .index = bullet_index,
-                        },
+                        .sensor_ref =
+                            {
+                                .type = EntityType::Bullet,
+                                .index = bullet_index,
+                            },
                         .body_id = body_id,
                         .create_time = (float)time,
                     };
@@ -251,7 +277,6 @@ void update_state(State& state, PlayerInput inputs[max_player_count], double tim
             }
         }
     }
-
 }
 
 PlayerID create_player(State& state) {

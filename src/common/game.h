@@ -18,13 +18,24 @@ struct PlayerInput {
     bool left;
     bool right;
     bool fire;
+    bool dash;
     glm::vec2 cursor_world_pos;
 };
 
 constexpr int max_player_count = 8;
+
+enum class PlayerState {
+    Neutral,
+    Dashing,
+};
+
 struct Player {
     int health = 3;
     // glm::vec2 position;
+    PlayerState state;
+    glm::vec2 dash_direction;
+    double dash_start_time;
+
     PlayerAnimationState anim_state;
 
     b2BodyId body_id;

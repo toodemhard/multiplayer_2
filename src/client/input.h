@@ -15,7 +15,8 @@ namespace Input {
     _(move_up, SDL_SCANCODE_W)                                                                                                             \
     _(move_left, SDL_SCANCODE_A)                                                                                                           \
     _(move_down, SDL_SCANCODE_S)                                                                                                           \
-    _(move_right, SDL_SCANCODE_D)
+    _(move_right, SDL_SCANCODE_D)                                                                                                          \
+    _(dash, SDL_SCANCODE_SPACE)
 
 #define ACTION(a, b) a,
 
@@ -75,4 +76,4 @@ class Input {
     SDL_Keymod mod_state;
 };
 
-} // namespace input
+} // namespace Input

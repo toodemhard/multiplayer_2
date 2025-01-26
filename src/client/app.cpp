@@ -136,6 +136,10 @@ PlayerInput input_state(Input::Input& input, const Camera2D& camera) {
     if (input.action_held(ActionID::move_right)) {
         player_input.right = true;
     }
+
+    if (input.action_down(ActionID::dash)) {
+        player_input.dash = true;
+    }
     // if (glm::length(move_input) > 0) {
     //     player_position += glm::normalize(move_input) * (float)delta_time * 4.0f;
     // }
@@ -244,7 +248,7 @@ public:
         m_debug_draw.DrawPolygon = &DrawPolygon;
         m_debug_draw.DrawSolidPolygon = &DrawSolidPolygon;
         // m_debug_draw.DrawSolidPolygon = &adsf;
-        m_debug_draw.drawShapes = true;
+        // m_debug_draw.drawShapes = true;
         // m_debug_draw.drawAABBs = true;
         // debug_draw.drawShapes
         //
@@ -304,8 +308,12 @@ public:
 
     void render(Renderer& renderer, SDL_Window* window) {
         render_state(renderer, window, m_state, current_tick, m_camera);
-        renderer::draw_world_rect(renderer, m_camera, {{-3.5, 0}, {1,1}}, color::red);
-        renderer::draw_world_rect(renderer, m_camera, {{0.5, 1.5}, {0.5,0.5}}, RGBA{255,255,0,255});
+        // renderer::draw_world_rect(renderer, m_camera, {{-3.5, 0}, {1,1}}, color::red);
+        // renderer::draw_world_rect(renderer, m_camera, {{0.5, 1.5}, {0.5,0.5}}, RGBA{255,255,0,255});
+
+        renderer::draw_world_sprite(renderer, m_camera, {{-3.5, 0}, {1,1}}, {
+            .texture_id = TextureID::pot_jpg,
+            });
 
         // auto rect = renderer::world_rect_to_normalized(m_camera, {{1,1}, {1,1}});
         // renderer::draw_textured_rect(renderer, TextureID::amogus_png, rect, {});
@@ -563,21 +571,28 @@ int run() {
             auto render_begin_time = std::chrono::high_resolution_clock::now();
             begin_rendering(renderer, window);
             // multi_scene.render(renderer, window, textures);
-            local_scene.render(renderer, window);
-            //
-            // auto string = std::format("render: {:.3f}ms", last_render_duration * 1000.0);
-            // font::draw_text(renderer, font, string.data(), 24, {20, 30});
-            //
-            glm::vec2 stuff[] = {
-                {0,0},
-                {0.5,0.5},
-                {0.5,-0.5},
-                {0.0,-0.5},
-            };
+            // local_scene.render(renderer, window);
+            // //
+            // // auto string = std::format("render: {:.3f}ms", last_render_duration * 1000.0);
+            // // font::draw_text(renderer, font, string.data(), 24, {20, 30});
+            // //
+            // glm::vec2 stuff[] = {
+            //     {0,0},
+            //     {0.5,0.5},
+            //     {0.5,-0.5},
+            //     {0.0,-0.5},
+            // };
             Camera2D camera = Camera2D{
                 .position = {0,0},
-                .scale = {4,3},
+                .scale = glm::vec2{4,3},
             };
+            renderer::draw_world_sprite(renderer, camera, {{-1, 0}, {1,1}}, {
+                .texture_id = TextureID::box_png,
+                .mix_color = color::white,
+                .t = 0.5f,
+                });
+
+            // renderer::draw_screen_rect_2(renderer, {}, {});
             //
             // renderer::draw_screen_rect(renderer, {.position={0,0}, .scale={100,100}}, color::red);
             // renderer::draw_lines(renderer, stuff, 4, color::red);
