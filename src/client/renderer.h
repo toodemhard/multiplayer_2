@@ -10,6 +10,11 @@
 #include "assets.h"
 #include "color.h"
 
+struct Rect {
+    glm::vec2 position;
+    glm::vec2 scale;
+};
+
 struct Texture {
     SDL_GPUTexture* texture;
     SDL_GPUSampler* sampler;
@@ -27,14 +32,60 @@ struct PositionUvColorVertex {
     RGBA color;
 };
 
+struct MixColor {
+    glm::vec4 color;
+    float t;
+};
+
+// struct TextureRectVert {
+//     glm::vec2 position;
+//     glm::vec2 
+// }
+
 struct Camera2D {
     glm::vec2 position;
     glm::vec2 scale;
 };
 
+struct RectVertex {
+    glm::vec2 position;
+    glm::vec2 uv;
+};
+
+struct SpriteDraw {
+    glm::vec2 position;
+    glm::vec2 size;
+    glm::vec2 uv_position;
+    glm::vec2 uv_size;
+    
+    RGBA mult_color;
+    RGBA mix_color;
+    float t;
+};
+
 struct TextureDrawInfo {
     std::vector<PositionUvColorVertex> verts;
     std::vector<uint16_t> indices;
+};
+
+struct Slice {
+    int start, count;
+};
+
+struct TextureDraw {
+    Slice verts_slice;
+    Slice indices_slice;
+
+    TextureID texture;
+    MixColor mix_color;
+};
+
+struct SpriteProperties {
+    TextureID texture_id;
+    std::optional<Rect> src_rect;
+    RGBA mult_color=color::white;
+    RGBA mix_color;
+    float t;
 };
 
 struct Renderer {
@@ -67,18 +118,21 @@ struct Renderer {
 
     SDL_GPUGraphicsPipeline* textured_mesh_pipeline;
     TextureDrawInfo texture_draws[(int)TextureID::texture_count];
+    // std::vector<TextureDraw> texture_draws;
 
     SDL_GPUBuffer* dynamic_vertex_buffer;
     SDL_GPUBuffer* dynamic_index_buffer;
     SDL_GPUTransferBuffer* transfer_buffer;
 
+    std::vector<SpriteDraw> sprite_draws[(int)TextureID::texture_count];
+    SDL_GPUGraphicsPipeline* test_pipeline;
+    SDL_GPUBuffer* rect_vertex_buffer;
+    SDL_GPUBuffer* rect_index_buffer;
+
+
     bool null_swapchain = false;
 };
 
-struct Rect {
-    glm::vec2 position;
-    glm::vec2 scale;
-};
 
 struct Image {
     int w, h;
@@ -126,6 +180,10 @@ SDL_GPUShader* load_shader(
 glm::vec2 world_to_normalized(Camera2D camera, glm::vec2 world_pos);
 Rect world_rect_to_normalized(Camera2D camera, Rect world_rect);
 Rect screen_rect_to_normalized(Rect& rect, glm::vec2 resolution);
+
+void draw_world_sprite(Renderer& renderer, const Camera2D camera, Rect world_rect, const SpriteProperties& properties);
+
+void draw_screen_rect_2(Renderer &renderer, Rect rect, RGBA rgba);
 
 void draw_world_lines(Renderer& renderer, const Camera2D& camera, glm::vec2* vertices, int vert_count, RGBA color);
 void draw_lines(Renderer& renderer, glm::vec2* vertices, int vert_count, RGBA color);
