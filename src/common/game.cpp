@@ -122,7 +122,8 @@ const float dash_distance = 3;
 
 const float dash_duration = dash_distance / dash_speed;
 
-void update_state(State& state, PlayerInput inputs[max_player_count], double time, double dt) {
+// dt is duration between ticks
+void update_state(State& state, PlayerInput inputs[max_player_count], u32 current_tick, double dt) {
     b2World_Step(state.world_id, dt, substep_count);
 
     b2SensorEvents sensorEvents = b2World_GetSensorEvents(state.world_id);
@@ -136,6 +137,8 @@ void update_state(State& state, PlayerInput inputs[max_player_count], double tim
             auto& bullet = state.bullets[sensor_ref->index];
             auto inc_dir = glm::normalize(b2vec_to_glmvec(b2Body_GetLinearVelocity(bullet.body_id)));
             b2Body_ApplyLinearImpulse(box.body_id, glmvec_to_b2vec(inc_dir * 2.0f), b2Body_GetWorldCenterOfMass(box.body_id), true);
+
+            box.last_hit_tick = current_tick;
 
             remove_bullet(state, sensor_ref->index);
         }
@@ -168,7 +171,7 @@ void update_state(State& state, PlayerInput inputs[max_player_count], double tim
 
         auto& bullet = state.bullets[i];
 
-        if (time - 1.0 > bullet.create_time) {
+        if ((current_tick - bullet.create_tick) * dt > 1) {
             remove_bullet(state, i);
         }
         // else {
@@ -207,7 +210,7 @@ void update_state(State& state, PlayerInput inputs[max_player_count], double tim
             if (input.dash) {
                 player.state = PlayerState::Dashing;
                 player.dash_direction = move_direction;
-                player.dash_start_time = time;
+                player.dash_start_tick = current_tick;
             }
 
 
@@ -222,7 +225,7 @@ void update_state(State& state, PlayerInput inputs[max_player_count], double tim
             velocity = player.dash_direction * dash_speed;
             b2Body_SetLinearVelocity(player.body_id, b2Vec2{velocity.x, velocity.y});
 
-            if (time >= player.dash_start_time + dash_duration) {
+            if ((current_tick - player.dash_start_tick) * dt > dash_duration) {
                 player.state = PlayerState::Neutral;
             }
         }
@@ -266,7 +269,7 @@ void update_state(State& state, PlayerInput inputs[max_player_count], double tim
                                 .index = bullet_index,
                             },
                         .body_id = body_id,
-                        .create_time = (float)time,
+                        .create_tick = current_tick,
                     };
 
                     void* stuff = b2Shape_GetUserData(shape_id);

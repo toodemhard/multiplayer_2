@@ -4,7 +4,9 @@
 #include "glm/glm.hpp"
 #include <EASTL/fixed_vector.h>
 #include "box2d/box2d.h"
+#include <limits>
 #include <vector>
+#include "types.h"
 
 enum class PlayerAnimationState {
     Idle,
@@ -34,7 +36,7 @@ struct Player {
     // glm::vec2 position;
     PlayerState state;
     glm::vec2 dash_direction;
-    double dash_start_time;
+    u32 dash_start_tick;
 
     PlayerAnimationState anim_state;
 
@@ -63,13 +65,14 @@ constexpr int boxes_capacity = 64;
 struct Bullet {
     EntityRef sensor_ref;
     b2BodyId body_id;
-    float create_time;
+    u32 create_tick;
 };
 
 struct Box {
     EntityRef sensor_ref;
     b2BodyId body_id;
     b2ShapeId shape_id;
+    u32 last_hit_tick;
 };
 
 
@@ -94,7 +97,7 @@ glm::vec2 b2vec_to_glmvec(b2Vec2 vec);
 
 void init_state(State& state);
 
-void update_state(State& state, PlayerInput inputs[max_player_count], double time, double dt);
+void update_state(State& state, PlayerInput inputs[max_player_count], u32 tick, double dt);
 
 using PlayerID = int;
 PlayerID create_player(State& state);

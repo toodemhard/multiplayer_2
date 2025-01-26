@@ -45,12 +45,16 @@ constexpr int idle_count = 2;
 constexpr int idle_period_ticks = idle_period * tick_rate;
 constexpr int idle_cycle_period_ticks = idle_period * idle_count * tick_rate;
 
+const float hit_flash_duration = 0.1;
+
 const Camera2D default_camera{
     {0, 0},
     glm::vec2{1 * 4.0f/3.0f, 1} * 8.0f,
 };
 
-void render_state(Renderer& renderer, SDL_Window* window, State& state, int current_tick, Camera2D camera) {
+// dt just to convert tick to time
+// dt should be constant but paramaterizing it to allow different tick rate servers
+void render_state(Renderer& renderer, SDL_Window* window, State& state, int current_tick, double dt, Camera2D camera) {
     using namespace renderer;
 
     // auto& char_sheet = textures[(int)ImageID::char_sheet_png];
@@ -89,7 +93,19 @@ void render_state(Renderer& renderer, SDL_Window* window, State& state, int curr
 
 
         auto pos = b2vec_to_glmvec(b2Body_GetPosition(box.body_id));
-        draw_world_textured_rect(renderer, camera, TextureID::box_png, {}, {pos, {1, 1}});
+
+        float t = 0;
+        if ( (current_tick - box.last_hit_tick) * dt < hit_flash_duration ) {
+            t = 0.8;
+        }
+
+        draw_world_sprite(renderer, camera, {pos, {1,1}}, {
+            .texture_id = TextureID::box_png,
+            .mix_color = color::white,
+            .t = t,
+            });
+        // draw_world_textured_rect(renderer, camera, TextureID::box_png, {}, {pos, {1, 1}});
+
     }
 
 
@@ -229,6 +245,7 @@ public:
     double time = {};
     int current_tick = 0;
 
+
     PlayerInput inputs[max_player_count];
 
     b2DebugDraw m_debug_draw{};
@@ -287,7 +304,7 @@ public:
 
 
             int throttle_ticks{};
-            update_state(m_state, inputs, time, fixed_dt);
+            update_state(m_state, inputs, current_tick, fixed_dt);
 
 
             auto player_pos = b2vec_to_glmvec(b2Body_GetPosition(m_state.players[0].body_id));
@@ -307,7 +324,7 @@ public:
 
 
     void render(Renderer& renderer, SDL_Window* window) {
-        render_state(renderer, window, m_state, current_tick, m_camera);
+        render_state(renderer, window, m_state, current_tick, fixed_dt, m_camera);
         // renderer::draw_world_rect(renderer, m_camera, {{-3.5, 0}, {1,1}}, color::red);
         // renderer::draw_world_rect(renderer, m_camera, {{0.5, 1.5}, {0.5,0.5}}, RGBA{255,255,0,255});
 
@@ -417,7 +434,7 @@ public:
     }
 
     void render(Renderer& renderer, SDL_Window* window) {
-        render_state(renderer, window, m_client.m_state, current_tick, m_camera);
+        render_state(renderer, window, m_client.m_state, current_tick, fixed_dt, m_camera);
 
         // renderer::draw_screen_rect(Renderer &renderer, Rect rect, RGBA rgba)
 
@@ -571,7 +588,7 @@ int run() {
             auto render_begin_time = std::chrono::high_resolution_clock::now();
             begin_rendering(renderer, window);
             // multi_scene.render(renderer, window, textures);
-            // local_scene.render(renderer, window);
+            local_scene.render(renderer, window);
             // //
             // // auto string = std::format("render: {:.3f}ms", last_render_duration * 1000.0);
             // // font::draw_text(renderer, font, string.data(), 24, {20, 30});
@@ -582,15 +599,15 @@ int run() {
             //     {0.5,-0.5},
             //     {0.0,-0.5},
             // };
-            Camera2D camera = Camera2D{
-                .position = {0,0},
-                .scale = glm::vec2{4,3},
-            };
-            renderer::draw_world_sprite(renderer, camera, {{-1, 0}, {1,1}}, {
-                .texture_id = TextureID::box_png,
-                .mix_color = color::white,
-                .t = 0.5f,
-                });
+            // Camera2D camera = Camera2D{
+            //     .position = {0,0},
+            //     .scale = glm::vec2{4,3},
+            // };
+            // renderer::draw_world_sprite(renderer, camera, {{-1, 0}, {1,1}}, {
+            //     .texture_id = TextureID::box_png,
+            //     .mix_color = color::white,
+            //     .t = 0.5f,
+            //     });
 
             // renderer::draw_screen_rect_2(renderer, {}, {});
             //

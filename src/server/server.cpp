@@ -76,7 +76,7 @@ void GameServer::Run() {
     glm::vec<4, int> clear_color(0,0,0,255);
 #endif
 
-    double fixed_dt = 1.0 / tick_rate;
+    double fixed_dt = 1.0 / (double)tick_rate;
     auto last_frame_time = std::chrono::high_resolution_clock::now();
     double accumulator = 0.0;
 
