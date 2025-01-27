@@ -68,11 +68,14 @@ struct Bullet {
     u32 create_tick;
 };
 
+constexpr int box_health = 50;
+
 struct Box {
     EntityRef sensor_ref;
     b2BodyId body_id;
     b2ShapeId shape_id;
     u32 last_hit_tick;
+    int health;
 };
 
 

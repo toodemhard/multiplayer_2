@@ -35,6 +35,7 @@ const static float bullet_speed = 10.0f;
 const static int substep_count = 4;
 
 
+
 void create_box(State& state, glm::vec2 position) {
     for (int i = 0; i < boxes_capacity; i++) {
         if (state.boxes_active[i] == false) {
@@ -60,11 +61,17 @@ void create_box(State& state, glm::vec2 position) {
                         .index = i,
                     },
                 .body_id = body_id,
+                .health = box_health,
             };
 
             return;
         }
     }
+}
+
+void destroy_box(State& state, int index) {
+    b2DestroyBody(state.boxes[index].body_id);
+    state.boxes_active[index] = false;
 }
 
 void init_state(State& state) {
@@ -122,6 +129,8 @@ const float dash_distance = 3;
 
 const float dash_duration = dash_distance / dash_speed;
 
+const float bullet_damage = 10;
+
 // dt is duration between ticks
 void update_state(State& state, PlayerInput inputs[max_player_count], u32 current_tick, double dt) {
     b2World_Step(state.world_id, dt, substep_count);
@@ -141,6 +150,12 @@ void update_state(State& state, PlayerInput inputs[max_player_count], u32 curren
             box.last_hit_tick = current_tick;
 
             remove_bullet(state, sensor_ref->index);
+
+            box.health -= bullet_damage;
+
+            if (box.health <= 0) {
+                destroy_box(state, visitor_ref->index);
+            }
         }
         //      if (ref != NULL) {
         // switch (((SensorRef*)ref)->type) {

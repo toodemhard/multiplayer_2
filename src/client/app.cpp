@@ -52,6 +52,19 @@ const Camera2D default_camera{
     glm::vec2{1 * 4.0f/3.0f, 1} * 8.0f,
 };
 
+struct Norm4 {
+    float r, g, b, a;
+};
+
+RGBA norm4_to_rgba(Norm4 norm4) {
+    return {
+        .r = u8(norm4.r * 255),
+        .g = u8(norm4.g * 255),
+        .b = u8(norm4.b * 255),
+        .a = u8(norm4.a * 255),
+    };
+}
+
 // dt just to convert tick to time
 // dt should be constant but paramaterizing it to allow different tick rate servers
 void render_state(Renderer& renderer, SDL_Window* window, State& state, int current_tick, double dt, Camera2D camera) {
@@ -103,7 +116,10 @@ void render_state(Renderer& renderer, SDL_Window* window, State& state, int curr
             .texture_id = TextureID::box_png,
             .mix_color = color::white,
             .t = t,
-            });
+        });
+
+        draw_world_rect(renderer, camera, {pos - glm::vec2{0, -1}, {1, 0.1}}, norm4_to_rgba({0.2, 0.2, 0.2, 1.0}));
+        draw_world_rect(renderer, camera, {pos - glm::vec2{0, -1}, {box.health / (float)box_health, 0.1}}, norm4_to_rgba({1, 0.2, 0.1, 1.0}));
         // draw_world_textured_rect(renderer, camera, TextureID::box_png, {}, {pos, {1, 1}});
 
     }
