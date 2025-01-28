@@ -1,5 +1,3 @@
-@echo off
-
-pushd build\debug
-cmake --build . --target client
-popd
+cl /Zi /std:c++20 .\build.cpp
+.\build.exe
+rm build.exe
