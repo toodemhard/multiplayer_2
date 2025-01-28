@@ -1,3 +1,9 @@
-cl /Zi /std:c++20 .\build.cpp
+set out=.\b2\build.exe
+cl /Zi /std:c++20 /Fe:%out% .\build.cpp
+
+pushd b2
+
 .\build.exe
-rm build.exe
+REM rm build.exe
+
+popd

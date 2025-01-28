@@ -753,7 +753,7 @@ void begin_rendering(Renderer& renderer, SDL_Window* window) {
 
     SDL_GPUColorTargetInfo color_target_info = {0};
     color_target_info.texture = swapchain_texture;
-    color_target_info.clear_color = (SDL_FColor){0.0f, 0.0f, 0.0f, 1.0f};
+    color_target_info.clear_color = SDL_FColor{0.0f, 0.0f, 0.0f, 1.0f};
     color_target_info.load_op = SDL_GPU_LOADOP_CLEAR;
     color_target_info.store_op = SDL_GPU_STOREOP_STORE;
 
