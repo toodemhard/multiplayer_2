@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 
 enum class buildsystem {
     cmake,
@@ -38,7 +39,9 @@ const char* lib_path = "../../lib";
 const char* compile_flags = R"(/std:c++20 /EHsc /Zi /MP)";
 const char* pch_flags = R"(/Yu"../pch.h" /Fp"pch.pch")";
 
+
 std::filesystem::path project_root;
+std::filesystem::path compiler_path;
 
 void build_libs(lib* libs, int lib_count) {
     for (int i = 0; i < lib_count; i++) {
@@ -71,9 +74,90 @@ void build_libs(lib* libs, int lib_count) {
     }
 }
 
+void glob_files(std::vector<std::filesystem::path>* files, std::filesystem::path path) {
+    for (const auto& entry : std::filesystem::directory_iterator(path)) {
+        if (entry.path().extension() == ".cpp") {
+            files->push_back(entry.path().lexically_normal());
+        }
+    }
+}
+
+std::string escape_json(const std::string& path) {
+    std::string result;
+    for (char ch : path) {
+        if (ch == '\\') result += "\\\\";
+        else result += ch;
+    }
+    return result;
+}
+
+void generate_compile_commands(std::filesystem::path build_dir, std::string flags, std::string includes, const std::vector<std::filesystem::path>& src_files) {
+    includes = escape_json(includes);
+    std::ofstream file("compile_commands.json");
+
+
+    file << "[";
+    for (int i = 0; i < src_files.size(); i++) {
+        auto& src_file = src_files[i];
+        std::string command = std::format("{} {} {} {}", escape_json(compiler_path.string()), flags, includes, escape_json(src_file.string()));
+
+        auto idk =  std::format(R"({{
+    "directory": "{}",
+    "command": "{}",
+    "file": "{}",
+    "output": "{}.obj"
+}})", escape_json(build_dir.string()), command, escape_json(src_file.string()), escape_json((build_dir / src_file.stem()).string()));
+        file << idk;
+
+        if (i != src_files.size() - 1) {
+            file << ',';
+        }
+
+        file << '\n';
+    }
+
+    file << "]";
+}
+
+std::string command_output(const char* command) {
+    std::string result;
+    char buffer[128];
+
+    // Run command and open a pipe
+    FILE* pipe = _popen(command, "r");  
+    if (!pipe) return "ERROR";  
+
+    // Read output
+    while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+        result += buffer;
+    }
+
+    _pclose(pipe);  
+    result.pop_back();
+    return result;
+}
+// _popen(const char *Command, const char *Mode)
 
 int main(int argc, char* argv[]) {
-    project_root = std::filesystem::current_path() / "..";
+
+    project_root = (std::filesystem::current_path() / "..").lexically_normal();
+
+    compiler_path = command_output("which cl");
+
+    auto asdf = std::format(R"(
+    {0},
+    {0},
+    {0},
+)", project_root.string());
+
+    
+
+
+
+    std::vector<std::filesystem::path> src_files;
+    glob_files(&src_files, project_root / "src/common");
+    glob_files(&src_files, project_root / "src/client");
+    glob_files(&src_files, project_root / "src");
 
     lib libs[] = {
         lib {
@@ -123,6 +207,7 @@ int main(int argc, char* argv[]) {
             .lib_path = "imgui.lib",
         }
     };
+
     int lib_count = sizeof(libs) / sizeof(lib);
 
     std::vector<std::filesystem::path> include_dirs = {
@@ -133,20 +218,22 @@ int main(int argc, char* argv[]) {
         "lib/yojimbo/serialize",
     };
 
-    build_libs(libs, lib_count);
+    // build_libs(libs, lib_count);
 
     std::string includes = "";
     for (int i = 0; i < lib_count; i++) {
         auto& lib = libs[i];
-        includes += std::format("/I {} ", (std::filesystem::path("../lib") / lib.name / lib.rel_include_path).lexically_normal().string());
+        includes += std::format("/I {} ", (project_root / "lib" / lib.name / lib.rel_include_path).lexically_normal().string());
     }
 
     for (auto& include_dir : include_dirs) {
-        includes += std::format("/I {} ", (std::filesystem::path("..") / include_dir).lexically_normal().string());
+        includes += std::format("/I {} ", (project_root / include_dir).lexically_normal().string());
 
     }
 
     // printf("%s\n", includes.data());
+    generate_compile_commands(project_root / "b2", compile_flags, includes, src_files);
+    return 0;
     
 
 

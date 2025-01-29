@@ -4,7 +4,6 @@
 
 #include "client.h"
 #include "net_common.h"
-#include "yojimbo_network_info.h"
 
 GameClient::GameClient()
     : m_adapter(this), m_client(yojimbo::GetDefaultAllocator(), yojimbo::Address("0.0.0.0"), m_connection_config, m_adapter, 0.0) {
