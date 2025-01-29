@@ -3,8 +3,6 @@
 #include "imgui.h"
 
 #include "client.h"
-#include "EASTL/bonus/ring_buffer.h"
-#include "EASTL/internal/move_help.h"
 #include "net_common.h"
 #include "yojimbo_network_info.h"
 
@@ -65,7 +63,7 @@ void GameClient::fixed_update(float dt, PlayerInput input, Input::Input& input_2
                     std::cout << std::format("Test message received from server with data: {}\n", ((TestMessage*)message)->m_data);
                     break;
                 case (int)GameMessageType::Snapshot:
-                    m_state = eastl::move(((SnapshotMessage*)message)->state);
+                    m_state = std::move(((SnapshotMessage*)message)->state);
                     // printf("snapshot\n");
                     // printf("snapshot: %f %f\n", m_pos.x, m_pos.y);
                     // for (auto pos : m_state.players) {
@@ -87,7 +85,6 @@ void GameClient::fixed_update(float dt, PlayerInput input, Input::Input& input_2
         }
         // printf("%d %d %d %d\n", input.up, input.down, input.left, input.right);
 
-        eastl::ring_buffer<int> asdf;
 
         auto message = (InputMessage*)m_client.CreateMessage((int)GameMessageType::Input);
         message->input = input;
@@ -131,7 +128,7 @@ void GameClient::ProcessMessage(yojimbo::Message* message) {
         ProcessTestMessage((TestMessage*)message);
         break;
     case (int)GameMessageType::Snapshot:
-        m_state = eastl::move(((SnapshotMessage*)message)->state);
+        m_state = std::move(((SnapshotMessage*)message)->state);
         // printf("snapshot\n");
         // printf("snapshot: %f %f\n", m_pos.x, m_pos.y);
         // for (auto pos : m_state.players) {

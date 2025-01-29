@@ -1,5 +1,4 @@
 #pragma once
-#include <EASTL/fixed_vector.h>
 #include "types.h"
 
 enum class PlayerAnimationState {

@@ -1,6 +1,5 @@
 #pragma once
 #include <yojimbo.h>
-#include "EASTL/fixed_vector.h"
 #include "game.h"
 #include "input.h"
 #include "net_common.h"
@@ -31,8 +30,6 @@ class GameClient {
 
     std::chrono::time_point<std::chrono::steady_clock> m_packet_sent_time;
 
-    // glm::vec2 m_pos;
-    eastl::fixed_vector<glm::vec2, 16> m_players;
     std::optional<int> m_catchup;
 
   private:

@@ -2,6 +2,7 @@
 #include <SDL3/SDL.h>
 #include <glm/glm.hpp>
 #include <tracy/Tracy.hpp>
+#include "yojimbo.h"
 
 #include <cstring>
 #include <cstdint>

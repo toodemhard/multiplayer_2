@@ -31,12 +31,8 @@
 
 #include "../pch.h"
 
-#include "EASTL/vector.h"
-#include "imgui.h"
-#include <cstring>
 #ifndef IMGUI_DISABLE
 #include "imgui_impl_sdlrenderer3.h"
-#include <stdint.h>     // intptr_t
 
 // Clang warnings with -Weverything
 #if defined(__clang__)
@@ -246,7 +242,7 @@ void ImGui_ImplSDLRenderer3_RenderDrawData(ImDrawData* draw_data, Renderer* rend
                 //     idx_buffer + pcmd->IdxOffset, pcmd->ElemCount, sizeof(ImDrawIdx));
 
                 auto num_vertices = draw_list->VtxBuffer.size();
-                eastl::vector<PositionUvColorVertex> vertices(num_vertices);
+                std::vector<PositionUvColorVertex> vertices(num_vertices);
                 memcpy(vertices.data(), vtx_buffer, sizeof(ImDrawVert)*num_vertices);
 
                 // for (int i = 0; i < num_vertices; i++) {

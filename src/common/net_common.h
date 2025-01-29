@@ -1,10 +1,6 @@
 #pragma once
 #include "game.h"
 #include "serialize.h"
-#include "yojimbo.h"
-
-#include <EASTL/bonus/ring_buffer.h>
-
 
 constexpr uint8_t default_private_key[yojimbo::KeyBytes] = {0};
 
