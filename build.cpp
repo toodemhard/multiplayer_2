@@ -167,9 +167,9 @@ int main(int argc, char* argv[]) {
 
 
     std::vector<std::filesystem::path> src_files;
+    glob_files(&src_files, project_root / "src");
     glob_files(&src_files, project_root / "src/common");
     glob_files(&src_files, project_root / "src/client");
-    glob_files(&src_files, project_root / "src");
 
     lib libs[] = {
         lib {
@@ -243,14 +243,10 @@ int main(int argc, char* argv[]) {
 
     }
 
-    // printf("%s\n", includes.data());
-    {
-        std::ofstream file("compile_flags.json");
-        file << "/FI../pch.h";
-    }
-    generate_compile_commands(project_root / "b2", compile_flags, includes, src_files);
-    
-
+    std::string pch_header = escape_json((project_root / "src" / "pch.h").lexically_normal().string());
+    std::string pch_file = escape_json((project_root / "b2" / "pch.pch").lexically_normal().string());
+    auto idk = std::format("/Yu{} /Fp{} /FI {}", pch_header, pch_file, pch_header);
+    generate_compile_commands(project_root / "b2", std::format("{} {}", compile_flags, idk), includes, src_files);
 
     std::string commands = "";
     commands += std::format("cl {} {} {} /c ../src/client/*.cpp /c ../src/common/*.cpp && ", compile_flags, pch_flags, includes);

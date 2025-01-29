@@ -1,20 +1,10 @@
 ﻿#pragma once
 
-#include <cstdint>
-#include <functional>
-#include <optional>
-#include <string>
-#include <variant>
-#include <vector>
-
 #include "color.h"
 #include "font.h"
 #include "input.h"
 
 #include "renderer.h"
-
-#include <SDL3/SDL.h>
-#include <glm/glm.hpp>
 
 
 constexpr int string_array_capacity{10};
