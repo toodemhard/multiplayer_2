@@ -1,15 +1,9 @@
 #pragma once
-#include "EASTL/bonus/fixed_ring_buffer.h"
-#include "EASTL/fixed_vector.h"
 #include "game.h"
 #include "serialize.h"
 #include "yojimbo.h"
 
 #include <EASTL/bonus/ring_buffer.h>
-#include <algorithm>
-#include <cstdint>
-#include <iostream>
-#include <limits>
 
 
 constexpr uint8_t default_private_key[yojimbo::KeyBytes] = {0};

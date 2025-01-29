@@ -1,12 +1,11 @@
 #pragma once
 
-#include <SDL3/SDL.h>
-#include <cstdint>
-#include <glm/glm.hpp>
+// #include <SDL3/SDL.h>
+// #include <glm/glm.hpp>
+//
+//
+// #include "SDL3/SDL_gpu.h"
 
-#include <optional>
-
-#include "SDL3/SDL_gpu.h"
 #include "assets.h"
 #include "color.h"
 

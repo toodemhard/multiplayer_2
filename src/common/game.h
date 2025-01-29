@@ -1,11 +1,5 @@
 #pragma once
-#include "box2d/id.h"
-#include "glm/ext/vector_float2.hpp"
-#include "glm/glm.hpp"
 #include <EASTL/fixed_vector.h>
-#include "box2d/box2d.h"
-#include <limits>
-#include <vector>
 #include "types.h"
 
 enum class PlayerAnimationState {

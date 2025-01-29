@@ -1,8 +1,5 @@
 #pragma once
 
-#include <exception>
-#include <iostream>
-
 #ifdef DEV
 #define DEV_LOG(message) std::cerr << message;
 #define DEV_PANIC(message)                                                                         \

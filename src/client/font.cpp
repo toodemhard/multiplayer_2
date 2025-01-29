@@ -1,10 +1,5 @@
-#include <format>
-#include <fstream>
-#include <iostream>
-#include <tracy/Tracy.hpp>
-#include <vector>
+#include "../pch.h"
 
-#include "SDL3/SDL_render.h"
 #include "assets.h"
 #include "panic.h"
 #include "font.h"
@@ -19,7 +14,6 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
-#include "dev_macros.h"
 #include "renderer.h"
 
 std::vector<char> read_file(const char* file_path) {

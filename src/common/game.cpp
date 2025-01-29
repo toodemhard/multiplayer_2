@@ -1,10 +1,10 @@
+#include "../pch.h"
+
 #include "game.h"
-#include "box2d/box2d.h"
-#include "box2d/collision.h"
-#include "box2d/math_functions.h"
-#include "box2d/types.h"
 #include "panic.h"
 #include <cstdio>
+
+const static int jhshfk = 31231;
 
 void* operator new[](size_t size, const char* pName, int flags, unsigned debugFlags, const char* file, int line) {
     return malloc(size);

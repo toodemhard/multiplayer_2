@@ -1,12 +1,12 @@
+#include "../pch.h"
+
+#include "imgui.h"
+
 #include "client.h"
 #include "EASTL/bonus/ring_buffer.h"
 #include "EASTL/internal/move_help.h"
-#include "imgui.h"
 #include "net_common.h"
 #include "yojimbo_network_info.h"
-#include <chrono>
-#include <format>
-#include <iostream>
 
 GameClient::GameClient()
     : m_adapter(this), m_client(yojimbo::GetDefaultAllocator(), yojimbo::Address("0.0.0.0"), m_connection_config, m_adapter, 0.0) {

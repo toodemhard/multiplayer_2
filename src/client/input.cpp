@@ -1,6 +1,6 @@
+#include "../pch.h"
+
 #include "input.h"
-#include "SDL3/SDL_mouse.h"
-#include <tracy/Tracy.hpp>
 
 namespace Input {
 

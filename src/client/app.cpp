@@ -1,38 +1,21 @@
-#include "SDL3/SDL_events.h"
-#include "SDL3/SDL_gpu.h"
-#include "SDL3/SDL_mouse.h"
-#include "box2d/box2d.h"
-#include "box2d/collision.h"
-#include "box2d/types.h"
-#include "client.h"
-#include "codegen/shaders.h"
-#include <SDL3/SDL.h>
+#include "../pch.h"
 
-#include "imgui.h"
+#include "stb_image.h"
 
-#include <chrono>
-#include <future>
-#include <glm/glm.hpp>
-#include <iostream>
-#include <numeric>
-#include <optional>
-#include <tracy/Tracy.hpp>
+#include "imgui_impl_sdl3.h"
+#include "imgui_impl_sdlrenderer3.h"
+#include "net_common.h"
+#include "renderer.h"
 
 #include "color.h"
 #include "font.h"
 #include "game.h"
-#include "glm/fwd.hpp"
-#include "glm/geometric.hpp"
-#include "imgui_impl_sdl3.h"
-#include "imgui_impl_sdlrenderer3.h"
-#include "net_common.h"
-#include "panic.h"
-#include "renderer.h"
-#include "stb_image.h"
-
+#include "client.h"
 #include "input.h"
 #include "assets.h"
 #include "ui.h"
+
+// const int asdfhkj = 13413432;
 
 constexpr double fixed_dt = 1.0 / tick_rate;
 constexpr double speed_up_fraction = 0.05;

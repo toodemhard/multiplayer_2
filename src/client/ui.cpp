@@ -1,16 +1,8 @@
-#include <algorithm>
-#include <chrono>
-#include <cmath>
-#include <cstdint>
-#include <limits>
-#include <optional>
-#include <tracy/Tracy.hpp>
+#include "../pch.h"
 
-#include "SDL3/SDL_mouse.h"
+
 #include "font.h"
 #include "ui.h"
-#include <format>
-#include <variant>
 
 #include "dev_macros.h"
 #include "renderer.h"

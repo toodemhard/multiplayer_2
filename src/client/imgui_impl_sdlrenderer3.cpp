@@ -29,8 +29,9 @@
 //  2024-02-12: Amend to query SDL_RenderViewportSet() and restore viewport accordingly.
 //  2023-05-30: Initial version.
 
+#include "../pch.h"
+
 #include "EASTL/vector.h"
-#include "SDL3/SDL_gpu.h"
 #include "imgui.h"
 #include <cstring>
 #ifndef IMGUI_DISABLE

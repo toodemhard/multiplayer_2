@@ -1,14 +1,5 @@
 #pragma once
 
-#include "SDL3/SDL_mouse.h"
-#include "SDL3/SDL_scancode.h"
-#include <SDL3/SDL.h>
-#include <array>
-#include <glm/glm.hpp>
-
-#include <optional>
-#include <string>
-
 namespace Input {
 
 #define KEYBINDINGS(_)                                                                                                                     \

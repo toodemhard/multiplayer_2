@@ -1,5 +1,4 @@
 #pragma once
-#include <chrono>
 #include <yojimbo.h>
 #include "EASTL/fixed_vector.h"
 #include "game.h"

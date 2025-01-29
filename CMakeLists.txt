@@ -12,15 +12,15 @@ include(FetchContent)
 # find_package(GameNetworkingSockets CONFIG REQUIRED)
 find_package(SDL3 REQUIRED)
 
-add_custom_target(compile_shaders ALL
-    COMMAND ${CMAKE_COMMAND} -E env py ${CMAKE_SOURCE_DIR}/scripts/compile_shaders.py
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-)
-
-add_custom_target(define_assets ALL
-    COMMAND ${CMAKE_COMMAND} -E env py ${CMAKE_SOURCE_DIR}/scripts/define_assets.py
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-)
+# add_custom_target(compile_shaders ALL
+#     COMMAND ${CMAKE_COMMAND} -E env py ${CMAKE_SOURCE_DIR}/scripts/compile_shaders.py
+#     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+# )
+#
+# add_custom_target(define_assets ALL
+#     COMMAND ${CMAKE_COMMAND} -E env py ${CMAKE_SOURCE_DIR}/scripts/define_assets.py
+#     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+# )
 
 # option(BUILD_SHARED_LIBS OFF)
 #
@@ -52,6 +52,22 @@ file(GLOB_RECURSE src_common CONFIGURE_DEPENDS src/common/*.cpp)
 
 add_library(common ${src_common})
 
+target_include_directories(common PRIVATE
+    lib/stb
+    lib/glm/include
+    lib/SDL/include
+    lib/Tracy/public
+
+    lib/imgui
+
+    ${COMMON_DIR}
+
+    ${yojimbo_DIR}/include
+    ${yojimbo_DIR}/serialize
+)
+
+target_precompile_headers(common PRIVATE ${CMAKE_SOURCE_DIR}/src/pch.h)
+
 target_link_libraries(common PUBLIC
     glm::glm
     ${yojimbo_lib}
@@ -76,6 +92,8 @@ set(kys_dir ${CMAKE_SOURCE_DIR}/src/client)
 message(STATUS "Source files: ${src_client}")
 
 add_executable(client ${src_client} ${imgui})
+# target_compile_options(client PRIVATE -ftime-report)
+
 
 target_include_directories(client PRIVATE
     lib/stb
@@ -90,6 +108,7 @@ target_include_directories(client PRIVATE
     ${yojimbo_DIR}/serialize
 )
 
+target_precompile_headers(client PRIVATE ${CMAKE_SOURCE_DIR}/src/pch.h)
 
 # add_library(kys SHARED kys.cpp)
 
@@ -148,22 +167,22 @@ target_link_libraries(server PRIVATE
     EASTL
 )
 
-add_custom_target(copy_assets
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/data ${CMAKE_CURRENT_BINARY_DIR}
-)
-
-add_dependencies(copy_assets compile_shaders)
-
-add_custom_target(copy_build_script
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/scripts/run.ps1 ${CMAKE_CURRENT_BINARY_DIR}
-)
-
-add_dependencies(client copy_assets compile_shaders copy_build_script)
-
-add_custom_command(TARGET client POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:client> $<TARGET_FILE_DIR:client>
-    COMMAND_EXPAND_LISTS
-)
+# add_custom_target(copy_assets
+#     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/data ${CMAKE_CURRENT_BINARY_DIR}
+# )
+#
+# add_dependencies(copy_assets compile_shaders)
+#
+# add_custom_target(copy_build_script
+#     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/scripts/run.ps1 ${CMAKE_CURRENT_BINARY_DIR}
+# )
+#
+# add_dependencies(client copy_assets compile_shaders copy_build_script)
+#
+# add_custom_command(TARGET client POST_BUILD
+#     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:client> $<TARGET_FILE_DIR:client>
+#     COMMAND_EXPAND_LISTS
+# )
 #
 # add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 #     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SDL3_DIR}/SDL3.pdb $<TARGET_FILE_DIR:${PROJECT_NAME}>

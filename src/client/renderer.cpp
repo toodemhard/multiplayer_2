@@ -1,17 +1,11 @@
+#include "../pch.h"
+
 #include "renderer.h"
-#include "SDL3/SDL_error.h"
-#include "SDL3/SDL_gpu.h"
-#include "SDL3/SDL_stdinc.h"
 #include "assets.h"
 #include "codegen/shaders.h"
 #include "color.h"
-#include "glm/ext/vector_float2.hpp"
 #include "panic.h"
 #include "types.h"
-#include <cstdint>
-#include <cstring>
-
-#include <tracy/Tracy.hpp>
 
 namespace renderer {
 
