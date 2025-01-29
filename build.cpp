@@ -91,6 +91,18 @@ std::string escape_json(const std::string& path) {
     return result;
 }
 
+std::string escape_quotes(const std::string& str) {
+    std::string result;
+    for (char c : str) {
+        if (c == '\"') {
+            result += "\\\"";
+        } else {
+            result += c;
+        }
+    }
+    return result;
+}
+
 void generate_compile_commands(std::filesystem::path build_dir, std::string flags, std::string includes, const std::vector<std::filesystem::path>& src_files) {
     includes = escape_json(includes);
     std::ofstream file("compile_commands.json");
@@ -99,7 +111,7 @@ void generate_compile_commands(std::filesystem::path build_dir, std::string flag
     file << "[";
     for (int i = 0; i < src_files.size(); i++) {
         auto& src_file = src_files[i];
-        std::string command = std::format("{} {} {} {}", escape_json(compiler_path.string()), flags, includes, escape_json(src_file.string()));
+        std::string command = std::format("{} {} {} {}", compiler_path.string(), flags, includes, escape_json(src_file.string()));
 
         auto idk =  std::format(R"({{
     "directory": "{}",
@@ -142,7 +154,7 @@ int main(int argc, char* argv[]) {
 
     project_root = (std::filesystem::current_path() / "..").lexically_normal();
 
-    compiler_path = command_output("which cl");
+    compiler_path = std::format("\\\"{}\\\"", escape_json(command_output("which clang-cl")));
 
     auto asdf = std::format(R"(
     {0},
@@ -232,8 +244,11 @@ int main(int argc, char* argv[]) {
     }
 
     // printf("%s\n", includes.data());
+    {
+        std::ofstream file("compile_flags.json");
+        file << "/FI../pch.h";
+    }
     generate_compile_commands(project_root / "b2", compile_flags, includes, src_files);
-    return 0;
     
 
 
