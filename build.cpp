@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <unordered_map>
 
 enum class buildsystem {
     cmake,
@@ -9,8 +10,8 @@ enum class buildsystem {
 };
 
 enum class files_type {
-    glob,
     single,
+    glob,
 };
 
 struct source_file {
@@ -19,11 +20,26 @@ struct source_file {
     std::filesystem::path file_path;
 };
 
+enum class target_type {
+    executable,
+    static_lib,
+    shared_lib,
+};
+
+struct target {
+    target_type type;
+
+    const char* name;
+    std::vector<source_file> files;
+    std::vector<std::string> libs;
+    std::vector<std::filesystem::path> include_dirs;
+};
+
 struct lib {
     const char* name;
     buildsystem buildsystem;
     // .lib file path relative to lib build dir
-    std::filesystem::path rel_include_path;
+    std::vector<std::filesystem::path> rel_include_paths;
     std::filesystem::path lib_path;
     std::filesystem::path shared_lib_path;
 
@@ -150,108 +166,44 @@ std::string command_output(const char* command) {
 }
 // _popen(const char *Command, const char *Mode)
 
-int main(int argc, char* argv[]) {
+void build_target(target target, lib libs[], int lib_count) {
+    std::unordered_map<std::string, int> lib_index;
 
-    project_root = (std::filesystem::current_path() / "..").lexically_normal();
-
-    compiler_path = std::format("\\\"{}\\\"", escape_json(command_output("which clang-cl")));
-
-    auto asdf = std::format(R"(
-    {0},
-    {0},
-    {0},
-)", project_root.string());
-
-    
-
-
-
-    std::vector<std::filesystem::path> src_files;
-    glob_files(&src_files, project_root / "src");
-    glob_files(&src_files, project_root / "src/common");
-    glob_files(&src_files, project_root / "src/client");
-
-    lib libs[] = {
-        lib {
-            .name = "box2d",
-            .rel_include_path = "include",
-            .lib_path = "src/box2dd.lib",
-        },
-        lib {
-            .name = "glm",
-            .rel_include_path = ".",
-            .lib_path = "glm/glm.lib",
-        },
-        lib {
-            .name = "SDL",
-            .rel_include_path = "include",
-            .lib_path = "SDL3.lib",
-            .shared_lib_path = "SDL3.dll"
-        },
-        // lib {
-        //     .name = "EASTL",
-        //     .rel_include_path = "include",
-        //     .lib_path = "EASTL.lib",
-        // },
-        lib {
-            .name = "tracy",
-            .rel_include_path = "public",
-            .lib_path = "TracyClient.lib",
-        },
-        lib {
-            .name = "yojimbo",
-            .buildsystem = buildsystem::premake,
-            .rel_include_path = "include",
-            .lib_out_dir = "../lib/yojimbo/bin/Debug",
-            .lib_files = {
-                "sodium-builtin.lib",
-                "tlsf.lib",
-                "netcode.lib",
-                "reliable.lib",
-                "yojimbo.lib",
-            }
-        },
-
-        lib {
-            .name = "imgui",
-            .buildsystem = buildsystem::manual,
-            .rel_include_path = ".",
-            .lib_path = "imgui.lib",
-        }
-    };
-
-    int lib_count = sizeof(libs) / sizeof(lib);
-
-    std::vector<std::filesystem::path> include_dirs = {
-        "src/",
-        "src/client",
-        "src/common",
-        "lib/stb",
-        "lib/yojimbo/serialize",
-    };
-
-    // build_libs(libs, lib_count);
-
-    std::string includes = "";
     for (int i = 0; i < lib_count; i++) {
-        auto& lib = libs[i];
-        includes += std::format("/I {} ", (project_root / "lib" / lib.name / lib.rel_include_path).lexically_normal().string());
+        lib_index[libs[i].name] = i;
+    }
+    std::string includes = "";
+    for (auto& lib_name : target.libs) {
+        auto& lib = libs[lib_index[lib_name]];
+        for (auto& include_path : lib.rel_include_paths) {
+            includes += std::format("/I {} ", (project_root / "lib" / lib.name / include_path).lexically_normal().string());
+        }
     }
 
-    for (auto& include_dir : include_dirs) {
+    for (auto& include_dir : target.include_dirs) {
         includes += std::format("/I {} ", (project_root / include_dir).lexically_normal().string());
-
     }
 
     std::string pch_header = escape_json((project_root / "src" / "pch.h").lexically_normal().string());
     std::string pch_file = escape_json((project_root / "b2" / "pch.pch").lexically_normal().string());
     auto idk = std::format("/Yu{} /Fp{} /FI {}", pch_header, pch_file, pch_header);
-    generate_compile_commands(project_root / "b2", std::format("{} {}", compile_flags, idk), includes, src_files);
+    // generate_compile_commands(project_root / "b2", std::format("{} {}", compile_flags, idk), includes, src_files);
+
+    std::string out_dir = std::format("targets\\{}\\", target.name);
 
     std::string commands = "";
-    commands += std::format("cl {} {} {} /c ../src/client/*.cpp /c ../src/common/*.cpp && ", compile_flags, pch_flags, includes);
+    commands += std::format("mkdir {} &", out_dir);
 
-    //linking
+
+    std::string source_files = "";
+
+    for (auto& src : target.files) {
+        if (src.type == files_type::glob)  {
+            source_files += std::format("/c {} ", (project_root / src.glob_dir / "*.cpp").string());
+        }
+    }
+    commands += std::format("cl {} {} {} {} /Fo{} && ", compile_flags, pch_flags, includes, source_files, out_dir);
+
     std::string lib_files = "";
     for (int i = 0; i < lib_count; i++) {
 
@@ -271,7 +223,135 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    commands += std::format("link /INCREMENTAL *.obj {} msvcrtd.lib /OUT:client.exe", lib_files);
+    const char* linker_flags = "/DEBUG /INCREMENTAL";
+    switch (target.type) {
+    case target_type::executable: {
+        commands += std::format("link {} {}/*.obj pch.obj {} msvcrtd.lib /OUT:{}.exe", linker_flags, out_dir, lib_files, target.name);
+    } break;
+    case target_type::shared_lib: {
+        commands += std::format("link {} /DLL {}/*.obj pch.obj {} msvcrtd.lib /OUT:{}.dll /EXPORT:init", linker_flags, out_dir, lib_files, target.name);
+    } break;
+    }
+
     printf("%s\n", commands.data());
     system(commands.data());
+}
+
+int main(int argc, char* argv[]) {
+
+    project_root = (std::filesystem::current_path() / "..").lexically_normal();
+
+    compiler_path = std::format("\\\"{}\\\"", escape_json(command_output("which clang-cl")));
+
+    std::vector<std::filesystem::path> src_files;
+    glob_files(&src_files, project_root / "src");
+    glob_files(&src_files, project_root / "src/common");
+    glob_files(&src_files, project_root / "src/client");
+
+    lib libs[] = {
+        lib {
+            .name = "box2d",
+            .rel_include_paths = {"include"},
+            .lib_path = "src/box2dd.lib",
+        },
+        lib {
+            .name = "glm",
+            .rel_include_paths = {"."},
+            .lib_path = "glm/glm.lib",
+        },
+        lib {
+            .name = "SDL",
+            .rel_include_paths = {"include"},
+            .lib_path = "SDL3.lib",
+            .shared_lib_path = "SDL3.dll"
+        },
+        // lib {
+        //     .name = "EASTL",
+        //     .rel_include_path = "include",
+        //     .lib_path = "EASTL.lib",
+        // },
+        lib {
+            .name = "tracy",
+            .rel_include_paths = {"public"},
+            .lib_path = "TracyClient.lib",
+        },
+        lib {
+            .name = "yojimbo",
+            .buildsystem = buildsystem::premake,
+            .rel_include_paths = {"include", "serialize"},
+            .lib_out_dir = "../lib/yojimbo/bin/Debug",
+            .lib_files = {
+                "sodium-builtin.lib",
+                "tlsf.lib",
+                "netcode.lib",
+                "reliable.lib",
+                "yojimbo.lib",
+            }
+        },
+
+        lib {
+            .name = "imgui",
+            .buildsystem = buildsystem::manual,
+            .rel_include_paths = {"."},
+            .lib_path = "imgui.lib",
+        }
+    };
+    int lib_count = sizeof(libs) / sizeof(lib);
+
+    std::vector<std::filesystem::path> include_dirs = {
+        "src/",
+        "src/client",
+        "src/common",
+        "lib/stb",
+        // "lib/yojimbo/serialize",
+    };
+
+    target targets[] = {
+        target{
+            .type = target_type::shared_lib,
+            .name = "game",
+            .files = {
+                source_file { 
+                    .type = files_type::glob,
+                    .glob_dir = "src/client",
+                },
+                source_file { 
+                    .type = files_type::glob,
+                    .glob_dir = "src/common",
+                },
+            },
+            .libs = {
+                "box2d",
+                "glm",
+                "SDL",
+                "tracy",
+                "yojimbo",
+                "imgui",
+            },
+            .include_dirs = include_dirs,
+        },
+        target{
+            .type = target_type::executable,
+            .name = "platform",
+            .files = {
+                source_file { 
+                    .type = files_type::glob,
+                    .glob_dir = "src/platform",
+                },
+            },
+            .libs = {
+                "SDL",
+            },
+            .include_dirs = {
+                "src",
+                "src/platform",
+            },
+        },
+    };
+
+    // build_libs(libs, lib_count);
+
+    for (auto& target : targets) {
+        build_target(target, libs, lib_count);
+    }
 }
