@@ -15,7 +15,7 @@
 #include "assets.h"
 #include "ui.h"
 
-// const int asdfhkj = 13413432;
+const int asdfhkj = 13413432;
 
 constexpr double fixed_dt = 1.0 / tick_rate;
 constexpr double speed_up_fraction = 0.05;
@@ -30,6 +30,7 @@ constexpr int idle_cycle_period_ticks = idle_period * idle_count * tick_rate;
 
 const float hit_flash_duration = 0.1;
 
+
 const Camera2D default_camera{
     {0, 0},
     glm::vec2{1 * 4.0f/3.0f, 1} * 8.0f,
@@ -38,6 +39,8 @@ const Camera2D default_camera{
 struct Norm4 {
     float r, g, b, a;
 };
+
+
 
 RGBA norm4_to_rgba(Norm4 norm4) {
     return {
