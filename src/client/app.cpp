@@ -461,7 +461,7 @@ extern "C" INIT(init) {
 
     glm::vec2 player_position(0, 0);
 
-    state->local_scene = LocalScene(&state->input, &state->renderer);
+    new(&state->local_scene) LocalScene(&state->input, &state->renderer);
 
     // __debugbreak();
 
