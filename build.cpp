@@ -229,7 +229,7 @@ void build_target(target target, lib libs[], int lib_count) {
         commands += std::format("link {} {}/*.obj pch.obj {} msvcrtd.lib /OUT:{}.exe", linker_flags, out_dir, lib_files, target.name);
     } break;
     case target_type::shared_lib: {
-        commands += std::format("link {} /DLL {}/*.obj pch.obj {} msvcrtd.lib /OUT:{}.dll /EXPORT:init", linker_flags, out_dir, lib_files, target.name);
+        commands += std::format("link {} /DLL {}/*.obj pch.obj {} msvcrtd.lib /OUT:{}.dll /EXPORT:init /EXPORT:update", linker_flags, out_dir, lib_files, target.name);
     } break;
     }
 
@@ -265,11 +265,6 @@ int main(int argc, char* argv[]) {
             .lib_path = "SDL3.lib",
             .shared_lib_path = "SDL3.dll"
         },
-        // lib {
-        //     .name = "EASTL",
-        //     .rel_include_path = "include",
-        //     .lib_path = "EASTL.lib",
-        // },
         lib {
             .name = "tracy",
             .rel_include_paths = {"public"},
@@ -303,7 +298,6 @@ int main(int argc, char* argv[]) {
         "src/client",
         "src/common",
         "lib/stb",
-        // "lib/yojimbo/serialize",
     };
 
     target targets[] = {
@@ -345,6 +339,7 @@ int main(int argc, char* argv[]) {
             .include_dirs = {
                 "src",
                 "src/platform",
+                "src/client"
             },
         },
     };

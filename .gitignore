@@ -3,4 +3,5 @@ dev_assets/
 scripts/__pycache__/
 build/
 .vs/
+b2/
 # .vscode/

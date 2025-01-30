@@ -1,7 +1,7 @@
 #include "../pch.h"
 
-#include "client/test_dll.h"
-
+#include "client/exports.h"
+#include <cstdlib>
 
 void run(){
     auto object = SDL_LoadObject("./game.dll");
@@ -9,7 +9,17 @@ void run(){
     auto update = (update_func*)SDL_LoadFunction(object, "update");
     auto init = (init_func*)SDL_LoadFunction(object, "init");
 
-    DLL_State state = {};
+    void* memory = malloc(1024 * 1024);
 
-    init(&state);
+
+    init(memory);
+
+    while (1) {
+        auto signals = update(memory);
+
+        if (signals.quit) {
+            return;
+        }
+
+    }
 }

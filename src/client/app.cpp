@@ -1,19 +1,16 @@
 #include "../pch.h"
 
+#include "panic.h"
+#include "renderer.h"
 #include "stb_image.h"
 
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
 #include "net_common.h"
-#include "renderer.h"
 
-#include "color.h"
-#include "font.h"
-#include "game.h"
-#include "client.h"
-#include "input.h"
-#include "assets.h"
-#include "ui.h"
+
+#include "app.h"
+#include "exports.h"
 
 const int asdfhkj = 13413432;
 
@@ -31,10 +28,6 @@ constexpr int idle_cycle_period_ticks = idle_period * idle_count * tick_rate;
 const float hit_flash_duration = 0.1;
 
 
-const Camera2D default_camera{
-    {0, 0},
-    glm::vec2{1 * 4.0f/3.0f, 1} * 8.0f,
-};
 
 struct Norm4 {
     float r, g, b, a;
@@ -231,115 +224,98 @@ void adsf( b2Transform transform, const b2Vec2* vertices, int vertexCount, float
     std::cout << "jfkh\n";
 }
 
-class LocalScene {
-public:
-    Input::Input& m_input;
-    Font* m_font;
+LocalScene::LocalScene(Input::Input* input, Renderer* renderer) : m_input(input) {
+    renderer->active_camera = &m_camera;
 
-    Input::Input m_tick_input;
-    Camera2D m_camera = default_camera;
+    init_state(m_state);
+    create_player(m_state);
+    // m_state.players_active[0] = true;
 
-    State m_state{};
-
-
-    double accumulator = 0.0;
-    uint32_t frame = {};
-    double time = {};
-    int current_tick = 0;
+    m_tick_input.init_keybinds(Input::default_keybindings);
 
 
-    PlayerInput inputs[max_player_count];
-
-    b2DebugDraw m_debug_draw{};
-
-    LocalScene(Input::Input& input, Renderer* renderer) : m_input(input) {
-        renderer->active_camera = &m_camera;
-
-        init_state(m_state);
-        create_player(m_state);
-        // m_state.players_active[0] = true;
-
-        m_tick_input.init_keybinds(Input::default_keybindings);
+    m_debug_draw = b2DefaultDebugDraw();
+    m_debug_draw.context = renderer;
+    m_debug_draw.DrawPolygon = &DrawPolygon;
+    m_debug_draw.DrawSolidPolygon = &DrawSolidPolygon;
+    // m_debug_draw.DrawSolidPolygon = &adsf;
+    m_debug_draw.drawShapes = true;
+    // m_debug_draw.drawAABBs = true;
+    // debug_draw.drawShapes
+    //
+    // debug_draw.drawShapes
 
 
-        m_debug_draw = b2DefaultDebugDraw();
-        m_debug_draw.context = renderer;
-        m_debug_draw.DrawPolygon = &DrawPolygon;
-        m_debug_draw.DrawSolidPolygon = &DrawSolidPolygon;
-        // m_debug_draw.DrawSolidPolygon = &adsf;
-        // m_debug_draw.drawShapes = true;
-        // m_debug_draw.drawAABBs = true;
-        // debug_draw.drawShapes
-        //
-        // debug_draw.drawShapes
+    // b2World_Draw(m_state.world_id, &m_debug_draw);
+}
+
+void LocalScene::update(double delta_time) {
+    ZoneScoped;
 
 
-        // b2World_Draw(m_state.world_id, b2DebugDraw *draw)
-    }
-    
+    accumulator += delta_time;
+    accumulate_input_events(m_tick_input, *m_input);
 
-    void update(double delta_time) {
-        ZoneScoped;
-
-
-        accumulator += delta_time;
-        accumulate_input_events(m_tick_input, m_input);
-
-        while (accumulator >= fixed_dt) {
-            m_tick_input.begin_frame();
-            accumulator = accumulator - fixed_dt;
-            frame++;
-            time += fixed_dt;
-            // printf("frame:%d %fs\n", frame, time);
+    while (accumulator >= fixed_dt) {
+        m_tick_input.begin_frame();
+        accumulator = accumulator - fixed_dt;
+        frame++;
+        time += fixed_dt;
+        // printf("frame:%d %fs\n", frame, time);
 
 
 
-            if (m_input.key_down(SDL_SCANCODE_R)) {
-                accumulator += fixed_dt;
-            }
-
-            if (m_input.key_down(SDL_SCANCODE_E)) {
-                accumulator -= fixed_dt;
-            }
-
-            inputs[0] = input_state(m_tick_input, m_camera);
-
-
-            int throttle_ticks{};
-            update_state(m_state, inputs, current_tick, fixed_dt);
-
-
-            auto player_pos = b2vec_to_glmvec(b2Body_GetPosition(m_state.players[0].body_id));
-            m_camera.position = player_pos;
-            // auto pos = b2Body_GetPosition(m_state.body_id);
-            // std::cout << std::format("{} {}\n", player_pos.x, player_pos.y);
-
-
-            // accumulator += fixed_dt * throttle_ticks;
-
-            current_tick++;
-
-            m_tick_input.end_frame();
+        if (m_input->key_down(SDL_SCANCODE_R)) {
+            accumulator += fixed_dt;
         }
+
+        if (m_input->key_down(SDL_SCANCODE_E)) {
+            accumulator -= fixed_dt;
+        }
+
+        inputs[0] = input_state(m_tick_input, m_camera);
+
+
+        int throttle_ticks{};
+        update_state(m_state, inputs, current_tick, fixed_dt);
+
+
+        auto player_pos = b2vec_to_glmvec(b2Body_GetPosition(m_state.players[0].body_id));
+        m_camera.position = player_pos;
+        // auto pos = b2Body_GetPosition(m_state.body_id);
+        // std::cout << std::format("{} {}\n", player_pos.x, player_pos.y);
+
+
+        // accumulator += fixed_dt * throttle_ticks;
+
+        current_tick++;
+
+        m_tick_input.end_frame();
     }
+}
 
+void LocalScene::render(Renderer& renderer, SDL_Window* window) {
+    render_state(renderer, window, m_state, current_tick, fixed_dt, m_camera);
+    // renderer::draw_world_rect(renderer, m_camera, {{-3.5, 0}, {1,1}}, color::red);
+    // renderer::draw_world_rect(renderer, m_camera, {{0.5, 1.5}, {0.5,0.5}}, RGBA{255,255,0,255});
 
+    renderer::draw_world_sprite(renderer, m_camera, {{-3.5, 0}, {1,1}}, {
+        .texture_id = TextureID::pot_jpg,
+        });
 
-    void render(Renderer& renderer, SDL_Window* window) {
-        render_state(renderer, window, m_state, current_tick, fixed_dt, m_camera);
-        // renderer::draw_world_rect(renderer, m_camera, {{-3.5, 0}, {1,1}}, color::red);
-        // renderer::draw_world_rect(renderer, m_camera, {{0.5, 1.5}, {0.5,0.5}}, RGBA{255,255,0,255});
+    // auto rect = renderer::world_rect_to_normalized(m_camera, {{1,1}, {1,1}});
+    // renderer::draw_textured_rect(renderer, TextureID::amogus_png, rect, {});
 
-        renderer::draw_world_sprite(renderer, m_camera, {{-3.5, 0}, {1,1}}, {
-            .texture_id = TextureID::pot_jpg,
-            });
+    b2World_Draw(m_state.world_id, &m_debug_draw);
 
-        // auto rect = renderer::world_rect_to_normalized(m_camera, {{1,1}, {1,1}});
-        // renderer::draw_textured_rect(renderer, TextureID::amogus_png, rect, {});
-
-        b2World_Draw(m_state.world_id, &m_debug_draw);
-    }
-};
+    glm::vec2 idk[] = {
+        {-1,1},
+        {1,1},
+        {1,-1},
+        {-1,-1}
+    };
+    renderer::draw_world_polygon(renderer, m_camera, idk, 4, color::red);
+}
 
 void poll_event() {
 
@@ -354,115 +330,115 @@ void poll_event() {
 
 
 
-class MultiplayerScene {
-public:
-    Input::Input& m_input;
-    Font* m_font;
+// class MultiplayerScene {
+// public:
+//     Input::Input& m_input;
+//     Font* m_font;
+//
+//     double accumulator = 0.0;
+//     uint32_t frame = {};
+//     double time = {};
+//     int current_tick = 0;
+//
+//     double speed_up_dt = 0.0;
+//
+//
+//     UI ui;
+//
+//     Input::Input m_tick_input;
+//
+//     Camera2D m_camera = default_camera;
+//
+//     GameClient m_client;
+//
+//     MultiplayerScene(Input::Input& input, Font* font) : m_input(input), ui(font), m_font(font) {
+//         m_tick_input.init_keybinds(Input::default_keybindings);
+//     }
+//
+//     void connect() {
+//         m_client.connect(yojimbo::Address(127, 0, 0, 1, 5000));
+//     }
+//
+//     void update(double delta_time) {
+//         using namespace Input;
+//
+//         accumulator += delta_time;
+//         ImGui_ImplSDLRenderer3_NewFrame();
+//         ImGui_ImplSDL3_NewFrame();
+//         ImGui::NewFrame();
+//
+//         accumulate_input_events(m_tick_input, m_input);
+//         
+//         while (accumulator >= fixed_dt) {
+//             m_tick_input.begin_frame();
+//             accumulator = accumulator - fixed_dt + speed_up_dt;
+//             frame++;
+//             time += fixed_dt;
+//             // printf("frame:%d %fs\n", frame, time);
+//
+//
+//
+//             if (m_input.key_down(SDL_SCANCODE_R)) {
+//                 accumulator += fixed_dt;
+//             }
+//
+//             if (m_input.key_down(SDL_SCANCODE_E)) {
+//                 accumulator -= fixed_dt;
+//             }
+//
+//             auto player_input = input_state(m_tick_input, m_camera);
+//
+//
+//             // printf("upate\n");
+//
+//             // ImGui_ImplSDLRenderer3_NewFrame();
+//             // ImGui_ImplSDL3_NewFrame();
+//             // ImGui::NewFrame();
+//
+//             int throttle_ticks{};
+//             m_client.fixed_update(fixed_dt, player_input, m_input, &throttle_ticks);
+//
+//             speed_up_dt = throttle_ticks * fixed_dt * speed_up_fraction;
+//
+//             // accumulator += fixed_dt * throttle_ticks;
+//
+//             current_tick++;
+//
+//             m_tick_input.end_frame();
+//         }
+//
+//         m_client.update();
+//
+//     }
+//
+//     void render(Renderer& renderer, SDL_Window* window) {
+//         render_state(renderer, window, m_client.m_state, current_tick, fixed_dt, m_camera);
+//
+//         // renderer::draw_screen_rect(Renderer &renderer, Rect rect, RGBA rgba)
+//
+//         ImGui::Render();
+//         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), &renderer);
+//     }
+// };
 
-    double accumulator = 0.0;
-    uint32_t frame = {};
-    double time = {};
-    int current_tick = 0;
-
-    double speed_up_dt = 0.0;
-
-
-    UI ui;
-
-    Input::Input m_tick_input;
-
-    Camera2D m_camera = default_camera;
-
-    GameClient m_client;
-
-    MultiplayerScene(Input::Input& input, Font* font) : m_input(input), ui(font), m_font(font) {
-        m_tick_input.init_keybinds(Input::default_keybindings);
-    }
-
-    void connect() {
-        m_client.connect(yojimbo::Address(127, 0, 0, 1, 5000));
-    }
-
-    void update(double delta_time) {
-        using namespace Input;
-
-        accumulator += delta_time;
-        ImGui_ImplSDLRenderer3_NewFrame();
-        ImGui_ImplSDL3_NewFrame();
-        ImGui::NewFrame();
-
-        accumulate_input_events(m_tick_input, m_input);
-        
-        while (accumulator >= fixed_dt) {
-            m_tick_input.begin_frame();
-            accumulator = accumulator - fixed_dt + speed_up_dt;
-            frame++;
-            time += fixed_dt;
-            // printf("frame:%d %fs\n", frame, time);
-
-
-
-            if (m_input.key_down(SDL_SCANCODE_R)) {
-                accumulator += fixed_dt;
-            }
-
-            if (m_input.key_down(SDL_SCANCODE_E)) {
-                accumulator -= fixed_dt;
-            }
-
-            auto player_input = input_state(m_tick_input, m_camera);
-
-
-            // printf("upate\n");
-
-            // ImGui_ImplSDLRenderer3_NewFrame();
-            // ImGui_ImplSDL3_NewFrame();
-            // ImGui::NewFrame();
-
-            int throttle_ticks{};
-            m_client.fixed_update(fixed_dt, player_input, m_input, &throttle_ticks);
-
-            speed_up_dt = throttle_ticks * fixed_dt * speed_up_fraction;
-
-            // accumulator += fixed_dt * throttle_ticks;
-
-            current_tick++;
-
-            m_tick_input.end_frame();
-        }
-
-        m_client.update();
-
-    }
-
-    void render(Renderer& renderer, SDL_Window* window) {
-        render_state(renderer, window, m_client.m_state, current_tick, fixed_dt, m_camera);
-
-        // renderer::draw_screen_rect(Renderer &renderer, Rect rect, RGBA rgba)
-
-        ImGui::Render();
-        ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), &renderer);
-    }
-};
-
-namespace app {
-
-int run() {
+extern "C" INIT(init) {
     using namespace renderer;
 
+    std::cout << std::filesystem::current_path().string() << '\n';
+
+    auto state = new(memory) DLL_State{};
 
     // panic("asasdf {} {}", 234, 65345);
 
     auto flags = SDL_WINDOW_INPUT_FOCUS; // | SDL_WINDOW_FULLSCREEN;
 
-    auto window = SDL_CreateWindow("ye", window_width, window_height, flags);
-    if (window == NULL) {
+    state->window = SDL_CreateWindow("ye", window_width, window_height, flags);
+    if (state->window == NULL) {
         SDL_Log("CreateWindow failed: %s", SDL_GetError());
     }
 
-    Renderer renderer{};
-    if (init_renderer(&renderer, window) != 0) {
-        return 1;
+    if (init_renderer(&state->renderer, state->window) != 0) {
+        panic("failed to initialize renderer");
     }
 
     // Texture textures[(int)ImageID::image_count];
@@ -475,16 +451,17 @@ int run() {
     };
 
     for (int i = 0; i < (int)ImageID::image_count; i++) {
-        texture_futures[i] = std::async(std::launch::async, image_to_texture, std::ref(renderer), (ImageID)i);
+        texture_futures[i] = std::async(std::launch::async, image_to_texture, std::ref(state->renderer), (ImageID)i);
     }
 
     Font font;
-    auto font_future =  std::async(std::launch::async, font::load_font, &font, std::ref(renderer), FontID::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
+    auto font_future =  std::async(std::launch::async, font::load_font, &font, std::ref(state->renderer), FontID::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
 
-    Input::Input input;
-    input.init_keybinds(Input::default_keybindings);
+    state->input.init_keybinds(Input::default_keybindings);
 
     glm::vec2 player_position(0, 0);
+
+    state->local_scene = LocalScene(&state->input, &state->renderer);
 
     // __debugbreak();
 
@@ -503,13 +480,13 @@ int run() {
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 
-    ImGui_ImplSDL3_InitForSDLRenderer(window, &renderer);
-    ImGui_ImplSDLRenderer3_Init(&renderer);
+    ImGui_ImplSDL3_InitForSDLRenderer(state->window, &state->renderer);
+    ImGui_ImplSDLRenderer3_Init(&state->renderer);
 
 
 
-    auto last_frame_time = std::chrono::high_resolution_clock::now();
-    double last_render_duration = 0.0;
+    state->last_frame_time = std::chrono::high_resolution_clock::now();
+    // double last_render_duration = 0.0;
     double accumulator = 0.0;
     uint32_t frame = {};
     double time = {};
@@ -519,124 +496,121 @@ int run() {
     // frame is animation keyframe
 
 
-    MultiplayerScene multi_scene(input, &font);
-    multi_scene.connect();
+    // MultiplayerScene multi_scene(input, &font);
+    // multi_scene.connect();
 
 
-    LocalScene local_scene(input, &renderer);
+}
+
+extern "C" UPDATE(update) {
+    auto state = (DLL_State*)memory;
 
 
-    while (1) {
-        FrameMarkEnd("frame");
-        ZoneScopedN("update");
+    bool quit = false;
 
-        bool quit = false;
 
-        auto this_frame_time = std::chrono::high_resolution_clock::now();
-        double delta_time = std::chrono::duration_cast<std::chrono::duration<double>>(this_frame_time - last_frame_time).count();
-        last_frame_time = this_frame_time;
+    auto this_frame_time = std::chrono::high_resolution_clock::now();
+    double delta_time = std::chrono::duration_cast<std::chrono::duration<double>>(this_frame_time - state->last_frame_time).count();
+    state->last_frame_time = this_frame_time;
 
-        input.begin_frame();
+    state->input.begin_frame();
 
-        SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_EVENT_QUIT) {
-                quit = true;
-                break;
-            }
-
-            ImGui_ImplSDL3_ProcessEvent(&event);
-            switch (event.type) {
-                case SDL_EVENT_MOUSE_WHEEL:
-                    input.wheel += event.wheel.y;
-                    break;
-                case SDL_EVENT_KEY_DOWN:
-                    input.keyboard_repeat[event.key.scancode] = true;
-
-                    if (!event.key.repeat) {
-                        input.keyboard_down[event.key.scancode] = true;
-                    }
-                    break;
-
-                case SDL_EVENT_KEY_UP:
-                    input.keyboard_up[event.key.scancode] = true;
-                    break;
-
-                case SDL_EVENT_MOUSE_BUTTON_DOWN:
-                    input.button_down_flags |= SDL_BUTTON_MASK(event.button.button);
-                case SDL_EVENT_MOUSE_BUTTON_UP:
-                    if (event.button.down) {
-                        break;
-                    }
-                    input.button_up_flags |= SDL_BUTTON_MASK(event.button.button);
-
-                default:
-                    break;
-            }
-        }
-
-        if (quit) {
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+        if (event.type == SDL_EVENT_QUIT) {
+            quit = true;
             break;
         }
 
-        // update
-        {
-            // multi_scene.update(delta_time);
-            local_scene.update(delta_time);
+        ImGui_ImplSDL3_ProcessEvent(&event);
+        switch (event.type) {
+            case SDL_EVENT_MOUSE_WHEEL:
+                state->input.wheel += event.wheel.y;
+                break;
+            case SDL_EVENT_KEY_DOWN:
+                state->input.keyboard_repeat[event.key.scancode] = true;
+
+                if (!event.key.repeat) {
+                    state->input.keyboard_down[event.key.scancode] = true;
+                }
+                break;
+
+            case SDL_EVENT_KEY_UP:
+                state->input.keyboard_up[event.key.scancode] = true;
+                break;
+
+            case SDL_EVENT_MOUSE_BUTTON_DOWN:
+                state->input.button_down_flags |= SDL_BUTTON_MASK(event.button.button);
+            case SDL_EVENT_MOUSE_BUTTON_UP:
+                if (event.button.down) {
+                    break;
+                }
+                state->input.button_up_flags |= SDL_BUTTON_MASK(event.button.button);
+
+            default:
+                break;
         }
-
-        // render
-        {
-            auto render_begin_time = std::chrono::high_resolution_clock::now();
-            begin_rendering(renderer, window);
-            // multi_scene.render(renderer, window, textures);
-            local_scene.render(renderer, window);
-            // //
-            // // auto string = std::format("render: {:.3f}ms", last_render_duration * 1000.0);
-            // // font::draw_text(renderer, font, string.data(), 24, {20, 30});
-            // //
-            // glm::vec2 stuff[] = {
-            //     {0,0},
-            //     {0.5,0.5},
-            //     {0.5,-0.5},
-            //     {0.0,-0.5},
-            // };
-            // Camera2D camera = Camera2D{
-            //     .position = {0,0},
-            //     .scale = glm::vec2{4,3},
-            // };
-            // renderer::draw_world_sprite(renderer, camera, {{-1, 0}, {1,1}}, {
-            //     .texture_id = TextureID::box_png,
-            //     .mix_color = color::white,
-            //     .t = 0.5f,
-            //     });
-
-            // renderer::draw_screen_rect_2(renderer, {}, {});
-            //
-            // renderer::draw_screen_rect(renderer, {.position={0,0}, .scale={100,100}}, color::red);
-            // renderer::draw_lines(renderer, stuff, 4, color::red);
-            // renderer::draw_screen_rect(renderer, {{200,200}, {600, 100}}, color::red);
-            // renderer::draw_world_textured_rect(renderer, camera, TextureID::pot_jpg, {}, {{1,0},{1,1}});
-            // renderer::draw_world_textured_rect(renderer, camera, TextureID::pot_jpg, {}, {{-1,0},{1,1}});
-            // renderer::draw_world_rect(renderer, camera, {{0,0}, {1,1}}, color::red);
-            // renderer::draw_world_rect(renderer, camera, {{1,0}, {2,2}}, RGBA{255,255,0,255});
-
-            end_rendering(renderer);
-            // std::cout << "faksldhf\n";
-
-            last_render_duration = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - render_begin_time).count();
-        }
-
-        input.end_frame();
-
-        FrameMarkEnd("frame");
     }
 
-    SDL_DestroyWindow(window);
+    // update
+    {
+        // multi_scene.update(delta_time);
+        state->local_scene.update(delta_time);
+    }
 
-    SDL_Quit();
+    // render
+    {
+        auto render_begin_time = std::chrono::high_resolution_clock::now();
+        renderer::begin_rendering(state->renderer, state->window);
+        // multi_scene.render(renderer, window, textures);
+        state->local_scene.render(state->renderer, state->window);
+        // //
+        // // auto string = std::format("render: {:.3f}ms", last_render_duration * 1000.0);
+        // // font::draw_text(renderer, font, string.data(), 24, {20, 30});
+        // //
+        // glm::vec2 stuff[] = {
+        //     {0,0},
+        //     {0.5,0.5},
+        //     {0.5,-0.5},
+        //     {0.0,-0.5},
+        // };
+        // Camera2D camera = Camera2D{
+        //     .position = {0,0},
+        //     .scale = glm::vec2{4,3},
+        // };
+        // renderer::draw_world_sprite(renderer, camera, {{-1, 0}, {1,1}}, {
+        //     .texture_id = TextureID::box_png,
+        //     .mix_color = color::white,
+        //     .t = 0.5f,
+        //     });
 
-    return 0;
+        // renderer::draw_screen_rect_2(renderer, {}, {});
+        //
+        // renderer::draw_screen_rect(renderer, {.position={0,0}, .scale={100,100}}, color::red);
+        // renderer::draw_lines(renderer, stuff, 4, color::red);
+        // renderer::draw_screen_rect(renderer, {{200,200}, {600, 100}}, color::red);
+        // renderer::draw_world_textured_rect(renderer, camera, TextureID::pot_jpg, {}, {{1,0},{1,1}});
+        // renderer::draw_world_textured_rect(renderer, camera, TextureID::pot_jpg, {}, {{-1,0},{1,1}});
+        // renderer::draw_world_rect(renderer, camera, {{0,0}, {1,1}}, color::red);
+        // renderer::draw_world_rect(renderer, camera, {{1,0}, {2,2}}, RGBA{255,255,0,255});
+
+        renderer::end_rendering(state->renderer);
+        // std::cout << "faksldhf\n";
+
+        // last_render_duration = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - render_begin_time).count();
+    }
+
+    state->input.end_frame();
+
+
+    return {
+        .quit = quit,
+    };
 }
 
-} // namespace app
+
+// SDL_DestroyWindow(satetewindow);
+//
+// SDL_Quit();
+//
+// return 0;
