@@ -52,7 +52,7 @@ struct lib {
 
 const char* lib_path = "../../lib";
 
-const char* compile_flags = R"(/std:c++20 /EHsc /Zi /MP)";
+const char* compile_flags = R"(-nologo /std:c++20 /EHsc /Zi /MP)";
 const char* pch_flags = R"(/Yu"../pch.h" /Fp"pch.pch")";
 
 
@@ -119,32 +119,25 @@ std::string escape_quotes(const std::string& str) {
     return result;
 }
 
-void generate_compile_commands(std::filesystem::path build_dir, std::string flags, std::string includes, const std::vector<std::filesystem::path>& src_files) {
+std::string generate_compile_commands(std::filesystem::path build_dir, std::string flags, std::string includes, const std::vector<std::filesystem::path>& src_files) {
     includes = escape_json(includes);
-    std::ofstream file("compile_commands.json");
 
+    std::string commands_json = "";
 
-    file << "[";
     for (int i = 0; i < src_files.size(); i++) {
         auto& src_file = src_files[i];
         std::string command = std::format("{} {} {} {}", compiler_path.string(), flags, includes, escape_json(src_file.string()));
 
-        auto idk =  std::format(R"({{
+        commands_json += std::format(R"(
+{{
     "directory": "{}",
     "command": "{}",
     "file": "{}",
     "output": "{}.obj"
-}})", escape_json(build_dir.string()), command, escape_json(src_file.string()), escape_json((build_dir / src_file.stem()).string()));
-        file << idk;
-
-        if (i != src_files.size() - 1) {
-            file << ',';
-        }
-
-        file << '\n';
+}},)", escape_json(build_dir.string()), command, escape_json(src_file.string()), escape_json((build_dir / src_file.stem()).string()));
     }
 
-    file << "]";
+    return commands_json;
 }
 
 std::string command_output(const char* command) {
@@ -166,7 +159,7 @@ std::string command_output(const char* command) {
 }
 // _popen(const char *Command, const char *Mode)
 
-void build_target(target target, lib libs[], int lib_count) {
+void build_target(target target, lib libs[], int lib_count, std::string& commands_json) {
     std::unordered_map<std::string, int> lib_index;
 
     for (int i = 0; i < lib_count; i++) {
@@ -187,7 +180,6 @@ void build_target(target target, lib libs[], int lib_count) {
     std::string pch_header = escape_json((project_root / "src" / "pch.h").lexically_normal().string());
     std::string pch_file = escape_json((project_root / "b2" / "pch.pch").lexically_normal().string());
     auto idk = std::format("/Yu{} /Fp{} /FI {}", pch_header, pch_file, pch_header);
-    // generate_compile_commands(project_root / "b2", std::format("{} {}", compile_flags, idk), includes, src_files);
 
     std::string out_dir = std::format("targets\\{}\\", target.name);
 
@@ -195,19 +187,27 @@ void build_target(target target, lib libs[], int lib_count) {
     commands += std::format("mkdir {} &", out_dir);
 
 
-    std::string source_files = "";
+    std::vector<std::filesystem::path> source_files = {};
 
     for (auto& src : target.files) {
         if (src.type == files_type::glob)  {
-            source_files += std::format("/c {} ", (project_root / src.glob_dir / "*.cpp").string());
+            glob_files(&source_files, project_root / src.glob_dir);
         }
     }
-    commands += std::format("cl {} {} {} {} /Fo{} && ", compile_flags, pch_flags, includes, source_files, out_dir);
+
+    commands_json += generate_compile_commands(project_root / "b2", std::format("{} {}", compile_flags, idk), includes, source_files);
+
+    std::string source_args = "/c";
+    for (auto& src : source_files) {
+        source_args += " " + src.string();
+    }
+
+    commands += std::format("cl {} {} {} {} /Fo{} && ", compile_flags, pch_flags, includes, source_args, out_dir);
 
     std::string lib_files = "";
-    for (int i = 0; i < lib_count; i++) {
+    for (auto& lib_name : target.libs) {
 
-        auto& lib = libs[i];
+        auto& lib = libs[lib_index[lib_name]];
         if (!lib.lib_path.empty()) {
             lib_files += (std::filesystem::path(lib.name) / lib.lib_path).lexically_normal().string() + " ";
         }
@@ -226,10 +226,12 @@ void build_target(target target, lib libs[], int lib_count) {
     const char* linker_flags = "/DEBUG /INCREMENTAL";
     switch (target.type) {
     case target_type::executable: {
-        commands += std::format("link {} {}/*.obj pch.obj {} msvcrtd.lib /OUT:{}.exe", linker_flags, out_dir, lib_files, target.name);
+        commands += std::format("link {} {}/*.obj pch.obj {} game.lib msvcrtd.lib /OUT:{}.exe", linker_flags, out_dir, lib_files, target.name);
     } break;
     case target_type::shared_lib: {
-        commands += std::format("link {} /DLL {}/*.obj pch.obj {} msvcrtd.lib /OUT:{}.dll /EXPORT:init /EXPORT:update", linker_flags, out_dir, lib_files, target.name);
+        auto now = std::chrono::system_clock::now().time_since_epoch().count();
+
+        commands += std::format("link {} /DLL {}/*.obj pch.obj {} msvcrtd.lib /PDB:{}_game.pdb /OUT:{}.dll /EXPORT:init /EXPORT:update", linker_flags, out_dir, lib_files, now, target.name);
     } break;
     }
 
@@ -345,8 +347,30 @@ int main(int argc, char* argv[]) {
     };
 
     // build_libs(libs, lib_count);
+    std::string commands_json;
+
+    std::string includes;
+    for (int i = 0; i < lib_count; i++) {
+        auto& lib = libs[i];
+        for (auto& include_path : lib.rel_include_paths) {
+            includes += std::format("/I {} ", (project_root / "lib" / lib.name / include_path).lexically_normal().string());
+        }
+    }
+    commands_json += generate_compile_commands(project_root / "b2", std::format("{} {}", compile_flags, "/Yc\\\"pch.h\\\""), includes, {project_root / "src/pch.cpp"});
+
+
 
     for (auto& target : targets) {
-        build_target(target, libs, lib_count);
+        build_target(target, libs, lib_count, commands_json);
     }
+
+
+    
+
+    commands_json.pop_back();
+
+    std::ofstream file("compile_commands.json");
+    file << "[\n";
+    file << commands_json;
+    file << "]";
 }

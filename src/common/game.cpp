@@ -2,7 +2,6 @@
 
 #include "game.h"
 #include "panic.h"
-#include <cstdio>
 
 const static int jhshfk = 31231;
 
