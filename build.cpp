@@ -210,7 +210,7 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
         source_args += " " + src.string();
     }
 
-    commands += std::format("cl {} {} {} {} /Fo{} && ", compile_flags, pch_flags, includes, source_args, out_dir);
+    commands += std::format("cl /diagnostics:color {} {} {} {} /Fo{} && ", compile_flags, pch_flags, includes, source_args, out_dir);
 
     std::string lib_files = "";
     for (auto& lib_name : target.libs) {
