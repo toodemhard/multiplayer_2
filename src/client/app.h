@@ -3,7 +3,7 @@
 #include "renderer.h"
 #include "color.h"
 #include "font.h"
-#include "game.h"
+// #include "game.h"
 #include "client.h"
 #include "input.h"
 #include "assets.h"

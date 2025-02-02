@@ -1,8 +1,8 @@
 #pragma once
 #include <yojimbo.h>
-#include "game.h"
+#include "common/game.h"
+#include "common/net_common.h"
 #include "input.h"
-#include "net_common.h"
 
 constexpr int max_rollback_ticks = 16;
 

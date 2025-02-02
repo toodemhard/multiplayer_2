@@ -6,7 +6,7 @@
 
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
-#include "net_common.h"
+// #include "net_common.h"
 
 #include "app.h"
 #include "exports.h"
@@ -557,7 +557,7 @@ extern "C" UPDATE(update) {
             // create_box(state->local_scene.m_state, glm::vec2{2, 1});
             std::cout << "reloaded\n";
 
-            SDL_SetWindowAlwaysOnTop(state->window, true);
+            // SDL_SetWindowAlwaysOnTop(state->window, true);
         }
 
         // state->rects[2] = {255,0,0,255};

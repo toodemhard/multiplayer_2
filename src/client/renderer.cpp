@@ -5,7 +5,7 @@
 #include "codegen/shaders.h"
 #include "color.h"
 #include "panic.h"
-#include "types.h"
+#include "common/types.h"
 
 namespace renderer {
 
