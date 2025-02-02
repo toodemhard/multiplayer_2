@@ -2,6 +2,8 @@
 
 #include "client/exports.h"
 
+#include <windows.h>
+
 struct DLL {
     SDL_SharedObject* object;
     
@@ -26,6 +28,7 @@ void load_dll(DLL* dll) {
     dll->update = (update_func*)SDL_LoadFunction(dll->object, "update");
     dll->init = (init_func*)SDL_LoadFunction(dll->object, "init");
 }
+
 
 void run(){
     {
@@ -59,17 +62,48 @@ void run(){
     dll.init(memory);
 
     auto last_write = std::filesystem::last_write_time("./game.dll");
+
+
     // std::cout << std::format("{}\n", x);
 
     while (1) {
         auto current_write = std::filesystem::last_write_time("./game.dll");
 
+        // auto other_write = std::filesystem::last_write_time("./game.dll");
+
+        using namespace std::chrono_literals;
         if (last_write != current_write) {
+            bool file_locked = true;
+            while (file_locked) {
+                HANDLE file = CreateFileA(
+                    "game.dll",
+                    GENERIC_READ,
+                    0,              // Exclusive access
+                    NULL,
+                    OPEN_EXISTING,
+                    FILE_ATTRIBUTE_NORMAL,
+                    NULL
+                );
+
+                if (file != INVALID_HANDLE_VALUE) {
+                    file_locked = false;
+                    CloseHandle(file);
+                } else {
+                    printf("file locked\n");
+                    DWORD error = GetLastError();
+                    printf("Error code: %lu\n", error);
+
+                    using namespace std::chrono_literals;
+                    std::this_thread::sleep_for(50ms);
+                }
+            }
+
+            current_write = std::filesystem::last_write_time("./game.dll");
             std::cout << std::format("{}\n", last_write);
             last_write = current_write;
 
-            load_dll(&dll);
 
+            load_dll(&dll);
         }
 
         auto signals = dll.update(memory);
