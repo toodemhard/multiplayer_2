@@ -174,12 +174,12 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
         lib_index[libs[i].name] = i;
     }
     std::string includes = "";
-    for (auto& lib_name : target.libs) {
-        auto& lib = libs[lib_index[lib_name]];
-        for (auto& include_path : lib.rel_include_paths) {
-            includes += std::format("/I {} ", (project_root / "lib" / lib.name / include_path).lexically_normal().string());
-        }
-    }
+    // for (auto& lib_name : target.libs) {
+    //     auto& lib = libs[lib_index[lib_name]];
+    //     for (auto& include_path : lib.rel_include_paths) {
+    //         includes += std::format("/I {} ", (project_root / "lib" / lib.name / include_path).lexically_normal().string());
+    //     }
+    // }
 
     for (auto& include_dir : target.include_dirs) {
         includes += std::format("/I {} ", (project_root / include_dir).lexically_normal().string());
@@ -234,7 +234,7 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
     const char* linker_flags = "/DEBUG /INCREMENTAL";
     switch (target.type) {
     case target_type::executable: {
-        commands += std::format("link {} {} {}/*.obj pch.obj {} game.lib msvcrtd.lib /OUT:{}.exe", linker_flags, target.linker_flags, out_dir, lib_files, target.name);
+        commands += std::format("link {} {} {}/*.obj pch.obj {} msvcrtd.lib /OUT:{}.exe", linker_flags, target.linker_flags, out_dir, lib_files, target.name);
     } break;
     case target_type::shared_lib: {
         auto now = std::chrono::system_clock::now().time_since_epoch().count();
@@ -307,10 +307,18 @@ int main(int argc, char* argv[]) {
 
     std::vector<std::filesystem::path> include_dirs = {
         "src/",
-        "src/client",
-        "src/common",
-        "lib/stb",
+        "lib/stb"
+        // "src/client",
+        // "src/common",
     };
+
+    for (auto& lib : libs) {
+        // auto& lib = libs[lib_index[lib_name]];
+        for (auto& include_path : lib.rel_include_paths) {
+            include_dirs.push_back(project_root / "lib" / lib.name / include_path);
+            // std::format("/I {} ", (project_root / "lib" / lib.name / include_path).lexically_normal().string());
+        }
+    }
 
     target targets[] = {
         target{
@@ -349,11 +357,7 @@ int main(int argc, char* argv[]) {
                 "box2d",
                 "SDL",
             },
-            .include_dirs = {
-                "src",
-                "src/platform",
-                "src/client"
-            },
+            .include_dirs = include_dirs,
 
             // .linker_flags=" /WHOLEARCHIVE:box2dd.lib"
         },
@@ -369,7 +373,7 @@ int main(int argc, char* argv[]) {
             includes += std::format("/I {} ", (project_root / "lib" / lib.name / include_path).lexically_normal().string());
         }
     }
-    commands_json += generate_compile_commands(project_root / "b2", std::format("{} {}", compile_flags, "/Yc\\\"pch.h\\\""), includes, {project_root / "src/pch.cpp"});
+    commands_json += generate_compile_commands(project_root / "b2", std::format("{} {}", compile_flags, R"(/Yc\"pch.h\")"), includes, {project_root / "src/pch.cpp"});
 
 
 
