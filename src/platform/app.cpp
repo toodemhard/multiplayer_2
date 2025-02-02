@@ -19,12 +19,22 @@ void load_dll(DLL* dll) {
     };
 
     dll->object = SDL_LoadObject("./temp_game.dll");
+    if (!dll->object) {
+        std::cout << SDL_GetError();
+    }
 
     dll->update = (update_func*)SDL_LoadFunction(dll->object, "update");
     dll->init = (init_func*)SDL_LoadFunction(dll->object, "init");
 }
 
 void run(){
+    {
+        b2WorldDef def = b2DefaultWorldDef();
+        auto world_id = b2CreateWorld(&def);
+        b2DestroyWorld(world_id);
+    }
+
+
 
     // auto object = SDL_LoadObject("./game.dll");
     DLL dll{};
@@ -50,7 +60,6 @@ void run(){
 
     auto last_write = std::filesystem::last_write_time("./game.dll");
     // std::cout << std::format("{}\n", x);
-
 
     while (1) {
         auto current_write = std::filesystem::last_write_time("./game.dll");

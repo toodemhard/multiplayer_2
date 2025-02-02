@@ -3,6 +3,8 @@
 #include <fstream>
 #include <unordered_map>
 
+#include <iostream>
+
 enum class buildsystem {
     cmake,
     premake,
@@ -33,6 +35,8 @@ struct target {
     std::vector<source_file> files;
     std::vector<std::string> libs;
     std::vector<std::filesystem::path> include_dirs;
+
+    std::string linker_flags;
 };
 
 struct lib {
@@ -46,13 +50,15 @@ struct lib {
     std::filesystem::path lib_out_dir;
     std::vector<std::string> lib_files;
 
+    std::string cmake_args;
+
     // manual
     source_file source_files;
 };
 
 const char* lib_path = "../../lib";
 
-const char* compile_flags = R"(-nologo /std:c++20 /EHsc /Zi /MP)";
+const char* compile_flags = R"(-nologo /std:c++20 /EHsc /Zi /MP /MDd)";
 const char* pch_flags = R"(/Yu"../pch.h" /Fp"pch.pch")";
 
 
@@ -72,8 +78,10 @@ void build_libs(lib* libs, int lib_count) {
             std::string commands;
             commands += std::format("mkdir {0} & ", lib.name);
             commands += std::format("cd {} &&", lib.name);
-            commands += std::format("cmake -S {}/{} -B . &&", lib_path, lib.name);
+            commands += std::format("cmake -S {}/{} {} -B . &&", lib_path, lib.name, lib.cmake_args);
             commands += std::format("cmake --build .");
+
+            std::cout << commands;
 
             system(commands.data());
         }
@@ -226,7 +234,7 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
     const char* linker_flags = "/DEBUG /INCREMENTAL";
     switch (target.type) {
     case target_type::executable: {
-        commands += std::format("link {} {}/*.obj pch.obj {} game.lib msvcrtd.lib /OUT:{}.exe", linker_flags, out_dir, lib_files, target.name);
+        commands += std::format("link {} {} {}/*.obj pch.obj {} game.lib msvcrtd.lib /OUT:{}.exe", linker_flags, target.linker_flags, out_dir, lib_files, target.name);
     } break;
     case target_type::shared_lib: {
         auto now = std::chrono::system_clock::now().time_since_epoch().count();
@@ -255,6 +263,8 @@ int main(int argc, char* argv[]) {
             .name = "box2d",
             .rel_include_paths = {"include"},
             .lib_path = "src/box2dd.lib",
+            .shared_lib_path = "src/box2dd.dll",
+            .cmake_args = R"(-DBUILD_SHARED_LIBS=ON)"
         },
         lib {
             .name = "glm",
@@ -336,6 +346,7 @@ int main(int argc, char* argv[]) {
                 },
             },
             .libs = {
+                "box2d",
                 "SDL",
             },
             .include_dirs = {
@@ -343,10 +354,12 @@ int main(int argc, char* argv[]) {
                 "src/platform",
                 "src/client"
             },
+
+            // .linker_flags=" /WHOLEARCHIVE:box2dd.lib"
         },
     };
 
-    // build_libs(libs, lib_count);
+    build_libs(libs, lib_count);
     std::string commands_json;
 
     std::string includes;

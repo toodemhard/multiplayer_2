@@ -96,6 +96,7 @@ void init_state(State& state);
 void update_state(State& state, PlayerInput inputs[max_player_count], u32 tick, double dt);
 
 using PlayerID = int;
+void create_box(State& state, glm::vec2 position);
 PlayerID create_player(State& state);
 
 void remove_player(State& state, int player_index);

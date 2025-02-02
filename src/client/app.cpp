@@ -8,7 +8,6 @@
 #include "imgui_impl_sdlrenderer3.h"
 #include "net_common.h"
 
-
 #include "app.h"
 #include "exports.h"
 
@@ -27,13 +26,9 @@ constexpr int idle_cycle_period_ticks = idle_period * idle_count * tick_rate;
 
 const float hit_flash_duration = 0.1;
 
-
-
 struct Norm4 {
     float r, g, b, a;
 };
-
-
 
 RGBA norm4_to_rgba(Norm4 norm4) {
     return {
@@ -54,13 +49,14 @@ void render_state(Renderer& renderer, SDL_Window* window, State& state, int curr
 
     int idle_frame = current_tick % idle_cycle_period_ticks / idle_period_ticks;
 
-
     for (int i = 0; i < max_player_count; i++) {
         if (state.players_active[i]) {
             auto& player = state.players[i];
             auto player_pos = b2vec_to_glmvec(b2Body_GetPosition(player.body_id));
             // draw_world_textured_rect(renderer, camera, {}, {state.players.position[i], {1, 1}}, amogus_texture);
-            draw_world_textured_rect(renderer, camera, TextureID::char_sheet_png, Rect{{16 * idle_frame + 2,0}, {16,16}}, {player_pos, {1, 1}});
+            draw_world_textured_rect(
+                renderer, camera, TextureID::char_sheet_png, Rect{{16 * idle_frame + 2, 0}, {16, 16}}, {player_pos, {1, 1}}
+            );
         }
     }
 
@@ -70,7 +66,6 @@ void render_state(Renderer& renderer, SDL_Window* window, State& state, int curr
             continue;
         }
         auto& bullet = state.bullets[i];
-
 
         auto pos = b2vec_to_glmvec(b2Body_GetPosition(bullet.body_id));
         draw_world_textured_rect(renderer, camera, TextureID::bullet_png, {}, {pos, {0.5, 0.5}});
@@ -83,41 +78,40 @@ void render_state(Renderer& renderer, SDL_Window* window, State& state, int curr
         }
         auto& box = state.boxes[i];
 
-
         auto pos = b2vec_to_glmvec(b2Body_GetPosition(box.body_id));
 
         float t = 0;
-        if ( (current_tick - box.last_hit_tick) * dt < hit_flash_duration ) {
+        if ((current_tick - box.last_hit_tick) * dt < hit_flash_duration) {
             t = 0.8;
         }
 
-        draw_world_sprite(renderer, camera, {pos, {1,1}}, {
-            .texture_id = TextureID::box_png,
-            .mix_color = color::white,
-            .t = t,
-        });
+        draw_world_sprite(
+            renderer,
+            camera,
+            {pos, {1, 1}},
+            {
+                .texture_id = TextureID::box_png,
+                .mix_color = color::white,
+                .t = t,
+            }
+        );
 
         draw_world_rect(renderer, camera, {pos - glm::vec2{0, -1}, {1, 0.1}}, norm4_to_rgba({0.2, 0.2, 0.2, 1.0}));
-        draw_world_rect(renderer, camera, {pos - glm::vec2{0, -1}, {box.health / (float)box_health, 0.1}}, norm4_to_rgba({1, 0.2, 0.1, 1.0}));
+        draw_world_rect(
+            renderer, camera, {pos - glm::vec2{0, -1}, {box.health / (float)box_health, 0.1}}, norm4_to_rgba({1, 0.2, 0.1, 1.0})
+        );
         // draw_world_textured_rect(renderer, camera, TextureID::box_png, {}, {pos, {1, 1}});
-
     }
 
-
-    
     // for (auto& thing : state.boxes) {
     //     b2Shape_GetPolygon(thing.shape_id);
     // }
-
-
 
     // {
     //     auto pos =  b2Body_GetPosition(state.body_id);
     //
     //     draw_world_textured_rect(renderer, camera, {}, {.position={pos.x, pos.y}, .scale={1,1}}, bullet_texture);
     // }
-
-    
 }
 
 void accumulate_input_events(Input::Input& accumulator, Input::Input& new_frame) {
@@ -165,7 +159,6 @@ PlayerInput input_state(Input::Input& input, const Camera2D& camera) {
 
     player_input.cursor_world_pos = screen_to_world_pos(camera, input.mouse_pos, window_width, window_height);
 
-
     return player_input;
 }
 
@@ -179,18 +172,17 @@ RGBA hex_to_rgba(b2HexColor hex) {
     return color;
 }
 
-void DrawSolidPolygon( b2Transform transform, const b2Vec2* vertices, int vertexCount, float radius, b2HexColor color, void* context ) {
+void DrawSolidPolygon(b2Transform transform, const b2Vec2* vertices, int vertexCount, float radius, b2HexColor color, void* context) {
     auto& renderer = *(Renderer*)context;
 
     auto asdf = hex_to_rgba(color);
 
     std::vector<b2Vec2> transed_verts(vertexCount);
 
-
     for (int i = 0; i < vertexCount; i++) {
         auto vert = vertices[i];
 
-        auto q = transform.q ;
+        auto q = transform.q;
         float x = vert.x * q.c - vert.y * q.s;
         float y = vert.x * q.s + vert.y * q.c;
 
@@ -208,11 +200,10 @@ void DrawSolidPolygon( b2Transform transform, const b2Vec2* vertices, int vertex
     // printf("solid poly\n");
 }
 
-void DrawPolygon( const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context ) {
+void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context) {
     auto& renderer = *(Renderer*)context;
 
     auto asdf = hex_to_rgba(color);
-
 
     renderer::draw_world_polygon(renderer, *renderer.active_camera, (glm::vec2*)vertices, vertexCount, hex_to_rgba(color));
     printf("poly\n");
@@ -220,7 +211,7 @@ void DrawPolygon( const b2Vec2* vertices, int vertexCount, b2HexColor color, voi
     // renderer
 }
 
-void adsf( b2Transform transform, const b2Vec2* vertices, int vertexCount, float radius, b2HexColor color, void* context ){
+void adsf(b2Transform transform, const b2Vec2* vertices, int vertexCount, float radius, b2HexColor color, void* context) {
     std::cout << "jfkh\n";
 }
 
@@ -233,7 +224,6 @@ LocalScene::LocalScene(Input::Input* input, Renderer* renderer) : m_input(input)
 
     m_tick_input.init_keybinds(Input::default_keybindings);
 
-
     m_debug_draw = b2DefaultDebugDraw();
     m_debug_draw.context = renderer;
     m_debug_draw.DrawPolygon = &DrawPolygon;
@@ -245,13 +235,11 @@ LocalScene::LocalScene(Input::Input* input, Renderer* renderer) : m_input(input)
     //
     // debug_draw.drawShapes
 
-
     // b2World_Draw(m_state.world_id, &m_debug_draw);
 }
 
 void LocalScene::update(double delta_time) {
     ZoneScoped;
-
 
     accumulator += delta_time;
     accumulate_input_events(m_tick_input, *m_input);
@@ -263,8 +251,6 @@ void LocalScene::update(double delta_time) {
         time += fixed_dt;
         // printf("frame:%d %fs\n", frame, time);
 
-
-
         if (m_input->key_down(SDL_SCANCODE_R)) {
             accumulator += fixed_dt;
         }
@@ -275,16 +261,13 @@ void LocalScene::update(double delta_time) {
 
         inputs[0] = input_state(m_tick_input, m_camera);
 
-
         int throttle_ticks{};
         update_state(m_state, inputs, current_tick, fixed_dt);
-
 
         auto player_pos = b2vec_to_glmvec(b2Body_GetPosition(m_state.players[0].body_id));
         m_camera.position = player_pos;
         // auto pos = b2Body_GetPosition(m_state.body_id);
         // std::cout << std::format("{} {}\n", player_pos.x, player_pos.y);
-
 
         // accumulator += fixed_dt * throttle_ticks;
 
@@ -299,36 +282,31 @@ void LocalScene::render(Renderer& renderer, SDL_Window* window) {
     // renderer::draw_world_rect(renderer, m_camera, {{-3.5, 0}, {1,1}}, color::red);
     // renderer::draw_world_rect(renderer, m_camera, {{0.5, 1.5}, {0.5,0.5}}, RGBA{255,255,0,255});
 
-    renderer::draw_world_sprite(renderer, m_camera, {{-3.5, 0}, {1,1}}, {
-        .texture_id = TextureID::pot_jpg,
-        });
+    renderer::draw_world_sprite(
+        renderer,
+        m_camera,
+        {{-3.5, 0}, {1, 1}},
+        {
+            .texture_id = TextureID::pot_jpg,
+        }
+    );
 
     // auto rect = renderer::world_rect_to_normalized(m_camera, {{1,1}, {1,1}});
     // renderer::draw_textured_rect(renderer, TextureID::amogus_png, rect, {});
 
     b2World_Draw(m_state.world_id, &m_debug_draw);
 
-    glm::vec2 idk[] = {
-        {-1,1},
-        {1,1},
-        {1,-1},
-        {-1,-1}
-    };
-    renderer::draw_world_polygon(renderer, m_camera, idk, 4, color::red);
+    glm::vec2 idk[] = {{-1, 1}, {1, 1}, {1, -1}, {-1, -1}};
+    // renderer::draw_world_polygon(renderer, m_camera, idk, 4, color::red);
 }
 
-void poll_event() {
-
-}
-
+void poll_event() {}
 
 // void begin_tick_input(input ) {
 //
 //     inpubutton_held_flags = SDL_GetMouseState(&mouse_pos.x, &mouse_pos.y);
 //     mod_state = SDL_GetModState();
 // }
-
-
 
 // class MultiplayerScene {
 // public:
@@ -368,7 +346,7 @@ void poll_event() {
 //         ImGui::NewFrame();
 //
 //         accumulate_input_events(m_tick_input, m_input);
-//         
+//
 //         while (accumulator >= fixed_dt) {
 //             m_tick_input.begin_frame();
 //             accumulator = accumulator - fixed_dt + speed_up_dt;
@@ -426,11 +404,11 @@ extern "C" INIT(init) {
 
     std::cout << std::filesystem::current_path().string() << '\n';
 
-    auto state = new(memory) DLL_State{};
+    auto state = new (memory) DLL_State{};
 
     // panic("asasdf {} {}", 234, 65345);
 
-    auto flags = SDL_WINDOW_INPUT_FOCUS; // | SDL_WINDOW_FULLSCREEN;
+    auto flags = SDL_WINDOW_INPUT_FOCUS; // | SDL_WINDOW_ALWAYS_ON_TOP; // | SDL_WINDOW_FULLSCREEN;
 
     state->window = SDL_CreateWindow("ye", window_width, window_height, flags);
     if (state->window == NULL) {
@@ -455,59 +433,49 @@ extern "C" INIT(init) {
     }
 
     Font font;
-    auto font_future =  std::async(std::launch::async, font::load_font, &font, std::ref(state->renderer), FontID::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
+    auto font_future =
+        std::async(std::launch::async, font::load_font, &font, std::ref(state->renderer), FontID::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
 
     state->input.init_keybinds(Input::default_keybindings);
 
     glm::vec2 player_position(0, 0);
 
-    new(&state->local_scene) LocalScene(&state->input, &state->renderer);
-
-    // __debugbreak();
-
+    new (&state->local_scene) LocalScene(&state->input, &state->renderer);
 
     InitializeYojimbo();
-
 
     for (int i = 0; i < (int)ImageID::image_count; i++) {
         texture_futures[i].wait();
     }
     font_future.wait();
 
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-
-    ImGui_ImplSDL3_InitForSDLRenderer(state->window, &state->renderer);
-    ImGui_ImplSDLRenderer3_Init(&state->renderer);
-
-
+    // IMGUI_CHECKVERSION();
+    // ImGui::CreateContext();
+    // ImGuiIO& io = ImGui::GetIO(); (void)io;
+    // io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    // io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+    //
+    // ImGui_ImplSDL3_InitForSDLRenderer(state->window, &state->renderer);
+    // ImGui_ImplSDLRenderer3_Init(&state->renderer);
 
     state->last_frame_time = std::chrono::high_resolution_clock::now();
     // double last_render_duration = 0.0;
-    double accumulator = 0.0;
-    uint32_t frame = {};
-    double time = {};
-
 
     // tick is update
     // frame is animation keyframe
 
-
     // MultiplayerScene multi_scene(input, &font);
     // multi_scene.connect();
 
-
+    state->rects = {{255, 0, 0, 255}, {255, 255, 0, 255}, {0, 255, 255, 255}};
 }
+
+bool is_reloaded = true;
 
 extern "C" UPDATE(update) {
     auto state = (DLL_State*)memory;
 
-
     bool quit = false;
-
 
     auto this_frame_time = std::chrono::high_resolution_clock::now();
     double delta_time = std::chrono::duration_cast<std::chrono::duration<double>>(this_frame_time - state->last_frame_time).count();
@@ -522,33 +490,33 @@ extern "C" UPDATE(update) {
             break;
         }
 
-        ImGui_ImplSDL3_ProcessEvent(&event);
+        // ImGui_ImplSDL3_ProcessEvent(&event);
         switch (event.type) {
-            case SDL_EVENT_MOUSE_WHEEL:
-                state->input.wheel += event.wheel.y;
-                break;
-            case SDL_EVENT_KEY_DOWN:
-                state->input.keyboard_repeat[event.key.scancode] = true;
+        case SDL_EVENT_MOUSE_WHEEL:
+            state->input.wheel += event.wheel.y;
+            break;
+        case SDL_EVENT_KEY_DOWN:
+            state->input.keyboard_repeat[event.key.scancode] = true;
 
-                if (!event.key.repeat) {
-                    state->input.keyboard_down[event.key.scancode] = true;
-                }
-                break;
+            if (!event.key.repeat) {
+                state->input.keyboard_down[event.key.scancode] = true;
+            }
+            break;
 
-            case SDL_EVENT_KEY_UP:
-                state->input.keyboard_up[event.key.scancode] = true;
-                break;
+        case SDL_EVENT_KEY_UP:
+            state->input.keyboard_up[event.key.scancode] = true;
+            break;
 
-            case SDL_EVENT_MOUSE_BUTTON_DOWN:
-                state->input.button_down_flags |= SDL_BUTTON_MASK(event.button.button);
-            case SDL_EVENT_MOUSE_BUTTON_UP:
-                if (event.button.down) {
-                    break;
-                }
-                state->input.button_up_flags |= SDL_BUTTON_MASK(event.button.button);
-
-            default:
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            state->input.button_down_flags |= SDL_BUTTON_MASK(event.button.button);
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+            if (event.button.down) {
                 break;
+            }
+            state->input.button_up_flags |= SDL_BUTTON_MASK(event.button.button);
+
+        default:
+            break;
         }
     }
 
@@ -562,6 +530,38 @@ extern "C" UPDATE(update) {
     {
         auto render_begin_time = std::chrono::high_resolution_clock::now();
         renderer::begin_rendering(state->renderer, state->window);
+
+        // {
+        //     int x = 100;
+        //     for (auto& rect : state->rects) {
+        //         renderer::draw_screen_rect(state->renderer, {{x,100}, {50, 50}}, rect);
+        //         x += 100;
+        //     }
+        // }
+
+        {
+            std::vector<RGBA> rects = {
+                {255, 0, 0, 255},
+                {255, 255, 0, 255},
+                {0, 255, 255, 255},
+            };
+
+            int x = 100;
+            for (auto& rect : rects) {
+                renderer::draw_screen_rect(state->renderer, {{x, 100}, {50, 50}}, rect);
+                x += 150;
+            }
+        }
+
+        if (is_reloaded) {
+            // create_box(state->local_scene.m_state, glm::vec2{2, 1});
+            std::cout << "reloaded\n";
+
+            SDL_SetWindowAlwaysOnTop(state->window, true);
+        }
+
+        // state->rects[2] = {255,0,0,255};
+        // renderer::draw_screen_rect_2(Renderer &renderer, Rect rect, RGBA rgba)
         // multi_scene.render(renderer, window, textures);
         state->local_scene.render(state->renderer, state->window);
         // //
@@ -597,17 +597,18 @@ extern "C" UPDATE(update) {
         renderer::end_rendering(state->renderer);
         // std::cout << "faksldhf\n";
 
-        // last_render_duration = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - render_begin_time).count();
+        // last_render_duration = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() -
+        // render_begin_time).count();
     }
 
     state->input.end_frame();
 
+    is_reloaded = false;
 
     return {
         .quit = quit,
     };
 }
-
 
 // SDL_DestroyWindow(satetewindow);
 //

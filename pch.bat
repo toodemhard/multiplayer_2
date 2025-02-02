@@ -10,6 +10,6 @@ set includes=/I %lib_path%\SDL\include /I %lib_path%\yojimbo\serialize /I ..\lib
 /I %src_path%
 REM /I EASTL\_deps\eabase-src\include\Common ^
 
-cl /std:c++20 /EHsc /Zi /MP /Yc"pch.h" /c %src_path%\pch.cpp %includes%
+cl /std:c++20 /EHsc /Zi /MP /MDd /Yc"pch.h" /c %src_path%\pch.cpp %includes%
 
 popd

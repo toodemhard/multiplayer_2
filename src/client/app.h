@@ -50,4 +50,6 @@ struct DLL_State {
     LocalScene local_scene;
 
     std::chrono::time_point<std::chrono::steady_clock> last_frame_time;
+
+    std::vector<RGBA> rects;
 };
