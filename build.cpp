@@ -2,6 +2,8 @@
 #include <filesystem>
 #include <fstream>
 #include <unordered_map>
+#include <thread>
+
 
 #include <iostream>
 
@@ -65,16 +67,73 @@ const char* pch_flags = R"(/Yu"../pch.h" /Fp"pch.pch")";
 std::filesystem::path project_root;
 std::filesystem::path compiler_path;
 
+struct timed {
+    const char* name;
+    std::chrono::duration<double, std::milli> duration;
+    int depth;
+};
+
+std::vector<timed> g_profile;
+int g_timer_scope_depth = 0;
+
+struct timer {
+    const char* name;
+    std::chrono::time_point<std::chrono::steady_clock> start;
+    bool ended = false;
+
+    timer(const char* _name) {
+        name = _name;
+        start = std::chrono::high_resolution_clock::now();
+
+        g_timer_scope_depth++;
+    }
+
+    ~timer() {
+        if (!ended) {
+            end_timer();
+        }
+    }
+
+    void end_timer()  {
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration =  std::chrono::duration<double, std::milli>(end - start);
+
+        g_timer_scope_depth--;
+        g_profile.push_back({
+            .name = name,
+            .duration = duration,
+            .depth = g_timer_scope_depth,
+        });
+
+        ended = true;
+    }
+};
+
+std::string strings[1000];
+int string_count = 0;
+
+const char* static_string(std::string string) {
+    strings[string_count] = string;
+
+    string_count++;
+
+    return strings[string_count - 1].data();
+}
+
 void build_libs(lib* libs, int lib_count) {
     for (int i = 0; i < lib_count; i++) {
         auto& lib = libs[i];
-        printf("process %s\n", lib.name);
+
+        timer timer(static_string(std::format("{}", lib.name)));
+
         if (std::filesystem::exists(std::filesystem::path(lib.name) / lib.lib_path)) {
-            printf("skip %s\n", lib.name);
             continue;
         }
 
+
         if (lib.buildsystem == buildsystem::cmake) {
+            printf("building %s\n", lib.name);
+
             std::string commands;
             commands += std::format("mkdir {0} & ", lib.name);
             commands += std::format("cd {} &&", lib.name);
@@ -168,6 +227,8 @@ std::string command_output(const char* command) {
 // _popen(const char *Command, const char *Mode)
 
 void build_target(target target, lib libs[], int lib_count, std::string& commands_json) {
+    timer total(target.name);
+
     std::unordered_map<std::string, int> lib_index;
 
     for (int i = 0; i < lib_count; i++) {
@@ -191,8 +252,9 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
 
     std::string out_dir = std::format("targets\\{}\\", target.name);
 
-    std::string commands = "";
-    commands += std::format("mkdir {} &", out_dir);
+    // std::string commands = "";
+    // commands += std::format("mkdir {} &", out_dir);
+    std::filesystem::create_directory(out_dir);
 
 
     std::vector<std::filesystem::path> source_files = {};
@@ -205,12 +267,73 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
 
     commands_json += generate_compile_commands(project_root / "b2", std::format("{} {}", compile_flags, idk), includes, source_files);
 
-    std::string source_args = "/c";
-    for (auto& src : source_files) {
-        source_args += " " + src.string();
+    std::string cache_filename = std::format("{}_cache.txt", target.name);
+
+    std::vector<std::string> changed_source_files;
+    {
+        timer timer("cache check");
+        std::ifstream cache_file(cache_filename);
+        if (cache_file.is_open()) {
+            std::string line;
+            while (std::getline(cache_file, line)) {
+
+                std::stringstream ss(line);
+
+
+                std::string file;
+                std::string time_count;
+
+                std::getline(ss, file, ',');
+
+                std::getline(ss, time_count, ',');
+
+                std::filesystem::file_time_type::duration duration(std::stoull(time_count));
+                std::filesystem::file_time_type last_time(duration);
+
+                if (last_time != std::filesystem::last_write_time(file)) {
+                    printf("%s changed\n", file.data());
+
+                    changed_source_files.push_back(file);
+                }
+            }
+        } else {
+            for (auto& src : source_files) {
+                changed_source_files.push_back(src.string());
+            }
+        }
     }
 
-    commands += std::format("cl /diagnostics:color {} {} {} {} /Fo{} && ", compile_flags, pch_flags, includes, source_args, out_dir);
+    {
+        timer timer("cache write");
+        std::ofstream cache_file(cache_filename);
+        for (auto& src : source_files) {
+            uint64_t count = std::filesystem::last_write_time(src).time_since_epoch().count();
+            cache_file << std::format("{},{}\n", src.string(), count);
+
+
+            // std::chrono::system_clock::time_point asd(idk);
+        }
+    }
+
+    if (changed_source_files.size() == 0) {
+        printf("target: %s skipped\n", target.name);
+        return;
+    }
+
+
+    std::string source_args = "/c";
+    for (auto& src : changed_source_files) {
+        source_args += " " + src;
+    }
+
+
+    // commands += 
+    {
+        timer timer("compile");
+        auto command = std::format("cl /diagnostics:color {} {} {} {} /Fo{}", compile_flags, pch_flags, includes, source_args, out_dir);
+        system(command.data());
+        printf("%s\n", command.data());
+    }
 
     std::string lib_files = "";
     for (auto& lib_name : target.libs) {
@@ -231,23 +354,33 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
         }
     }
 
-    const char* linker_flags = "/DEBUG /INCREMENTAL";
-    switch (target.type) {
-    case target_type::executable: {
-        commands += std::format("link {} {} {}/*.obj pch.obj {} msvcrtd.lib /OUT:{}.exe", linker_flags, target.linker_flags, out_dir, lib_files, target.name);
-    } break;
-    case target_type::shared_lib: {
-        auto now = std::chrono::system_clock::now().time_since_epoch().count();
+    {
+        timer timer("linking");
+        std::string commands = "";
 
-        commands += std::format("link {} /DLL {}/*.obj pch.obj {} msvcrtd.lib /PDB:{}_game.pdb /OUT:{}.dll /EXPORT:init /EXPORT:update", linker_flags, out_dir, lib_files, now, target.name);
-    } break;
+        const char* linker_flags = "/DEBUG /INCREMENTAL";
+        switch (target.type) {
+        case target_type::executable: {
+            commands += std::format("link {} {} {}/*.obj pch.obj {} msvcrtd.lib /OUT:{}.exe", linker_flags, target.linker_flags, out_dir, lib_files, target.name);
+        } break;
+        case target_type::shared_lib: {
+            auto now = std::chrono::system_clock::now().time_since_epoch().count();
+
+            commands += std::format("link {} /DLL {}/*.obj pch.obj {} msvcrtd.lib /PDB:{}_game.pdb /OUT:{}.dll /EXPORT:init /EXPORT:update", linker_flags, out_dir, lib_files, now, target.name);
+        } break;
+        }
+
+        system(commands.data());
+        // printf("%s\n", commands.data());
     }
 
-    printf("%s\n", commands.data());
-    system(commands.data());
 }
 
+
 int main(int argc, char* argv[]) {
+
+    timer total_time("total");
+    // g_timer_scope_depth--;
 
     project_root = (std::filesystem::current_path() / "..").lexically_normal();
 
@@ -363,7 +496,39 @@ int main(int argc, char* argv[]) {
         },
     };
 
-    build_libs(libs, lib_count);
+    // system("cd .. && py scripts/compile_shaders.py");
+    // system("cd .. && py scripts/define_assets.py");
+
+    // auto shell = _popen("cmd", "w");
+    //
+    // if (!shell) {
+    //     printf("cant open shell\n");
+    //     return 1;
+    // }
+    //
+    //
+    // {
+    //     timer timer("random cmd");
+    //     fprintf(shell, "echo cd\n");
+    //     // system("echo cd");
+    //     _pclose(shell);
+    //
+    //     timer.end_timer();
+    // }
+
+    // auto start = std::chrono::high_resolution_clock::now();
+    // auto end = std::chrono::high_resolution_clock::now();
+    //
+    // std::cout << std::format("{}\n", std::chrono::duration<double, std::milli>(end - start));
+    // std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+
+
+    
+    {
+        timer timer("build libs");
+        build_libs(libs, lib_count);
+    }
     std::string commands_json;
 
     std::string includes;
@@ -377,17 +542,36 @@ int main(int argc, char* argv[]) {
 
 
 
-    for (auto& target : targets) {
-        build_target(target, libs, lib_count, commands_json);
+    {
+        timer timer("build targets");
+        for (auto& target : targets) {
+            build_target(target, libs, lib_count, commands_json);
+        }
     }
 
 
-    
+    {
+        timer timer("write compile_commands.json");
 
-    commands_json.pop_back();
+        commands_json.pop_back();
 
-    std::ofstream file("compile_commands.json");
-    file << "[\n";
-    file << commands_json;
-    file << "]";
+        std::ofstream file("compile_commands.json");
+        file << "[\n";
+        file << commands_json;
+        file << "]";
+    }
+
+    total_time.end_timer();
+
+    printf("\n");
+    for (int i = g_profile.size() - 1; i >= 0; i--) {
+        auto& timer = g_profile[i];
+
+        std::string indentation = "";
+        for (int j = 0; j < timer.depth; j++) {
+            indentation += "    ";
+        }
+
+        printf("%s", std::format("{}{}: {}\n", indentation, timer.name, timer.duration).data());
+    }
 }
