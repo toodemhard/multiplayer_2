@@ -11,6 +11,7 @@
 #include "app.h"
 #include "exports.h"
 
+
 const int asdfhkj = 13413432;
 
 constexpr double fixed_dt = 1.0 / tick_rate;
@@ -25,6 +26,8 @@ constexpr int idle_period_ticks = idle_period * tick_rate;
 constexpr int idle_cycle_period_ticks = idle_period * idle_count * tick_rate;
 
 const float hit_flash_duration = 0.1;
+
+static bool is_reloaded = true;
 
 struct Norm4 {
     float r, g, b, a;
@@ -215,6 +218,7 @@ void adsf(b2Transform transform, const b2Vec2* vertices, int vertexCount, float 
     std::cout << "jfkh\n";
 }
 
+
 LocalScene::LocalScene(Input::Input* input, Renderer* renderer) : m_input(input) {
     renderer->active_camera = &m_camera;
 
@@ -237,6 +241,27 @@ LocalScene::LocalScene(Input::Input* input, Renderer* renderer) : m_input(input)
 
     // b2World_Draw(m_state.world_id, &m_debug_draw);
 }
+
+const static Chunk chunks[4] = {
+    Chunk{
+        .position = {-chunk_width, chunk_width}
+    },
+    Chunk{
+        .position = {0, chunk_width}
+    },
+    Chunk{
+        .position = {-chunk_width, 0}
+    },
+    Chunk{
+        .position = {0, 0},
+        .tiles = {Tile{
+            .is_set = true,
+            .texture = TextureID::tilemap_png,
+            .w = 16,
+            .h = 16,
+        }}
+    },
+};
 
 void LocalScene::update(double delta_time) {
     ZoneScoped;
@@ -275,21 +300,78 @@ void LocalScene::update(double delta_time) {
 
         m_tick_input.end_frame();
     }
+
+    if (m_input->key_down(SDL_SCANCODE_E) && m_input->modifier(SDL_KMOD_CTRL)) {
+        m_edit_mode = !m_edit_mode;
+    }
+
+    if (m_edit_mode) {
+        if (m_input->mouse_down(0)) {
+            
+
+        }
+    }
 }
+
+// i32 floor(f32 num) {
+//
+// }
+
+
 
 void LocalScene::render(Renderer& renderer, SDL_Window* window) {
     render_state(renderer, window, m_state, current_tick, fixed_dt, m_camera);
     // renderer::draw_world_rect(renderer, m_camera, {{-3.5, 0}, {1,1}}, color::red);
     // renderer::draw_world_rect(renderer, m_camera, {{0.5, 1.5}, {0.5,0.5}}, RGBA{255,255,0,255});
+    // printf("%d\n", alignof(std::max_align_t);
 
-    renderer::draw_world_sprite(
-        renderer,
-        m_camera,
-        {{-3.5, 0}, {1, 1}},
-        {
-            .texture_id = TextureID::pot_jpg,
+    if (m_edit_mode) {
+        const float grid_step = 1;
+        i32 y_count = m_camera.scale.y / grid_step + 1;
+        i32 x_count = m_camera.scale.x / grid_step + 1;
+        glm::vec2 top_left_point = m_camera.position + glm::vec2{-m_camera.scale.x, m_camera.scale.y} / 2.0f;
+
+        RGBA grid_color = {255, 255, 255, 160};
+        for (i32 y = 0; y < y_count; y++) {
+            i32 start_y_index = (i32) (top_left_point.y / grid_step);
+            glm::vec2 left_point = glm::vec2{top_left_point.x, (start_y_index - y) * grid_step};
+            glm::vec2 line[] = { left_point, left_point + glm::vec2{m_camera.scale.x, 0} };
+            renderer::draw_world_lines(renderer, m_camera, line, 2, grid_color);
         }
-    );
+
+        for (i32 x = 0; x < x_count; x++) {
+            i32 start_x_index = (i32) (top_left_point.x / grid_step);
+            glm::vec2 top_point = glm::vec2{(start_x_index + x) * grid_step, top_left_point.y};
+            glm::vec2 line[] = { top_point, top_point - glm::vec2{0, m_camera.scale.y} };
+            renderer::draw_world_lines(renderer, m_camera, line, 2, grid_color);
+        }
+
+        auto pos = screen_to_world_pos(m_camera, m_input->mouse_pos, renderer.window_width, renderer.window_height);
+        
+
+        i32 x = (i32) (floor(pos.x) / grid_step);
+        // if (pos.x < 0) {
+        //     x -= 1;
+        // }
+        i32 y = (i32) (floor(pos.y) / grid_step);
+        // if (pos.y < 0) {
+        //     y -= 1;
+        // }
+
+        glm::vec2 p2 = glm::vec2{x * grid_step, y * grid_step} + (grid_step / 2);
+        glm::vec2 kys[] = {{0,0}, {1,0}};
+        renderer::draw_world_rect(renderer, m_camera, {p2,{1,1}}, color::red);
+
+    }
+
+    // renderer::draw_world_sprite(renderer, m_camera, {{0,0}, {1,1}}, {
+    //     .texture_id=TextureID::tilemap_png,
+    //     .src_rect=Rect{{16,0}, {16,16}}
+    // });
+    
+    // renderer::draw_world_lines(renderer, m_camera, kys, 2, {255,255,0,255});
+
+
 
     // auto rect = renderer::world_rect_to_normalized(m_camera, {{1,1}, {1,1}});
     // renderer::draw_textured_rect(renderer, TextureID::amogus_png, rect, {});
@@ -298,6 +380,25 @@ void LocalScene::render(Renderer& renderer, SDL_Window* window) {
 
     glm::vec2 idk[] = {{-1, 1}, {1, 1}, {1, -1}, {-1, -1}};
     // renderer::draw_world_polygon(renderer, m_camera, idk, 4, color::red);
+
+    for (i32 i = 0; i < 4; i++) {
+        auto& chunk = chunks[i];
+        for (i32 tile_index = 0; tile_index < chunk_size; tile_index++) {
+            auto& tile = chunk.tiles[tile_index];
+            if (!tile.is_set) {
+                continue;
+            }
+            renderer::draw_world_sprite(
+                renderer,
+                m_camera,
+                {chunk.position + glm::vec2{tile_index % chunk_width + 0.5, i32(tile_index / chunk_width) - 0.5}, {1, 1}},
+                {
+                    .texture_id = TextureID::tilemap_png,
+                    .src_rect = Rect{{0,0}, {16,16}},
+                }
+            );
+        }
+    }
 }
 
 void poll_event() {}
@@ -468,12 +569,25 @@ extern "C" INIT(init) {
     // multi_scene.connect();
 
     state->rects = {{255, 0, 0, 255}, {255, 255, 0, 255}, {0, 255, 255, 255}};
+
+    const size_t temp_arena_size = 4_KiB;
+    void* temp_arena_memory = malloc(temp_arena_size);
+
+    arena_init(&state->temp_arena, temp_arena_memory, temp_arena_size);
 }
 
-bool is_reloaded = true;
+void kys() {
+    __debugbreak();
+    // *(int*)0 = 0;
+}
+
+void(*to_kys)() = kys;
+
 
 extern "C" UPDATE(update) {
     auto state = (DLL_State*)memory;
+
+    // kys();
 
     bool quit = false;
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "common/allocator.h"
 #include "renderer.h"
 #include "color.h"
 #include "font.h"
@@ -15,6 +16,24 @@ const Camera2D default_camera{
     glm::vec2{1 * 4.0f/3.0f, 1} * 8.0f,
 };
 
+constexpr int chunk_width = 8;
+constexpr int chunk_size = chunk_width * chunk_width;
+
+
+struct Tile {
+    bool is_set;
+    TextureID texture;
+    u16 x;
+    u16 y;
+    u16 w;
+    u16 h;
+};
+
+struct Chunk {
+    glm::vec2 position;
+    Tile tiles[chunk_width * chunk_width];
+};
+
 class LocalScene {
 public:
     Input::Input* m_input;
@@ -24,6 +43,8 @@ public:
     Camera2D m_camera = default_camera;
 
     State m_state{};
+
+    bool m_edit_mode;
 
 
     double accumulator = 0.0;
@@ -52,4 +73,6 @@ struct DLL_State {
     std::chrono::time_point<std::chrono::steady_clock> last_frame_time;
 
     std::vector<RGBA> rects;
+
+    Arena temp_arena;
 };
