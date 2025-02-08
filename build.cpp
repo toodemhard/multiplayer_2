@@ -260,118 +260,115 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
     std::vector<std::filesystem::path> source_files = {};
 
     for (auto& src : target.files) {
-        if (src.type == files_type::glob)  {
+        if (src.type == files_type::glob) {
             glob_files(&source_files, project_root / src.glob_dir);
         }
     }
-
     commands_json += generate_compile_commands(project_root / "b2", std::format("{} {}", compile_flags, idk), includes, source_files);
 
-    std::string cache_filename = std::format("{}_cache.txt", target.name);
+    std::unordered_map<std::string, std::filesystem::file_time_type> obj_write_times;
+    for (const auto& entry : std::filesystem::directory_iterator(out_dir)) {
+        obj_write_times[entry.path().filename().stem().string()] = std::filesystem::last_write_time(entry.path());
+    }
 
-    std::vector<std::string> changed_source_files;
-    {
-        timer timer("cache check");
-        std::ifstream cache_file(cache_filename);
-        if (cache_file.is_open()) {
-            std::string line;
-            while (std::getline(cache_file, line)) {
+    std::vector<std::string> compile_source_files;
+    for (auto& src : source_files) {
+        std::string name = src.filename().stem().string();
 
-                std::stringstream ss(line);
+        bool compile_src = false;
+        if (!obj_write_times.contains(name)) {
+            compile_src = true;
+        } else if (obj_write_times[name] < std::filesystem::last_write_time(src)) {
+            compile_src = true;
+        }
+
+        if (compile_src) {
+            compile_source_files.push_back(src.string());
+        }
+    }
+
+    bool compile = true;
+    if (compile_source_files.size() == 0) {
+        compile = false;
+        printf("target: %s skipped\n", target.name);
+    }
+
+    std::string obj_args = "";
+    if (compile) {
+        std::string source_args = "/c";
+        for (auto& src : source_files) {
+            source_args += " " + src.string();
+            obj_args += " " + out_dir + src.stem().string() + ".obj";
+        }
+        {
+            timer timer("compile");
+            auto command = std::format("cl /diagnostics:color {} {} {} {} /Fo{}", compile_flags, pch_flags, includes, source_args, out_dir);
+            system(command.data());
+            printf("%s\n", command.data());
+        }
+    }
+
+    bool link = false;
+
+    std::string out_file;
+    switch (target.type) {
+        case target_type::executable: {
+            out_file = std::format("{}.exe", target.name);
+        } break;
+        case target_type::shared_lib: {
+            out_file = std::format("{}.dll", target.name);
+        } break;
+        case target_type::static_lib: {
+            out_file = std::format("{}.lib", target.name);
+        } break;
+    }
+
+    if (!std::filesystem::exists(out_file) || compile == true) {
+        link = true;
+    }
 
 
-                std::string file;
-                std::string time_count;
+    if (!link) {
+        printf("%s skip linking", target.name);
+    }
 
-                std::getline(ss, file, ',');
+    if (link) {
+        timer timer("linking");
 
-                std::getline(ss, time_count, ',');
+        std::string lib_files = "";
+        for (auto& lib_name : target.libs) {
 
-                std::filesystem::file_time_type::duration duration(std::stoull(time_count));
-                std::filesystem::file_time_type last_time(duration);
+            auto& lib = libs[lib_index[lib_name]];
+            if (!lib.lib_path.empty()) {
+                lib_files += (std::filesystem::path(lib.name) / lib.lib_path).lexically_normal().string() + " ";
+            }
 
-                if (last_time != std::filesystem::last_write_time(file)) {
-                    printf("%s changed\n", file.data());
-
-                    changed_source_files.push_back(file);
+            if (!lib.lib_out_dir.empty()) {
+                for (auto& lib_file : lib.lib_files) {
+                    lib_files += (lib.lib_out_dir / lib_file).lexically_normal().string() + " ";
                 }
             }
-        } else {
-            for (auto& src : source_files) {
-                changed_source_files.push_back(src.string());
-            }
-        }
-    }
 
-    {
-        timer timer("cache write");
-        std::ofstream cache_file(cache_filename);
-        for (auto& src : source_files) {
-            uint64_t count = std::filesystem::last_write_time(src).time_since_epoch().count();
-            cache_file << std::format("{},{}\n", src.string(), count);
-
-
-            // std::chrono::system_clock::time_point asd(idk);
-        }
-    }
-
-    if (changed_source_files.size() == 0) {
-        printf("target: %s skipped\n", target.name);
-        return;
-    }
-
-
-    std::string source_args = "/c";
-    for (auto& src : changed_source_files) {
-        source_args += " " + src;
-    }
-
-
-    // commands += 
-    {
-        timer timer("compile");
-        auto command = std::format("cl /diagnostics:color {} {} {} {} /Fo{}", compile_flags, pch_flags, includes, source_args, out_dir);
-        system(command.data());
-        printf("%s\n", command.data());
-    }
-
-    std::string lib_files = "";
-    for (auto& lib_name : target.libs) {
-
-        auto& lib = libs[lib_index[lib_name]];
-        if (!lib.lib_path.empty()) {
-            lib_files += (std::filesystem::path(lib.name) / lib.lib_path).lexically_normal().string() + " ";
-        }
-
-        if (!lib.lib_out_dir.empty()) {
-            for (auto& lib_file : lib.lib_files) {
-                lib_files += (lib.lib_out_dir / lib_file).lexically_normal().string() + " ";
+            if (!lib.shared_lib_path.empty() && !std::filesystem::exists(lib.shared_lib_path.filename()) ) {
+                std::filesystem::copy(std::filesystem::path(lib.name) / lib.shared_lib_path, lib.shared_lib_path.filename());
             }
         }
 
-        if (!lib.shared_lib_path.empty() && !std::filesystem::exists(lib.shared_lib_path.filename()) ) {
-            std::filesystem::copy(std::filesystem::path(lib.name) / lib.shared_lib_path, lib.shared_lib_path.filename());
-        }
-    }
-
-    {
-        timer timer("linking");
         std::string commands = "";
-
         const char* linker_flags = "/DEBUG /INCREMENTAL";
         switch (target.type) {
         case target_type::executable: {
-            commands += std::format("link {} {} {}/*.obj pch.obj {} msvcrtd.lib /OUT:{}.exe", linker_flags, target.linker_flags, out_dir, lib_files, target.name);
+            commands += std::format("link {} {} {} pch.obj {} msvcrtd.lib /OUT:{}.exe", linker_flags, target.linker_flags, obj_args, lib_files, target.name);
         } break;
         case target_type::shared_lib: {
             auto now = std::chrono::system_clock::now().time_since_epoch().count();
 
-            commands += std::format("link {} /DLL {}/*.obj pch.obj {} msvcrtd.lib /PDB:{}_game.pdb /OUT:{}.dll /EXPORT:init /EXPORT:update", linker_flags, out_dir, lib_files, now, target.name);
+            commands += std::format("link {} /DLL {} pch.obj {} msvcrtd.lib /PDB:{}_game.pdb /OUT:{}.dll /EXPORT:init /EXPORT:update", linker_flags, obj_args,  lib_files, now, target.name);
         } break;
         }
 
         system(commands.data());
-        // printf("%s\n", commands.data());
+        printf("%s\n", commands.data());
     }
 
 }
@@ -386,10 +383,12 @@ int main(int argc, char* argv[]) {
 
     compiler_path = std::format("\\\"{}\\\"", escape_json(command_output("which clang-cl")));
 
-    std::vector<std::filesystem::path> src_files;
-    glob_files(&src_files, project_root / "src");
-    glob_files(&src_files, project_root / "src/common");
-    glob_files(&src_files, project_root / "src/client");
+    // system(R"(for %%f in (*_game.pdb) do del %%f)");
+
+    // std::vector<std::filesystem::path> src_files;
+    // glob_files(&src_files, project_root / "src");
+    // glob_files(&src_files, project_root / "src/common");
+    // glob_files(&src_files, project_root / "src/client");
 
     lib libs[] = {
         lib {
