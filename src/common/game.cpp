@@ -210,33 +210,40 @@ void update_state(State& state, PlayerInput inputs[max_player_count], u32 curren
         }
         if (input.left) {
             move_input.x -= 1;
+            player.direction_left = true;
         }
         if (input.right) {
             move_input.x += 1;
+            player.direction_left = false;
         }
 
         auto velocity = glm::vec2{0, 0};
         // move_input.x += 1;
 
+        // auto print_vec2 = [current_tick](glm::vec2 vec) {
+        //     // printf("%d, %f, %f\n", current_tick, vec.x, vec.y);
+        // };
+
         if (player.state == PlayerState::Neutral) {
-            auto move_direction = glm::normalize(move_input);
+            if (move_input.x == 0 && move_input.y == 0) {
 
-            if (input.dash) {
-                player.state = PlayerState::Dashing;
-                player.dash_direction = move_direction;
-                player.dash_start_tick = current_tick;
             }
-
-
             if (glm::length(move_input) > 0) {
+                auto move_direction = glm::normalize(move_input);
                 velocity = move_direction * player_speed;
                 // printf("%f, %f\n", velocity.x, velocity.y);
-            }
-            b2Body_SetLinearVelocity(player.body_id, b2Vec2{velocity.x, velocity.y});
-        }
 
-        if (player.state == PlayerState::Dashing) {
+                if (input.dash) {
+                    player.state = PlayerState::Dashing;
+                    player.dash_direction = move_direction;
+                    player.dash_start_tick = current_tick;
+                }
+            }
+
+            b2Body_SetLinearVelocity(player.body_id, b2Vec2{velocity.x, velocity.y});
+        } else if (player.state == PlayerState::Dashing) {
             velocity = player.dash_direction * dash_speed;
+
             b2Body_SetLinearVelocity(player.body_id, b2Vec2{velocity.x, velocity.y});
 
             if ((current_tick - player.dash_start_tick) * dt > dash_duration) {

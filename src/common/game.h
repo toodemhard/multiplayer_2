@@ -35,6 +35,7 @@ struct Player {
 
     b2BodyId body_id;
     // eastl::fixed_vector<int, max_player_count> free_list;
+    bool direction_left;
 };
 
 // struct Bullet {
