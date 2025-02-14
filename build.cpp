@@ -294,18 +294,17 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
     }
 
     std::string obj_args = "";
+    std::string source_args = "/c";
+    for (auto& src : source_files) {
+        source_args += " " + src.string();
+        obj_args += " " + out_dir + src.stem().string() + ".obj";
+    }
+
     if (compile) {
-        std::string source_args = "/c";
-        for (auto& src : source_files) {
-            source_args += " " + src.string();
-            obj_args += " " + out_dir + src.stem().string() + ".obj";
-        }
-        {
-            timer timer("compile");
-            auto command = std::format("cl /diagnostics:color {} {} {} {} /Fo{}", compile_flags, pch_flags, includes, source_args, out_dir);
-            system(command.data());
-            printf("%s\n", command.data());
-        }
+        timer timer("compile");
+        auto command = std::format("cl /diagnostics:color {} {} {} {} /Fo{}", compile_flags, pch_flags, includes, source_args, out_dir);
+        system(command.data());
+        printf("%s\n", command.data());
     }
 
     bool link = false;
