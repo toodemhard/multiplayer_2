@@ -25,7 +25,7 @@ class GameClient {
     void ClientConnected(int client_index);
     void ClientDisconnected(int client_index);
 
-    State m_state{};
+    GameState m_state{};
     ring_buffer<Player, max_rollback_ticks> player_history;
 
     std::chrono::time_point<std::chrono::steady_clock> m_packet_sent_time;

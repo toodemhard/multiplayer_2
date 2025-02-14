@@ -35,7 +35,7 @@ const static int substep_count = 4;
 
 
 
-void create_box(State& state, glm::vec2 position) {
+void create_box(GameState& state, glm::vec2 position) {
     for (int i = 0; i < boxes_capacity; i++) {
         if (state.boxes_active[i] == false) {
             auto& box = state.boxes[i];
@@ -68,12 +68,12 @@ void create_box(State& state, glm::vec2 position) {
     }
 }
 
-void destroy_box(State& state, int index) {
+void destroy_box(GameState& state, int index) {
     b2DestroyBody(state.boxes[index].body_id);
     state.boxes_active[index] = false;
 }
 
-void init_state(State& state) {
+void init_state(GameState& state) {
     b2WorldDef world_def = b2DefaultWorldDef();
     world_def.gravity = b2Vec2{0.0f, 0.0f};
     state.world_id = b2CreateWorld(&world_def);
@@ -117,7 +117,7 @@ void init_state(State& state) {
     // b2Body_SetGravityScale(state.body_id, 0.0f);
 }
 
-void remove_bullet(State& state, int index) {
+void remove_bullet(GameState& state, int index) {
     state.bullets_active[index] = false;
     b2DestroyBody(state.bullets[index].body_id);
 }
@@ -131,7 +131,7 @@ const float dash_duration = dash_distance / dash_speed;
 const float bullet_damage = 10;
 
 // dt is duration between ticks
-void update_state(State& state, PlayerInput inputs[max_player_count], u32 current_tick, double dt) {
+void update_state(GameState& state, PlayerInput inputs[max_player_count], u32 current_tick, double dt) {
     b2World_Step(state.world_id, dt, substep_count);
 
     b2SensorEvents sensorEvents = b2World_GetSensorEvents(state.world_id);
@@ -303,7 +303,7 @@ void update_state(State& state, PlayerInput inputs[max_player_count], u32 curren
     }
 }
 
-PlayerID create_player(State& state) {
+PlayerID create_player(GameState& state) {
     for (int i = 0; i < max_player_count; i++) {
         if (!state.players_active[i]) {
             state.players_active[i] = true;
@@ -331,6 +331,6 @@ PlayerID create_player(State& state) {
     panic("players array exceeded\n");
 }
 
-void remove_player(State& state, int player_index) {
+void remove_player(GameState& state, int player_index) {
     state.players_active[player_index] = false;
 }

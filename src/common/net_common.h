@@ -69,7 +69,7 @@ bool serialize_vector(Stream& stream, Vector& vector, int max) {
 class SnapshotMessage : public yojimbo::Message {
   public:
     uint32_t tick;
-    State state{};
+    GameState state{};
     // eastl::fixed_vector<glm::vec2, 16> players;
 
 

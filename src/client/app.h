@@ -42,7 +42,7 @@ public:
     Input::Input m_tick_input;
     Camera2D m_camera = default_camera;
 
-    State m_state{};
+    GameState m_state{};
 
     bool m_edit_mode;
 
@@ -64,7 +64,7 @@ public:
     void render(Renderer& renderer, SDL_Window* window);
 };
 
-struct DLL_State {
+struct State {
     SDL_Window* window;
     Renderer renderer{};
     Input::Input input;

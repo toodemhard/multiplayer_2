@@ -44,7 +44,7 @@ RGBA norm4_to_rgba(Norm4 norm4) {
 
 // dt just to convert tick to time
 // dt should be constant but paramaterizing it to allow different tick rate servers
-void render_state(Renderer& renderer, SDL_Window* window, State& state, int current_tick, double dt, Camera2D camera) {
+void render_state(Renderer& renderer, SDL_Window* window, GameState& state, int current_tick, double dt, Camera2D camera) {
     using namespace renderer;
 
     // auto& char_sheet = textures[(int)ImageID::char_sheet_png];
