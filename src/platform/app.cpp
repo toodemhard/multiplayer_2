@@ -1,5 +1,6 @@
 #include "../pch.h"
 
+#include "common/allocator.h"
 #include "client/exports.h"
 
 #include <windows.h>
@@ -44,7 +45,7 @@ void run(){
     load_dll(&dll);
 
 
-    void* memory = malloc(1024 * 1024);
+    void* memory = malloc(megabytes(10));
 
     auto pwd = std::filesystem::current_path();
 
@@ -67,7 +68,12 @@ void run(){
     // std::cout << std::format("{}\n", x);
 
     while (1) {
-        auto current_write = std::filesystem::last_write_time("./game.dll");
+        std::filesystem::file_time_type current_write;
+        try {
+            current_write = std::filesystem::last_write_time("./game.dll");
+        } catch(std::runtime_error& e) {
+            current_write = last_write;
+        }
 
         // auto other_write = std::filesystem::last_write_time("./game.dll");
 

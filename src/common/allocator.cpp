@@ -18,17 +18,14 @@ void* arena_allocate_align(Arena* arena, size_t size, size_t alignment) {
     offset -= (uintptr_t)arena->m_start;
 
 
-    if (offset+size <= arena->m_capacity) {
-        void* ptr = &arena->m_start[offset];
-        arena->m_current = offset + size;
+    ASSERT(offset+size <= arena->m_capacity)
 
-        memset(ptr, 0, size);
+    void* ptr = &arena->m_start[offset];
+    arena->m_current = offset + size;
 
-        return ptr;
+    memset(ptr, 0, size);
 
-    }
-
-    return NULL;
+    return ptr;
 }
 
 void arena_reset(Arena* arena) {
