@@ -157,10 +157,14 @@ void build_libs(lib* libs, int lib_count) {
     }
 }
 
-void glob_files(std::vector<std::filesystem::path>* files, std::filesystem::path path) {
+void glob_files(std::vector<std::filesystem::path>* source_files, std::vector<std::filesystem::path>* header_files, std::filesystem::path path) {
     for (const auto& entry : std::filesystem::directory_iterator(path)) {
-        if (entry.path().extension() == ".cpp") {
-            files->push_back(entry.path().lexically_normal());
+        const auto& extension = entry.path().extension();
+        if (extension == ".cpp" || extension == ".c") {
+            source_files->push_back(entry.path().lexically_normal());
+        }
+        if (extension == ".h" || extension == ".hpp") {
+            header_files->push_back(entry.path().lexically_normal());
         }
     }
 }
@@ -258,20 +262,27 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
 
 
     std::vector<std::filesystem::path> source_files = {};
+    std::vector<std::filesystem::path> header_files = {};
 
     for (auto& src : target.files) {
         if (src.type == files_type::glob) {
-            glob_files(&source_files, project_root / src.glob_dir);
+            glob_files(&source_files, &header_files, project_root / src.glob_dir);
         }
     }
     commands_json += generate_compile_commands(project_root / "b2", std::format("{} {}", compile_flags, idk), includes, source_files);
 
     std::unordered_map<std::string, std::filesystem::file_time_type> obj_write_times;
+    std::filesystem::file_time_type last_compile;
+
     for (const auto& entry : std::filesystem::directory_iterator(out_dir)) {
-        obj_write_times[entry.path().filename().stem().string()] = std::filesystem::last_write_time(entry.path());
+        const auto& write_time = std::filesystem::last_write_time(entry.path());
+        obj_write_times[entry.path().filename().stem().string()] = write_time;
+        if (write_time > last_compile) {
+            last_compile = write_time;
+        }
     }
 
-    std::vector<std::string> compile_source_files;
+    bool compile = false;
     for (auto& src : source_files) {
         std::string name = src.filename().stem().string();
 
@@ -281,15 +292,16 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
         } else if (obj_write_times[name] < std::filesystem::last_write_time(src)) {
             compile_src = true;
         }
+    }
 
-        if (compile_src) {
-            compile_source_files.push_back(src.string());
+    for (auto& h : header_files) {
+        if (std::filesystem::last_write_time(h) > last_compile) {
+            compile = true;
+            break;
         }
     }
 
-    bool compile = true;
-    if (compile_source_files.size() == 0) {
-        compile = false;
+    if (!compile) {
         printf("target: %s skipped\n", target.name);
     }
 
