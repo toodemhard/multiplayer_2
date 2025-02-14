@@ -78,7 +78,7 @@ namespace font {
         
         auto texture_id = font_id_to_texture_id(font_id);
         renderer::load_texture(
-            renderer,
+            &renderer,
             texture_id,
             Image{
                 .w = w,
@@ -270,7 +270,8 @@ namespace font {
                     {w * size_ratio, h * size_ratio}
                 };
 
-                draw_textured_rect(renderer, font.texture_atlas, src, dst);
+                //TODO: fix
+                // draw_textured_rect(&renderer, font.texture_atlas, src, dst);
 
                 x += char_info.xadvance * size_ratio;
             }

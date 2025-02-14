@@ -38,6 +38,7 @@ class LocalScene {
 public:
     Input::Input* m_input;
     Font* m_font;
+    Renderer* m_renderer;
 
     Input::Input m_tick_input;
     Camera2D m_camera = default_camera;
@@ -58,7 +59,7 @@ public:
     b2DebugDraw m_debug_draw{};
 
     LocalScene() {};
-    LocalScene(Input::Input* input, Renderer* renderer);
+    LocalScene(Input::Input* input, Renderer* renderer, Font* font);
 
     void update(double delta_time);
     void render(Renderer& renderer, SDL_Window* window);

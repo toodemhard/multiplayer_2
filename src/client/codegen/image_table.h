@@ -5,5 +5,7 @@
     _(box_png, "images/box.png")\
     _(bullet_png, "images/bullet.png")\
     _(char_sheet_png, "images/char_sheet.png")\
+    _(depth_test_png, "images/depth_test.png")\
+    _(player_png, "images/player.png")\
     _(pot_jpg, "images/pot.jpg")\
     _(tilemap_png, "images/tilemap.png")\
