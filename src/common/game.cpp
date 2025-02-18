@@ -109,7 +109,7 @@ void create_bullet(GameState* state, glm::vec2 position, glm::vec2 direction, u3
         .entity_type = EntityType::Bullet,
         .flags = etbf(EntityComponent::attack) | etbf(EntityComponent::expires),
         .body_id = body_id,
-        .expire_tick = current_tick + (u32)(bullet_expire_duration / tick_rate),
+        .expire_tick = current_tick + (u32)(bullet_expire_duration * tick_rate),
     };
 
     EntityHandle handle = entity_list_add(&state->entities, bullet);
@@ -175,7 +175,7 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
         auto sensor = (Entity*)b2Shape_GetUserData(beginTouch->sensorShapeId);
         auto visitor = (Entity*)b2Shape_GetUserData(beginTouch->visitorShapeId);
 
-        if (visitor != NULL && visitor->flags | etbf(EntityComponent::hittable)) {
+        if (visitor != NULL && visitor->flags & etbf(EntityComponent::hittable)) {
             auto inc_dir = glm::normalize(b2vec_to_glmvec(b2Body_GetLinearVelocity(sensor->body_id)));
             b2Body_ApplyLinearImpulse(visitor->body_id, glmvec_to_b2vec(inc_dir * 2.0f), b2Body_GetWorldCenterOfMass(visitor->body_id), true);
 
@@ -281,7 +281,7 @@ EntityHandle create_player(GameState* state) {
     
     Entity player = {
         .entity_type = EntityType::Player,
-        .flags = etbf(hittable),
+        // .flags = etbf(hittable),
         .body_id = body_id,
         .health = 100,
     };

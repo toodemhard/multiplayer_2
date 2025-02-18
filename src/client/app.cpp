@@ -74,7 +74,7 @@ void render_state(Renderer* renderer, SDL_Window* window, GameState* state, int 
 
         RGBA flash_color = {255,255,255,255};
         f32 t = 0;
-        if (ent->flags | etbf(EntityComponent::hittable) && ent->hit_flash_end_tick > current_tick) {
+        if (ent->flags & etbf(EntityComponent::hittable) && ent->hit_flash_end_tick > current_tick) {
             t = 1;
         }
 
@@ -90,7 +90,7 @@ void render_state(Renderer* renderer, SDL_Window* window, GameState* state, int 
             .t = t,
         });
 
-        if (ent->flags | etbf(EntityComponent::hittable)) {
+        if (ent->flags & etbf(EntityComponent::hittable)) {
             draw_world_rect(renderer, camera, {world_rect.position - glm::vec2{0, -1}, {1, 0.1}}, norm4_to_rgba({0.2, 0.2, 0.2, 1.0}));
             draw_world_rect( renderer, camera, {world_rect.position - glm::vec2{0, -1}, {ent->health / (float)box_health, 0.1}}, norm4_to_rgba({1, 0.2, 0.1, 1.0}));
         }
