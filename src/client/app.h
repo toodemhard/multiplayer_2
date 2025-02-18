@@ -4,7 +4,6 @@
 #include "renderer.h"
 #include "color.h"
 #include "font.h"
-// #include "game.h"
 #include "client.h"
 #include "input.h"
 #include "assets.h"
@@ -34,8 +33,7 @@ struct Chunk {
     Tile tiles[chunk_width * chunk_width];
 };
 
-class LocalScene {
-public:
+struct LocalScene {
     Input::Input* m_input;
     Font* m_font;
     Renderer* m_renderer;
@@ -53,17 +51,18 @@ public:
     double time = {};
     int current_tick = 0;
 
+    EntityHandle player_handle;
+
 
     PlayerInput inputs[max_player_count];
-
     b2DebugDraw m_debug_draw{};
 
-    LocalScene() {};
-    LocalScene(Input::Input* input, Renderer* renderer, Font* font);
-
-    void update(double delta_time);
-    void render(Renderer& renderer, SDL_Window* window);
+    Arena* level_arena;
 };
+
+// void local_scene_init(LocalScene* scene, Arena* level_arena, Input::Input* input, Renderer* renderer, Font* font);
+// void local_scene_update(LocalScene* scene, double delta_time);
+// void local_scene_render(LocalScene* scene, Renderer* renderer, SDL_Window* window);
 
 struct State {
     SDL_Window* window;
@@ -76,4 +75,5 @@ struct State {
     std::vector<RGBA> rects;
 
     Arena temp_arena;
+    Arena level_arena;
 };

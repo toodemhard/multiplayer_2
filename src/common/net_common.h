@@ -89,8 +89,8 @@ class SnapshotMessage : public yojimbo::Message {
 
 
 
-        serialize_bytes(stream, (uint8_t*)&state.players_active, sizeof(state.players_active));
-        serialize_bytes(stream, (uint8_t*)&state.players, sizeof(state.players));
+        // serialize_bytes(stream, (uint8_t*)&state.players_active, sizeof(state.players_active));
+        // serialize_bytes(stream, (uint8_t*)&state.players, sizeof(state.players));
 
 
         // for (auto& i : player_indices) {
@@ -102,8 +102,8 @@ class SnapshotMessage : public yojimbo::Message {
         // }
 
 
-        serialize_bytes(stream, (uint8_t*)&state.bullets_active, sizeof(state.bullets_active));
-        serialize_bytes(stream, (uint8_t*)&state.bullets, sizeof(state.bullets));
+        // serialize_bytes(stream, (uint8_t*)&state.bullets_active, sizeof(state.bullets_active));
+        // serialize_bytes(stream, (uint8_t*)&state.bullets, sizeof(state.bullets));
 
         // serialize_float(stream, pos.x);
         // serialize_float(stream, pos.y);

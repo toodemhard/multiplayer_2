@@ -7,6 +7,8 @@
 #include "app.h"
 #include "exports.h"
 
+#include "common/game.h"
+
 
 const int asdfhkj = 13413432;
 
@@ -40,86 +42,59 @@ RGBA norm4_to_rgba(Norm4 norm4) {
 
 // dt just to convert tick to time
 // dt should be constant but paramaterizing it to allow different tick rate servers
-void render_state(Renderer& renderer, SDL_Window* window, GameState& state, int current_tick, double dt, Camera2D camera) {
+void render_state(Renderer* renderer, SDL_Window* window, GameState* state, int current_tick, double dt, Camera2D camera) {
     using namespace renderer;
-
-    // auto& char_sheet = textures[(int)ImageID::char_sheet_png];
-    // auto& bullet_texture = textures[(int)ImageID::bullet_png];
 
     int idle_frame = current_tick % idle_cycle_period_ticks / idle_period_ticks;
 
-    for (int i = 0; i < max_player_count; i++) {
-        if (state.players_active[i]) {
-            auto& player = state.players[i];
-            auto player_pos = b2vec_to_glmvec(b2Body_GetPosition(player.body_id));
-            // draw_world_textured_rect(renderer, camera, {}, {state.players.position[i], {1, 1}}, amogus_texture);
-            // draw_world_textured_rect(
-            //     renderer, camera, TextureID::char_sheet_png, Rect{{16 * idle_frame + 2, 0}, {16, 16}}, {player_pos, {1, 1}}
-            // );
-            f32 x_scale = 2;
-            if (!player.direction_left) {
-                x_scale *= -1;
-            }
-            // glm::vec2 pos = {((i32)(player_pos.x * 16)) / 16.0f, ((i32)(player_pos.y * 16)) / 16.0f};
-            draw_world_sprite(&renderer, camera, {{player_pos},{x_scale,2}}, {.texture_id=TextureID::player_png});
-            // auto p1 = snap_pos(camera.position);
-            // auto p2 = snap_pos(player_pos);
-            // printf("%f %f, %f %f\n", p1.x, p1.y, p2.x, p2.y);
-        }
-    }
+    for (i32 i = 0; i < state->entities.length; i++) {
+        const Entity* ent = &state->entities[i];
 
-    for (int i = 0; i < bullets_capacity; i++) {
-
-        if (!state.bullets_active[i]) {
+        if (!ent->is_active) {
             continue;
         }
-        auto& bullet = state.bullets[i];
 
-        auto pos = b2vec_to_glmvec(b2Body_GetPosition(bullet.body_id));
-        draw_world_sprite(&renderer, camera, {pos, {0.5, 0.5}}, {.texture_id=TextureID::bullet_png});
-    }
+        Rect world_rect = {};
+        TextureID texture;
+        switch (ent->entity_type) {
+        case EntityType::Player: {
+            world_rect.scale = {2,2};
+            texture = TextureID::player_png;
+        } break;
+        case EntityType::Bullet: {
+            world_rect.scale = {0.5,0.5};
+            texture = TextureID::bullet_png;
+        } break;
+        case EntityType::Box: {
+            world_rect.scale = {1,1};
+            texture = TextureID::box_png;
+        } break;
 
-    for (int i = 0; i < boxes_capacity; i++) {
-
-        if (!state.boxes_active[i]) {
-            continue;
         }
-        auto& box = state.boxes[i];
 
-        auto pos = b2vec_to_glmvec(b2Body_GetPosition(box.body_id));
-
-        float t = 0;
-        if ((current_tick - box.last_hit_tick) * dt < hit_flash_duration) {
-            t = 0.8;
+        RGBA flash_color = {255,255,255,255};
+        f32 t = 0;
+        if (ent->flags | etbf(EntityComponent::hittable) && ent->hit_flash_end_tick > current_tick) {
+            t = 1;
         }
 
-        draw_world_sprite(
-            &renderer,
-            camera,
-            {pos, {1, 1}},
-            {
-                .texture_id = TextureID::box_png,
-                .mix_color = color::white,
-                .t = t,
-            }
-        );
+        world_rect.position = b2vec_to_glmvec(b2Body_GetPosition(ent->body_id));
 
-        draw_world_rect(&renderer, camera, {pos - glm::vec2{0, -1}, {1, 0.1}}, norm4_to_rgba({0.2, 0.2, 0.2, 1.0}));
-        draw_world_rect(
-            &renderer, camera, {pos - glm::vec2{0, -1}, {box.health / (float)box_health, 0.1}}, norm4_to_rgba({1, 0.2, 0.1, 1.0})
-        );
-        // draw_world_textured_rect(renderer, camera, TextureID::box_png, {}, {pos, {1, 1}});
+        if (ent->flip_sprite) {
+            world_rect.scale.x *= -1;
+        }
+
+        draw_sprite_world(renderer, camera, world_rect, SpriteProperties{
+            .texture_id=texture,
+            .mix_color = flash_color,
+            .t = t,
+        });
+
+        if (ent->flags | etbf(EntityComponent::hittable)) {
+            draw_world_rect(renderer, camera, {world_rect.position - glm::vec2{0, -1}, {1, 0.1}}, norm4_to_rgba({0.2, 0.2, 0.2, 1.0}));
+            draw_world_rect( renderer, camera, {world_rect.position - glm::vec2{0, -1}, {ent->health / (float)box_health, 0.1}}, norm4_to_rgba({1, 0.2, 0.1, 1.0}));
+        }
     }
-
-    // for (auto& thing : state.boxes) {
-    //     b2Shape_GetPolygon(thing.shape_id);
-    // }
-
-    // {
-    //     auto pos =  b2Body_GetPosition(state.body_id);
-    //
-    //     draw_world_textured_rect(renderer, camera, {}, {.position={pos.x, pos.y}, .scale={1,1}}, bullet_texture);
-    // }
 }
 
 void accumulate_input_events(Input::Input& accumulator, Input::Input& new_frame) {
@@ -153,9 +128,6 @@ PlayerInput input_state(Input::Input& input, const Camera2D& camera) {
     if (input.action_down(ActionID::dash)) {
         player_input.dash = true;
     }
-    // if (glm::length(move_input) > 0) {
-    //     player_position += glm::normalize(move_input) * (float)delta_time * 4.0f;
-    // }
 
     if (input.key_down(SDL_SCANCODE_F)) {
         printf("asdf\n");
@@ -215,27 +187,26 @@ void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void
 }
 
 
-LocalScene::LocalScene(Input::Input* input, Renderer* renderer, Font* font) : m_input(input), m_font(font), m_renderer(renderer) {
-    renderer->active_camera = &m_camera;
+void local_scene_init(LocalScene* scene, Arena* level_arena, Input::Input* input, Renderer* renderer, Font* font) {
+    *scene = {};
+    scene->m_input = input;
+    scene->m_font = font;
+    scene->m_renderer = renderer;
 
-    init_state(m_state);
-    create_player(m_state);
-    // m_state.players_active[0] = true;
+    renderer->active_camera = &scene->m_camera;
 
-    m_tick_input.init_keybinds(Input::default_keybindings);
+    state_init(&scene->m_state, level_arena);
 
+    scene->player_handle = create_player(&scene->m_state);
+
+    scene->m_tick_input.init_keybinds(Input::default_keybindings);
+
+    auto& m_debug_draw = scene->m_debug_draw;
     m_debug_draw = b2DefaultDebugDraw();
     m_debug_draw.context = renderer;
     m_debug_draw.DrawPolygon = &DrawPolygon;
     m_debug_draw.DrawSolidPolygon = &DrawSolidPolygon;
-    // m_debug_draw.DrawSolidPolygon = &adsf;
     m_debug_draw.drawShapes = true;
-    // m_debug_draw.drawAABBs = true;
-    // debug_draw.drawShapes
-    //
-    // debug_draw.drawShapes
-
-    // b2World_Draw(m_state.world_id, &m_debug_draw);
 }
 
 static Chunk chunks[4] = {
@@ -268,54 +239,50 @@ static Chunk chunks[4] = {
 
 const static float grid_step = 1;
 
-void LocalScene::update(double delta_time) {
+void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
     ZoneScoped;
 
-    accumulator += delta_time;
-    accumulate_input_events(m_tick_input, *m_input);
+    s->accumulator += delta_time;
+    accumulate_input_events(s->m_tick_input, *s->m_input);
 
-    while (accumulator >= fixed_dt) {
-        m_tick_input.begin_frame();
-        accumulator = accumulator - fixed_dt;
-        frame++;
-        time += fixed_dt;
+    while (s->accumulator >= fixed_dt) {
+        s->m_tick_input.begin_frame();
+        s->accumulator = s->accumulator - fixed_dt;
+        s->frame++;
+        s->time += fixed_dt;
         // printf("frame:%d %fs\n", frame, time);
 
-        if (m_input->key_down(SDL_SCANCODE_R)) {
-            accumulator += fixed_dt;
+        if (s->m_input->key_down(SDL_SCANCODE_R)) {
+            s->accumulator += fixed_dt;
         }
 
-        if (m_input->key_down(SDL_SCANCODE_E)) {
-            accumulator -= fixed_dt;
+        if (s->m_input->key_down(SDL_SCANCODE_E)) {
+            s->accumulator -= fixed_dt;
         }
 
-        inputs[0] = input_state(m_tick_input, m_camera);
+        s->inputs[0] = input_state(s->m_tick_input, s->m_camera);
 
         int throttle_ticks{};
-        update_state(m_state, inputs, current_tick, fixed_dt);
+        state_update(&s->m_state, frame_arena, s->inputs, s->current_tick, tick_rate);
 
-        auto player_pos = b2vec_to_glmvec(b2Body_GetPosition(m_state.players[0].body_id));
-        m_camera.position = player_pos;
-        // auto pos = b2Body_GetPosition(m_state.body_id);
-        // std::cout << std::format("{} {}\n", player_pos.x, player_pos.y);
+        auto player_pos = b2vec_to_glmvec(b2Body_GetPosition(entity_list_get(&s->m_state.entities, s->player_handle)->body_id));
+        s->m_camera.position = player_pos;
 
-        // accumulator += fixed_dt * throttle_ticks;
+        s->current_tick++;
 
-        current_tick++;
-
-        m_tick_input.end_frame();
+        s->m_tick_input.end_frame();
     }
 
-    if (m_input->key_down(SDL_SCANCODE_E) && m_input->modifier(SDL_KMOD_CTRL)) {
-        m_edit_mode = !m_edit_mode;
+    if (s->m_input->key_down(SDL_SCANCODE_E) && s->m_input->modifier(SDL_KMOD_CTRL)) {
+        s->m_edit_mode = !s->m_edit_mode;
     }
 
-    if (m_edit_mode) {
-        if (m_input->mouse_down(SDL_BUTTON_LEFT)) {
+    if (s->m_edit_mode) {
+        if (s->m_input->mouse_held(SDL_BUTTON_LEFT)) {
             auto& chunk = chunks[3];
-            auto pos = screen_to_world_pos(m_camera, m_input->mouse_pos, m_renderer->window_width, m_renderer->window_height);
-            i32 x = (i32) (floor(pos.x) / grid_step) - (i32) chunk.position.x;
-            i32 y = (i32) (floor(pos.y) / grid_step) - (i32) chunk.position.y;
+            auto pos = screen_to_world_pos(s->m_camera, s->m_input->mouse_pos, s->m_renderer->window_width, s->m_renderer->window_height);
+            i32 x = (i32) chunk.position.x + (floor(pos.x) / grid_step);
+            i32 y = (i32)chunk.position.y + (floor(pos.y) / grid_step);
             Tile tile = {
                 true,
                 TextureID::tilemap_png,
@@ -332,13 +299,7 @@ void LocalScene::update(double delta_time) {
     }
 }
 
-// i32 floor(f32 num) {
-//
-// }
-
-
-
-void LocalScene::render(Renderer& renderer, SDL_Window* window) {
+void local_scene_render(LocalScene* s, Renderer* renderer, SDL_Window* window) {
     for (i32 i = 0; i < 4; i++) {
         auto& chunk = chunks[i];
         for (i32 tile_index = 0; tile_index < chunk_size; tile_index++) {
@@ -346,10 +307,10 @@ void LocalScene::render(Renderer& renderer, SDL_Window* window) {
             if (!tile.is_set) {
                 continue;
             }
-            renderer::draw_world_sprite(
-                &renderer,
-                m_camera,
-                {chunk.position + glm::vec2{tile_index % chunk_width + 0.5, i32(tile_index / chunk_width) - 0.5}, {1, 1}},
+            renderer::draw_sprite_world(
+                renderer,
+                s->m_camera,
+                {chunk.position + glm::vec2{tile_index % chunk_width + 0.5, i32(tile_index / chunk_width) + 0.5}, {1, 1}},
                 {
                     .texture_id = TextureID::tilemap_png,
                     .src_rect = Rect{{tile.x, tile.y}, {16,16}},
@@ -358,7 +319,7 @@ void LocalScene::render(Renderer& renderer, SDL_Window* window) {
         }
     }
 
-    render_state(renderer, window, m_state, current_tick, fixed_dt, m_camera);
+    render_state(renderer, window, &s->m_state, s->current_tick, fixed_dt, s->m_camera);
     // renderer::draw_world_rect(renderer, m_camera, {{-3.5, 0}, {1,1}}, color::red);
     // renderer::draw_world_rect(renderer, m_camera, {{0.5, 1.5}, {0.5,0.5}}, RGBA{255,255,0,255});
     // printf("%d\n", alignof(std::max_align_t);
@@ -369,35 +330,35 @@ void LocalScene::render(Renderer& renderer, SDL_Window* window) {
 
     {
         glm::vec2 line[] = {{-1,2},{0,2},{0,3}};
-        renderer::draw_world_lines(&renderer, m_camera, line, 3, RGBA{255,255,0,255});
+        renderer::draw_world_lines(renderer, s->m_camera, line, 3, RGBA{255,255,0,255});
     }
     {
         glm::vec2 line[] = {snap_pos({-1,5}), snap_pos({-1,4}), snap_pos({0,1})};
-        renderer::draw_world_lines(&renderer, m_camera, line, 2, RGBA{255,0,0,255});
+        renderer::draw_world_lines(renderer, s->m_camera, line, 2, RGBA{255,0,0,255});
     }
 
 
-    if (m_edit_mode) {
-        i32 y_count = m_camera.scale.y / grid_step + 1;
-        i32 x_count = m_camera.scale.x / grid_step + 1;
-        glm::vec2 top_left_point = m_camera.position + glm::vec2{-m_camera.scale.x, m_camera.scale.y} / 2.0f;
+    if (s->m_edit_mode) {
+        i32 y_count = s->m_camera.scale.y / grid_step + 1;
+        i32 x_count = s->m_camera.scale.x / grid_step + 1;
+        glm::vec2 top_left_point = s->m_camera.position + glm::vec2{-s->m_camera.scale.x, s->m_camera.scale.y} / 2.0f;
 
         RGBA grid_color = {255, 255, 255, 160};
         for (i32 y = 0; y < y_count; y++) {
             i32 start_y_index = (i32) (top_left_point.y / grid_step);
             glm::vec2 left_point = glm::vec2{top_left_point.x, (start_y_index - y) * grid_step};
-            glm::vec2 line[] = { left_point, left_point + glm::vec2{m_camera.scale.x, 0} };
-            renderer::draw_world_lines(&renderer, m_camera, line, 2, grid_color);
+            glm::vec2 line[] = { left_point, left_point + glm::vec2{s->m_camera.scale.x, 0} };
+            renderer::draw_world_lines(renderer, s->m_camera, line, 2, grid_color);
         }
 
         for (i32 x = 0; x < x_count; x++) {
             i32 start_x_index = (i32) (top_left_point.x / grid_step);
             glm::vec2 top_point = glm::vec2{(start_x_index + x) * grid_step, top_left_point.y};
-            glm::vec2 line[] = { top_point, top_point - glm::vec2{0, m_camera.scale.y} };
-            renderer::draw_world_lines(&renderer, m_camera, line, 2, grid_color);
+            glm::vec2 line[] = { top_point, top_point - glm::vec2{0, s->m_camera.scale.y} };
+            renderer::draw_world_lines(renderer, s->m_camera, line, 2, grid_color);
         }
 
-        auto pos = screen_to_world_pos(m_camera, m_input->mouse_pos, renderer.window_width, renderer.window_height);
+        auto pos = screen_to_world_pos(s->m_camera, s->m_input->mouse_pos, renderer->window_width, renderer->window_height);
         
 
         i32 x = (i32) (floor(pos.x) / grid_step);
@@ -411,7 +372,7 @@ void LocalScene::render(Renderer& renderer, SDL_Window* window) {
 
         glm::vec2 p2 = glm::vec2{x * grid_step, y * grid_step} + (grid_step / 2);
         glm::vec2 kys[] = {{0,0}, {1,0}};
-        renderer::draw_world_rect(&renderer, m_camera, {p2,{1,1}}, color::red);
+        renderer::draw_world_rect(renderer, s->m_camera, {p2,{1,1}}, color::red);
 
     }
 
@@ -421,7 +382,7 @@ void LocalScene::render(Renderer& renderer, SDL_Window* window) {
     // });
     
     // renderer::draw_world_lines(renderer, m_camera, kys, 2, {255,255,0,255});
-    renderer::draw_world_sprite(&renderer, m_camera, {{0,1}, {1,1}}, {
+    renderer::draw_sprite_world(renderer, s->m_camera, {{0,1}, {1,1}}, {
         .texture_id = TextureID::depth_test_png,
     });
 
@@ -430,7 +391,7 @@ void LocalScene::render(Renderer& renderer, SDL_Window* window) {
     // auto rect = renderer::world_rect_to_normalized(m_camera, {{1,1}, {1,1}});
     // renderer::draw_textured_rect(renderer, TextureID::amogus_png, rect, {});
 
-    b2World_Draw(m_state.world_id, &m_debug_draw);
+    b2World_Draw(s->m_state.world_id, &s->m_debug_draw);
 
     glm::vec2 idk[] = {{-1, 1}, {1, 1}, {1, -1}, {-1, -1}};
     // renderer::draw_world_polygon(renderer, m_camera, idk, 4, color::red);
@@ -538,10 +499,32 @@ void poll_event() {}
 
 extern "C" INIT(init) {
     using namespace renderer;
+    b2WorldDef world_def = b2DefaultWorldDef();
+    world_def.gravity = b2Vec2{0.0f, 0.0f};
+    auto world_id = b2CreateWorld(&world_def);
+
+    auto body_def = b2DefaultBodyDef();
+    body_def.type = b2_dynamicBody;
+    auto body_id = b2CreateBody(world_id, &body_def);
+
+    auto ground_box = b2MakeBox(2.0, 0.5);
+    auto ground_shape_def = b2DefaultShapeDef();
+    b2CreatePolygonShape(body_id, &ground_shape_def, &ground_box);
+
+    b2World_Step(world_id, 0.1, 4);
+
 
     std::cout << std::filesystem::current_path().string() << '\n';
 
-    auto state = new (memory) State{};
+    // (State&)memory = State{};
+    Arena god_allocator{};
+    arena_init(&god_allocator, memory, megabytes(16));
+    State* state = (State*)arena_allocate(&god_allocator, sizeof(State));
+    new (state) State{};
+
+    arena_init(&state->temp_arena, arena_allocate(&god_allocator, megabytes(5)), megabytes(5));
+    arena_init(&state->level_arena, arena_allocate(&god_allocator, megabytes(5)), megabytes(5));
+
 
     // panic("asasdf {} {}", 234, 65345);
 
@@ -577,7 +560,13 @@ extern "C" INIT(init) {
 
     glm::vec2 player_position(0, 0);
 
-    new (&state->local_scene) LocalScene(&state->input, &state->renderer, &font);
+    // state->local_scene.frame = 12312;
+    // (&state->local_scene)->m_input = &state->input;
+
+
+
+
+    local_scene_init(&state->local_scene, &state->level_arena, &state->input, &state->renderer, &font);
 
     InitializeYojimbo();
 
@@ -598,8 +587,6 @@ extern "C" INIT(init) {
     state->rects = {{255, 0, 0, 255}, {255, 255, 0, 255}, {0, 255, 255, 255}};
     //
 
-
-    arena_init(&state->temp_arena, (u8*)memory + sizeof(State), megabytes(5));
 }
 
 extern "C" UPDATE(update) {
@@ -661,7 +648,8 @@ extern "C" UPDATE(update) {
     // update
     {
         // multi_scene.update(delta_time);
-        state->local_scene.update(delta_time);
+        local_scene_update(&state->local_scene, &state->temp_arena, delta_time);
+        // state->local_scene.update(delta_time);
     }
 
     // render
@@ -677,13 +665,16 @@ extern "C" UPDATE(update) {
         }
 
         // multi_scene.render(renderer, window, textures);
-        state->local_scene.render(state->renderer, state->window);
+        local_scene_render(&state->local_scene, &state->renderer, state->window);
+
         // //
         // // auto string = std::format("render: {:.3f}ms", last_render_duration * 1000.0);
         // // font::draw_text(renderer, font, string.data(), 24, {20, 30});
         // //
 
         renderer::end_rendering(&state->renderer);
+
+        
 
         // last_render_duration = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() -
         // render_begin_time).count();
@@ -697,9 +688,3 @@ extern "C" UPDATE(update) {
         .quit = quit,
     };
 }
-
-// SDL_DestroyWindow(satetewindow);
-//
-// SDL_Quit();
-//
-// return 0;

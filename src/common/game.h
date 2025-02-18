@@ -1,4 +1,5 @@
 #pragma once
+#include "common/allocator.h"
 #include "types.h"
 
 enum class PlayerAnimationState {
@@ -24,32 +25,51 @@ enum class PlayerState {
     Dashing,
 };
 
-struct Player {
-    int health = 3;
-    // glm::vec2 position;
-    PlayerState state;
-    glm::vec2 dash_direction;
-    u32 dash_start_tick;
-
-    PlayerAnimationState anim_state;
-
-    b2BodyId body_id;
-    // eastl::fixed_vector<int, max_player_count> free_list;
-    bool direction_left;
-};
-
-// struct Bullet {
-//     glm::vec2 position;
-//     glm::vec2 direction_normal;
-// }
 enum class EntityType {
+    Player,
     Bullet,
     Box,
+    Dummy,
 };
 
-struct EntityRef {
-    EntityType type;
-    int index;
+typedef u64 EntityComponentFlags;
+
+typedef u32 EntityIndex;
+
+struct EntityHandle {
+    EntityIndex index;
+    u32 generation;
+};
+
+enum EntityComponent {
+    attack,
+    hittable,
+    expires,
+};
+
+struct Entity {
+    //automatically set by create_ent()
+    bool is_active;
+    u32 generation;
+
+    EntityType entity_type;
+    EntityComponentFlags flags;
+
+    b2BodyId body_id;
+
+    u32 player_id;
+    PlayerState player_state;
+    glm::vec2 dash_direction;
+    u32 dash_end_tick;
+
+    bool flip_sprite;
+
+    // hittable
+    i32 health;
+    u32 hit_flash_end_tick;
+
+    // expires
+    u32 expire_tick;
 };
 
 constexpr int bullets_capacity = 16;
@@ -57,7 +77,6 @@ constexpr int boxes_capacity = 64;
 
 
 struct Bullet {
-    EntityRef sensor_ref;
     b2BodyId body_id;
     u32 create_tick;
 };
@@ -65,7 +84,6 @@ struct Bullet {
 constexpr int box_health = 50;
 
 struct Box {
-    EntityRef sensor_ref;
     b2BodyId body_id;
     b2ShapeId shape_id;
     u32 last_hit_tick;
@@ -74,30 +92,26 @@ struct Box {
 
 
 struct GameState {
-    bool players_active[max_player_count];
-    Player players[max_player_count];
-
-    bool bullets_active[bullets_capacity];
-    Bullet bullets[bullets_capacity];
+    Slice<Entity> entities;
 
 
     b2WorldId world_id;
     b2BodyId ground_id;
-
-    bool boxes_active[boxes_capacity];
-    Box boxes[boxes_capacity];
-
-    // b2BodyId body_id;
 };
+
+constexpr EntityComponentFlags etbf(EntityComponent component) {
+    return 1 << component;
+}
 
 glm::vec2 b2vec_to_glmvec(b2Vec2 vec);
 
-void init_state(GameState& state);
+void state_init(GameState* state, Arena* arena);
 
-void update_state(GameState& state, PlayerInput inputs[max_player_count], u32 tick, double dt);
+void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_player_count], u32 current_tick, i32 tick_rate);
 
-using PlayerID = int;
 void create_box(GameState& state, glm::vec2 position);
-PlayerID create_player(GameState& state);
 
-void remove_player(GameState& state, int player_index);
+EntityHandle create_player(GameState* state);
+
+Entity* entity_list_get(const Slice<Entity>* entity_list, EntityHandle handle);
+

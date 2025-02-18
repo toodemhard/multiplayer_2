@@ -3,6 +3,7 @@
 
 void arena_init(Arena* arena, void* start, size_t size) {
     arena->m_start = (u8*)start;
+    arena->m_current = 0;
     arena->m_capacity = size;
 }
 
@@ -30,4 +31,19 @@ void* arena_allocate_align(Arena* arena, size_t size, size_t alignment) {
 
 void arena_reset(Arena* arena) {
     arena->m_current = 0;
+}
+
+void bitlist_init(Bitlist* bitlist, Arena* arena, u32 capacity) {
+    slice_init(bitlist, arena, capacity / 8 + 1);
+}
+
+bool bitlist_get(Bitlist* bitlist, u32 index) {
+    u8 mask = 1 << mask % 8;
+    return (*bitlist)[index / 8] | mask;
+}
+
+void bitlist_set(Bitlist* bitlist, u32 index, bool value) {
+    u8 bit_offset = index % 8;
+    u8* byte = &(*bitlist)[index / 8];
+    *byte = (*byte & ~(1 << bit_offset)) | (value << bit_offset);
 }

@@ -164,7 +164,8 @@ glm::vec2 world_to_normalized(Camera2D camera, glm::vec2 world_pos);
 Rect world_rect_to_normalized(Camera2D camera, Rect world_rect);
 Rect screen_rect_to_normalized(Rect rect, glm::vec2 resolution);
 
-void draw_world_sprite(Renderer* renderer, Camera2D camera, Rect world_rect, const SpriteProperties& properties);
+void draw_sprite_world(Renderer* renderer, Camera2D camera, Rect world_rect, const SpriteProperties& properties);
+void draw_sprite_screen(Renderer* renderer, Rect screen_rect, const SpriteProperties& properties);
 void draw_world_lines(Renderer* renderer, Camera2D camera, glm::vec2* vertices, int vert_count, RGBA color);
 void draw_world_rect(Renderer* renderer, Camera2D camera, Rect rect, RGBA rgba);
 void draw_screen_rect(Renderer* renderer, Rect rect, RGBA rgba);

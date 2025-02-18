@@ -40,12 +40,13 @@ void run(){
 
 
 
+
     // auto object = SDL_LoadObject("./game.dll");
     DLL dll{};
     load_dll(&dll);
 
 
-    void* memory = malloc(megabytes(10));
+    void* memory = malloc(megabytes(16));
 
     auto pwd = std::filesystem::current_path();
 

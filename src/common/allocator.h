@@ -17,18 +17,29 @@ void* arena_allocate(Arena* arena, size_t size);
 void* arena_allocate_align(Arena* arena, size_t size, size_t alignment);
 void arena_reset(Arena* arena);
 
+
 template<typename T>
 struct Slice {
     T* data;
     u32 length;
     u32 capacity;
 
-    T& operator[](i32 i) {
-        ASSERT(i < this->length)
-
-        return data[i];
+    T& operator[](i32 index) const {
+        return slice_get(this, index);
     }
 };
+
+typedef Slice<u8> Bitlist;
+void bitlist_init(Bitlist* bitlist, Arena* arena, u32 capacity);
+bool bitlist_get(Bitlist* bitlist, u32 index);
+void bitlist_set(Bitlist* bitlist, u32 index, bool value);
+
+template<typename T>
+T& slice_get(const Slice<T>* slice, u32 index) {
+    ASSERT(index < slice->length)
+
+    return slice->data[index];
+}
 
 template<typename T>
 Slice<T> slice_create(Arena* arena, u32 capacity) {

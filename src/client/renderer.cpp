@@ -374,11 +374,25 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
     return 0;
 }
 
-void draw_world_sprite(Renderer* renderer, Camera2D camera, Rect world_rect, const SpriteProperties& properties) {
+void draw_sprite(Renderer* renderer, Rect normalized_rect, const SpriteProperties& properties);
+
+void draw_sprite_world(Renderer* renderer, Camera2D camera, Rect world_rect, const SpriteProperties& properties) {
     camera.position = snap_pos(camera.position);
     world_rect.position = snap_pos(world_rect.position);
 
     auto normalized_rect = world_rect_to_normalized(camera, world_rect);
+    draw_sprite(renderer, normalized_rect, properties);
+}
+
+void draw_sprite_screen(Renderer* renderer, Rect screen_rect, const SpriteProperties& properties) {
+    auto resolution = glm::vec2{renderer->window_width, renderer->window_height};
+    auto norm_rect = screen_rect_to_normalized(screen_rect, resolution);
+
+    draw_sprite(renderer, norm_rect, properties);
+}
+
+
+void draw_sprite(Renderer* renderer, Rect normalized_rect, const SpriteProperties& properties) {
 
     auto normalized_texture_rect = Rect{{0,0}, {1,1}};
     if (properties.src_rect.has_value()) {
@@ -418,7 +432,6 @@ void draw_world_sprite(Renderer* renderer, Camera2D camera, Rect world_rect, con
             .vertices_size = sizeof(sprite_vertex),
         });
     }
-
 
     slice_push_range(&renderer->vertex_data, (u8*)&sprite_vertex, sizeof(sprite_vertex));
 }
