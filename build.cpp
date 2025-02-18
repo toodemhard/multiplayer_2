@@ -154,6 +154,10 @@ void build_libs(lib* libs, int lib_count) {
 
             system(commands.data());
         }
+
+        if (!lib.shared_lib_path.empty() && !std::filesystem::exists(lib.shared_lib_path.filename()) ) {
+            std::filesystem::copy(std::filesystem::path(lib.name) / lib.shared_lib_path, lib.shared_lib_path.filename());
+        }
     }
 }
 
@@ -286,11 +290,14 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
     for (auto& src : source_files) {
         std::string name = src.filename().stem().string();
 
-        bool compile_src = false;
         if (!obj_write_times.contains(name)) {
-            compile_src = true;
+            compile = true;
         } else if (obj_write_times[name] < std::filesystem::last_write_time(src)) {
-            compile_src = true;
+            compile = true;
+        }
+
+        if (compile) {
+            break;
         }
     }
 
@@ -360,9 +367,6 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
                 }
             }
 
-            if (!lib.shared_lib_path.empty() && !std::filesystem::exists(lib.shared_lib_path.filename()) ) {
-                std::filesystem::copy(std::filesystem::path(lib.name) / lib.shared_lib_path, lib.shared_lib_path.filename());
-            }
         }
 
         std::string commands = "";
