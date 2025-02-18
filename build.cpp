@@ -370,7 +370,7 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
         }
 
         std::string commands = "";
-        const char* linker_flags = "/DEBUG /INCREMENTAL";
+        const char* linker_flags = "/DEBUG /INCREMENTAL:NO";
         switch (target.type) {
         case target_type::executable: {
             commands += std::format("link {} {} {} pch.obj {} msvcrtd.lib /OUT:{}.exe", linker_flags, target.linker_flags, obj_args, lib_files, target.name);
