@@ -912,8 +912,10 @@ void draw_rect(Renderer* renderer, Rect normalized_rect, RGBA rgba) {
 }
 
 Rect screen_rect_to_normalized(Rect rect, glm::vec2 resolution) {
-    auto normal_rect = Rect{.position = rect.position / resolution * 2.0f - 1.0f, .scale = rect.scale / resolution * 2.0f};
-    normal_rect.position.y *= -1 + normal_rect.scale.y;
+    rect.position += rect.scale / 2.0f;
+    auto normal_rect = Rect{.position = rect.position / resolution * 2.0f - 1.0f, .scale = rect.scale / resolution};
+    normal_rect.position.y *= -1;
+    
     return normal_rect;
 }
 
