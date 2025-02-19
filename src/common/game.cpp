@@ -169,6 +169,8 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
 
     b2World_Step(state->world_id, dt, substep_count);
 
+    Slice<EntityIndex> delete_list = slice_create<EntityIndex>(temp_arena, 512);
+
     b2SensorEvents sensorEvents = b2World_GetSensorEvents(state->world_id);
     for (int i = 0; i < sensorEvents.beginCount; ++i) {
         b2SensorBeginTouchEvent* beginTouch = sensorEvents.beginEvents + i;
@@ -181,13 +183,13 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
 
             visitor->hit_flash_end_tick = current_tick + hit_flash_duration * tick_rate;
 
-            entity_list_remove(&state->entities, entity_ptr_to_index(&state->entities, sensor));
+            slice_push(&delete_list, entity_ptr_to_index(&state->entities, sensor));
+            // entity_list_remove(&state->entities, entity_ptr_to_index(&state->entities, sensor));
 
             visitor->health -= bullet_damage;
         }
     }
 
-    Slice<EntityIndex> delete_list = slice_create<EntityIndex>(temp_arena, 512);
 
     for (u32 i = 0; i < state->entities.length; i++) {
         Entity* ent = &state->entities.data[i];
