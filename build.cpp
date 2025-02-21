@@ -60,7 +60,7 @@ struct lib {
 
 const char* lib_path = "../../lib";
 
-#define TRACY_DEFINES "/D TRACY_ENABLE /D TRACY_MANUAL_LIFETIME /D TRACY_DELAYED_INIT";
+#define TRACY_DEFINES "/D TRACY_ENABLE"// /D TRACY_MANUAL_LIFETIME /D TRACY_DELAYED_INIT";
 const char* tracy_defines = TRACY_DEFINES;
 
 const char* compile_flags = "-nologo /std:c++20 /EHsc /Zi /MP /MDd " TRACY_DEFINES;
