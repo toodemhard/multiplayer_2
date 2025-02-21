@@ -60,7 +60,10 @@ struct lib {
 
 const char* lib_path = "../../lib";
 
-const char* compile_flags = R"(-nologo /std:c++20 /EHsc /Zi /MP /MDd)";
+#define TRACY_DEFINES "/D TRACY_ENABLE /D TRACY_MANUAL_LIFETIME /D TRACY_DELAYED_INIT";
+const char* tracy_defines = TRACY_DEFINES;
+
+const char* compile_flags = "-nologo /std:c++20 /EHsc /Zi /MP /MDd " TRACY_DEFINES;
 const char* pch_flags = R"(/Yu"../pch.h" /Fp"pch.pch")";
 
 
@@ -126,7 +129,17 @@ void build_libs(lib* libs, int lib_count) {
 
         timer timer(static_string(std::format("{}", lib.name)));
 
-        if (std::filesystem::exists(std::filesystem::path(lib.name) / lib.lib_path)) {
+        bool skip = true;
+
+        if (!std::filesystem::exists(std::filesystem::path(lib.name) / lib.lib_path)) {
+            skip = false;
+        }
+
+        if (!lib.shared_lib_path.empty() && !std::filesystem::exists(lib.shared_lib_path.filename())) {
+            skip = false;
+        }
+
+        if (skip) {
             continue;
         }
 
@@ -149,8 +162,9 @@ void build_libs(lib* libs, int lib_count) {
             std::string commands;
             commands += std::format("mkdir {0} & ", lib.name);
             commands += std::format("cd {} &&", lib.name);
-            commands += std::format(R"(cl  {} /c ../../lib/imgui/*.cpp && )", (project_root / lib.name).string() ).data();
-            commands += std::format("lib /out:imgui.lib *.obj");
+            commands += std::format(R"(cl {} /LD {}/public/TracyClient.cpp)", tracy_defines, (project_root / "lib" / lib.name).string() ).data();
+
+            printf("%s\n", commands.data());
 
             system(commands.data());
         }
@@ -369,6 +383,8 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
 
         }
 
+        system("del *_game.pdb *_game.rdi");
+
         std::string commands = "";
         const char* linker_flags = "/DEBUG /INCREMENTAL:NO";
         switch (target.type) {
@@ -377,6 +393,7 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
         } break;
         case target_type::shared_lib: {
             auto now = std::chrono::system_clock::now().time_since_epoch().count();
+
 
             commands += std::format("link {} /DLL {} pch.obj {} msvcrtd.lib /PDB:{}_game.pdb /OUT:{}.dll /EXPORT:init /EXPORT:update", linker_flags, obj_args,  lib_files, now, target.name);
         } break;
@@ -390,6 +407,7 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
 
 
 int main(int argc, char* argv[]) {
+    // printf("%s\n", compile_flags);
 
     timer total_time("total");
     // g_timer_scope_depth--;
@@ -426,8 +444,11 @@ int main(int argc, char* argv[]) {
         },
         lib {
             .name = "tracy",
+            .buildsystem = buildsystem::cmake,
             .rel_include_paths = {"public"},
             .lib_path = "TracyClient.lib",
+            .shared_lib_path = "TracyClient.dll",
+            .cmake_args = "-DBUILD_SHARED_LIBS=ON -DTRACY_ENABLE=ON -DTRACY_DELAYED_INIT=ON -DTRACY_MANUAL_LIFETIME=ON"
         },
         lib {
             .name = "yojimbo",
@@ -442,13 +463,6 @@ int main(int argc, char* argv[]) {
                 "yojimbo.lib",
             }
         },
-
-        lib {
-            .name = "imgui",
-            .buildsystem = buildsystem::manual,
-            .rel_include_paths = {"."},
-            .lib_path = "imgui.lib",
-        }
     };
     int lib_count = sizeof(libs) / sizeof(lib);
 
@@ -501,6 +515,7 @@ int main(int argc, char* argv[]) {
                 },
             },
             .libs = {
+                "tracy",
                 "box2d",
                 "SDL",
             },
