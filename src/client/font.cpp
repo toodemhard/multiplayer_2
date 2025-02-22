@@ -1,5 +1,7 @@
 #include "../pch.h"
 
+#include "tracy/Tracy.hpp"
+
 #include "assets.h"
 #include "panic.h"
 #include "font.h"
@@ -31,8 +33,8 @@ std::vector<char> read_file(const char* file_path) {
 }
 
 namespace font {
-    int char_start = 32;
-    int num_chars = 96;
+    const static int char_start = 32;
+    const static int num_chars = 96;
 
     struct FontAtlasConfig {
         int width, height, baked_font_size;
@@ -242,7 +244,7 @@ namespace font {
     using namespace renderer;
     using namespace font;
 
-    void draw_text(Renderer& renderer, Font& font, const char* text, float font_size, glm::vec2 position, RGBA color, float max_width) {
+    void draw_text(Renderer* renderer, const Font& font, const char* text, float font_size, glm::vec2 position, RGBA color, float max_width) {
         ZoneScoped;
 
         if (text == nullptr) {
@@ -272,6 +274,7 @@ namespace font {
 
                 //TODO: fix
                 // draw_textured_rect(&renderer, font.texture_atlas, src, dst);
+                draw_sprite_screen(renderer, dst, {.texture_id=font.texture_atlas, .src_rect=src});
 
                 x += char_info.xadvance * size_ratio;
             }
@@ -280,7 +283,7 @@ namespace font {
         }
     }
 
-    glm::vec2 text_dimensions(Font& font, const char* text, float font_size) {
+    float2 text_dimensions(const Font& font, const char* text, float font_size) {
         float max_width = 0;
         float width = 0;
 
@@ -309,7 +312,7 @@ namespace font {
         }
         max_width = std::max(max_width, width);
 
-        return glm::vec2{max_width * size_ratio, lines * font_size};
+        return float2{max_width * size_ratio, lines * font_size};
     }
 
     float text_height(const char* text, float font_size) {

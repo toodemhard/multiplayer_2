@@ -9,22 +9,24 @@ void ui_set_ctx(UI* _ui) {
     ui = _ui;
 }
 
-void ui_init(UI* ui, Arena* arena) {
+void ui_init(UI* ui, Arena* arena, Slice<Font> fonts) {
     slice_init(&ui->elements, arena, 1024);
     slice_init(&ui->parent_stack, arena, 1024);
+
+    ui->fonts = fonts;
 
     ui->base_font_size = 16;
 }
 
-void ui_begin_row(Element element) {
+void ui_begin_row(UI_Element element) {
     slice_push(&ui->elements, element);
-    Element* element_ptr = &slice_back(&ui->elements);
+    UI_Element* element_ptr = &slice_back(&ui->elements);
 
     if (ui->parent_stack.length > 0) {
 
-        Element* parent = slice_back(&ui->parent_stack);
+        UI_Element* parent = slice_back(&ui->parent_stack);
         if (parent->last_child) {
-            Element* last = parent->last_child;
+            UI_Element* last = parent->last_child;
 
             last->next_sibling = element_ptr;
             element_ptr->prev_sibling = last;
@@ -66,13 +68,13 @@ f32 f32_max(f32 a, f32 b) {
 }
 
 void ui_end(Arena* temp_arena) {
-    ArenaCheckpoint checkpoint = arena_begin_temp_allocs(temp_arena);
-    defer(arena_end_temp_allocs(temp_arena, checkpoint));
+    ArenaTemp checkpoint = arena_begin_temp_allocs(temp_arena);
+    defer(arena_end_temp_allocs(checkpoint));
 
 
     // Element* child = root->first_child;
-    Slice<Element*> pre_stack = slice_create<Element*>(temp_arena, 512);
-    Slice<Element*> post_stack = slice_create<Element*>(temp_arena, 512);
+    Slice<UI_Element*> pre_stack = slice_create<UI_Element*>(temp_arena, 512);
+    Slice<UI_Element*> post_stack = slice_create<UI_Element*>(temp_arena, 512);
 
     if (ui->elements.length > 0) {
         slice_push(&pre_stack, &ui->elements[0]);
@@ -81,12 +83,12 @@ void ui_end(Arena* temp_arena) {
 
     // postorder dfs with 2 stacks idfk
     while (pre_stack.length > 0) {
-        Element* current = slice_back(&pre_stack);
+        UI_Element* current = slice_back(&pre_stack);
         slice_push(&post_stack, current);
         slice_pop(&pre_stack);
 
 
-        Element* child = current->last_child;
+        UI_Element* child = current->last_child;
         while (child) {
             slice_push(&pre_stack, child);
 
@@ -95,10 +97,10 @@ void ui_end(Arena* temp_arena) {
     }
 
     while (post_stack.length > 0) {
-        Element* current = slice_back(&post_stack);
+        UI_Element* current = slice_back(&post_stack);
         slice_pop(&post_stack);
 
-        // glm::vec2 text_size_vec = font::text_dimensions()
+        float2 text_size = font::text_dimensions(ui->fonts[current->font], current->text, current->font_size);
         // text_size
 
         // post order stuff goes here
@@ -109,12 +111,11 @@ void ui_end(Arena* temp_arena) {
             }
 
             if (semantic_size->type == UI_SizeType_SumContents) {
-                // current->computed_size[i] += 
-
+                current->computed_size[i] += ((f32*)&text_size)[i];
             }
         }
 
-        Element* parent = current->parent;
+        UI_Element* parent = current->parent;
         if (parent) {
             Axis2 grow_axis = parent->grow_axis;
             for (i32 i = 0; i < Axis2_Count; i++) {
@@ -139,13 +140,13 @@ void ui_end(Arena* temp_arena) {
 
     // 2nd preorder for pos after compute size
     while (pre_stack.length > 0) {
-        Element* current = slice_back(&pre_stack);
+        UI_Element* current = slice_back(&pre_stack);
         slice_push(&post_stack, current);
         slice_pop(&pre_stack);
 
 
 
-        Element* child = current->last_child;
+        UI_Element* child = current->last_child;
         while (child) {
             slice_push(&pre_stack, child);
 
@@ -157,9 +158,9 @@ void ui_end(Arena* temp_arena) {
 
         for (i32 i = 0; i < Axis2_Count; i++) {
             if (current->semantic_position[i].type == UI_PositionType_AutoOffset) {
-                Element* parent = current->parent;
+                UI_Element* parent = current->parent;
                 if (current->parent) {
-                    const Element* prev_sibling = current->prev_sibling;
+                    const UI_Element* prev_sibling = current->prev_sibling;
 
                     current->computed_position[i] = parent->computed_position[i];
                     if (current->prev_sibling && i == parent->grow_axis) {
@@ -177,11 +178,11 @@ glm::vec2 f32x2_to_vec2(f32 vec[2]) {
 }
 
 void ui_draw(Renderer* renderer, Arena* temp_arena) {
-    ArenaCheckpoint checkpoint = arena_begin_temp_allocs(temp_arena);
-    defer(arena_end_temp_allocs(temp_arena, checkpoint));
+    ArenaTemp checkpoint = arena_begin_temp_allocs(temp_arena);
+    defer(arena_end_temp_allocs(checkpoint));
 
-    Slice<Element*> pre_stack = slice_create<Element*>(temp_arena, 512);
-    Slice<Element*> post_stack = slice_create<Element*>(temp_arena, 512);
+    Slice<UI_Element*> pre_stack = slice_create<UI_Element*>(temp_arena, 512);
+    Slice<UI_Element*> post_stack = slice_create<UI_Element*>(temp_arena, 512);
 
     if (ui->elements.length > 0) {
         slice_push(&pre_stack, &ui->elements[0]);
@@ -190,12 +191,12 @@ void ui_draw(Renderer* renderer, Arena* temp_arena) {
 
     // postorder dfs with 2 stacks idfk
     while (pre_stack.length > 0) {
-        Element* current = slice_back(&pre_stack);
+        UI_Element* current = slice_back(&pre_stack);
         slice_push(&post_stack, current);
         slice_pop(&pre_stack);
 
 
-        Element* child = current->last_child;
+        UI_Element* child = current->last_child;
         while (child) {
             slice_push(&pre_stack, child);
 
@@ -203,10 +204,11 @@ void ui_draw(Renderer* renderer, Arena* temp_arena) {
         }
 
         renderer::draw_screen_rect(renderer, {f32x2_to_vec2(current->computed_position), f32x2_to_vec2(current->computed_size)}, current->color);
+        font::draw_text(renderer, ui->fonts[current->font], current->text, current->font_size, {current->computed_position[Axis2_X],current->computed_position[Axis2_Y]});
     }
 
     while (post_stack.length > 0) {
-        Element* current = slice_back(&post_stack);
+        UI_Element* current = slice_back(&post_stack);
         slice_pop(&post_stack);
 
         // renderer::draw_screen_rect

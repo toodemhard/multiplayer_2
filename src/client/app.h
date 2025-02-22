@@ -12,7 +12,7 @@
 
 const Camera2D default_camera{
     {0, 0},
-    glm::vec2{1 * 4.0f/3.0f, 1} * 8.0f,
+    glm::vec2{1 * 4.0f/3.0f, 1} * 12.0f,
 };
 
 constexpr int chunk_width = 8;
@@ -35,10 +35,13 @@ struct Chunk {
 
 struct LocalScene {
     Input::Input* m_input;
-    Font* m_font;
+    Input::Input tick_input; // accumulates input events over multiple frames for cases where render freq > tick freq its here for a reason pls dont delete
     Renderer* m_renderer;
 
-    Input::Input m_tick_input;
+    Slice<Font> fonts;
+
+    UI ui;
+
     Camera2D m_camera = default_camera;
 
     GameState m_state{};
@@ -69,6 +72,8 @@ struct State {
     Renderer renderer{};
     Input::Input input;
     LocalScene local_scene;
+
+    Array<Font, FontID::font_count> fonts;
 
     std::chrono::time_point<std::chrono::steady_clock> last_frame_time;
 

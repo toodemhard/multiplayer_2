@@ -30,10 +30,13 @@ struct UI_Position {
     f32 value;
 };
 
-struct Element {
+struct UI_Element {
     i32 value;
     // user config
     const char* text;
+    FontID font;
+    i32 font_size;
+
     UI_Position semantic_position[Axis2_Count];
     UI_Size semantic_size[Axis2_Count];
 
@@ -46,11 +49,11 @@ struct Element {
     f32 computed_size[Axis2_Count];
     f32 computed_padding[Axis2_Count];
 
-    Element* first_child;
-    Element* last_child;
-    Element* next_sibling;
-    Element* prev_sibling;
-    Element* parent;
+    UI_Element* first_child;
+    UI_Element* last_child;
+    UI_Element* next_sibling;
+    UI_Element* prev_sibling;
+    UI_Element* parent;
 
     f32 padding[Axis2_Count];
 };
@@ -60,8 +63,10 @@ struct Vec2 {
 };
 
 struct UI {
-    Slice<Element> elements;
-    Slice<Element*> parent_stack;
+    Slice<UI_Element> elements;
+    Slice<UI_Element*> parent_stack;
+
+    Slice<Font> fonts;
 
     Vec2 start_position;
 
@@ -72,9 +77,9 @@ struct ElementProps {
 };
 
 void ui_set_ctx(UI* _ui);
-void ui_init(UI* ui, Arena* arena);
+void ui_init(UI* ui, Arena* arena, Slice<Font> fonts);
 void ui_draw(Renderer* renderer, Arena* temp_arena);
-void ui_begin_row(Element element);
+void ui_begin_row(UI_Element element);
 void ui_end_row();
 void ui_begin();
 void ui_end(Arena* temp_arena);
