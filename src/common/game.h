@@ -15,6 +15,12 @@ struct PlayerInput {
     bool right;
     bool fire;
     bool dash;
+
+    bool slot0;
+    bool slot1;
+    bool slot2;
+    bool slot3;
+    bool slot4;
     glm::vec2 cursor_world_pos;
 };
 
@@ -61,6 +67,7 @@ struct Entity {
     PlayerState player_state;
     glm::vec2 dash_direction;
     u32 dash_end_tick;
+    u16 current_spell;
 
     bool flip_sprite;
 
@@ -109,7 +116,7 @@ void state_init(GameState* state, Arena* arena);
 
 void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_player_count], u32 current_tick, i32 tick_rate);
 
-void create_box(GameState& state, glm::vec2 position);
+void create_box(GameState* state, glm::vec2 position);
 
 EntityHandle create_player(GameState* state);
 

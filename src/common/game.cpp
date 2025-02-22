@@ -1,7 +1,6 @@
 #include "../pch.h"
 
 #include "game.h"
-#include "panic.h"
 
 glm::vec2 b2vec_to_glmvec(b2Vec2 vec) {
     return glm::vec2{vec.x, vec.y};
@@ -164,6 +163,26 @@ const float dash_duration = dash_distance / dash_speed;
 
 const float bullet_damage = 10;
 
+glm::vec2 rotate(glm::vec2 vector, f32 angle) {
+    glm::mat2 rotation_matrix = {
+        cos(angle), -sin(angle),
+        sin(angle), cos(angle)
+    };
+
+    return rotation_matrix * vector;
+}
+
+float lerp(float v0, float v1, float t) {
+    return (1 - t) * v0 + t * v1;
+}
+
+constexpr double pi = 3.141592653589793238462643383279502884197;
+constexpr double deg_in_rads = pi / 180;
+
+float deg_to_rad(float deg) {
+    return deg * deg_in_rads;
+}
+
 void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_player_count], u32 current_tick, i32 tick_rate) {
     const f64 dt = 1.0 / tick_rate;
 
@@ -224,6 +243,13 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
                 ent->flip_sprite = true;
             }
 
+            if (input->slot0) {
+                ent->current_spell = 0;
+            }
+            if (input->slot1) {
+                ent->current_spell = 1;
+            }
+
             auto velocity = glm::vec2{0, 0};
             // move_input.x += 1;
 
@@ -264,11 +290,30 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
                 if (glm::length(input->cursor_world_pos - player_pos) > 0) {
                     direction = glm::normalize(input->cursor_world_pos - player_pos);
                 }
-                create_bullet(state, player_pos, direction, current_tick, tick_rate);
+
+                if (ent->current_spell == 0) {
+                    create_bullet(state, player_pos, direction, current_tick, tick_rate);
+                }
+
+                if (ent->current_spell == 1) {
+
+                    i32 projectile_count = 4;
+
+                    f32 range_start = deg_to_rad(-20);
+                    f32 range_end = deg_to_rad(20);
+
+                    for (i32 i = 0; i < projectile_count; i++) {
+                        f32 dir_offset = lerp(range_start, range_end, (f32)i / (projectile_count - 1));
+                        create_bullet(state, player_pos, rotate(direction, dir_offset), current_tick, tick_rate);
+                    }
+
+                }
+
+                printf("%d\n", ent->current_spell);
+
             }
         }
     }
-
     for (u32 i = 0; i < delete_list.length; i++) {
         entity_list_remove(&state->entities, delete_list[i]);
     }
