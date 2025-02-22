@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include "input.h"
+
 #include "renderer.h"
 #include "font.h"
 
@@ -44,7 +46,7 @@ struct UI_Element {
 
     float4 color;
 
-    // dont touch
+    // computed stuff possibly read only to user
     f32 computed_position[Axis2_Count];
     f32 computed_size[Axis2_Count];
     f32 computed_padding[Axis2_Count];
@@ -56,32 +58,44 @@ struct UI_Element {
     UI_Element* parent;
 
     f32 padding[Axis2_Count];
+    
+    bool is_hovered;
 };
 
-struct Vec2 {
-    f32 x, y;
+typedef u64 UI_Index;
+
+
+// need to have access to last frame state
+struct UI_Frame {
+    Slice<UI_Element> elements;
+    Hashmap hashed_elements;
 };
 
 struct UI {
-    Slice<UI_Element> elements;
+    // elements out of pool with pruning is probably better but i dont want to free individual elements rn
+    UI_Frame frame_buffer[2]; //not that kind of frame buffer
+    Arena frame_arenas[2]; // plan is to only have reinitializations instead of init and reset pairs
+
+    u32 active_frame;
+
     Slice<UI_Element*> parent_stack;
-
     Slice<Font> fonts;
-
-    Vec2 start_position;
-
     f32 base_font_size;
+
+    float2 cursor_pos;
 };
 
 struct ElementProps {
 };
 
+UI_Element* ui_get(UI_Index index);
+bool ui_element_signals(UI_Index index);
 void ui_set_ctx(UI* _ui);
 void ui_init(UI* ui, Arena* arena, Slice<Font> fonts);
 void ui_draw(Renderer* renderer, Arena* temp_arena);
-void ui_begin_row(UI_Element element);
+UI_Index ui_begin_row(UI_Element element);
 void ui_end_row();
-void ui_begin();
+void ui_begin(Input::Input* input);
 void ui_end(Arena* temp_arena);
 
 constexpr UI_Position position_offset_px(f32 value) {

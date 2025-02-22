@@ -3,28 +3,48 @@
 #include "ui.h"
 
 
-static UI* ui;
+global UI* ui_ctx;
 
 void ui_set_ctx(UI* _ui) {
-    ui = _ui;
+    ui_ctx = _ui;
 }
 
-void ui_init(UI* ui, Arena* arena, Slice<Font> fonts) {
-    slice_init(&ui->elements, arena, 1024);
-    slice_init(&ui->parent_stack, arena, 1024);
-
-    ui->fonts = fonts;
-
-    ui->base_font_size = 16;
+internal void ui_frame_init(UI_Frame* frame, Arena* arena) {
+    arena_reset(arena);
+    frame->elements = slice_create<UI_Element>(arena, 1024);
+    frame->hashed_elements = hashmap_create(arena, 1024);
 }
 
-void ui_begin_row(UI_Element element) {
+void ui_init(UI* ui_ctx, Arena* arena, Slice<Font> fonts) {
+    for (i32 i = 0; i < 2; i++) {
+        ui_ctx->frame_arenas[i] = arena_suballoc(arena, megabytes(0.5));
+        ui_frame_init(&ui_ctx->frame_buffer[i], &ui_ctx->frame_arenas[i]);
+    }
+
+    slice_init(&ui_ctx->parent_stack, arena, 1024);
+    ui_ctx->fonts = fonts;
+    ui_ctx->base_font_size = 16;
+}
+
+void ui_begin(Input::Input* input) {
+    ui_ctx->active_frame = (ui_ctx->active_frame + 1) % 2;
+    u32 i = ui_ctx-> active_frame;
+    ui_frame_init(&ui_ctx->frame_buffer[i], &ui_ctx->frame_arenas[i]);
+    slice_clear(&ui_ctx->parent_stack);
+
+    ui_ctx->cursor_pos = *((float2*)&input->mouse_pos);
+}
+
+UI_Index ui_begin_row(UI_Element element) {
+    UI_Frame* ui = &ui_ctx->frame_buffer[ui_ctx->active_frame];
+
+    UI_Index index = ui->elements.length;
     slice_push(&ui->elements, element);
     UI_Element* element_ptr = &slice_back(&ui->elements);
 
-    if (ui->parent_stack.length > 0) {
+    if (ui_ctx->parent_stack.length > 0) {
 
-        UI_Element* parent = slice_back(&ui->parent_stack);
+        UI_Element* parent = slice_back(&ui_ctx->parent_stack);
         if (parent->last_child) {
             UI_Element* last = parent->last_child;
 
@@ -41,23 +61,38 @@ void ui_begin_row(UI_Element element) {
         element_ptr->parent = parent;
     }
 
-    slice_push(&ui->parent_stack, element_ptr);
+    slice_push(&ui_ctx->parent_stack, element_ptr);
+
+    return index;
+}
+
+UI_Element* ui_get(UI_Index index) {
+    return &ui_ctx->frame_buffer[ui_ctx->active_frame].elements[index];
+}
+
+bool ui_element_signals(UI_Index index) {
+    u64 last_index = (ui_ctx->active_frame + 1) % 2;
+    UI_Frame* last_frame = &ui_ctx->frame_buffer[last_index];
+
+    UI_Element zero{};
+    UI_Element* element = &zero;
+    if (last_frame->elements.length > index) {
+        element = &last_frame->elements[index];
+    }
+
+    float2 p0 = *(float2*)&element->computed_position;
+    float2 p1 = {p0.x + element->computed_size[Axis2_X], p0.y + element->computed_size[Axis2_Y]};
+    float2 cursor = ui_ctx->cursor_pos;
+    bool is_hover = false;
+    if (cursor.x >= p0.x && cursor.y >= p0.y && cursor.x <= p1.x && cursor.y <= p1.y) {
+        is_hover = true;
+    }
+
+    return is_hover;
 }
 
 void ui_end_row() {
-    // if (ui->parent_stack.length == 1) {
-    //
-    //     
-    //     
-    //
-    // }
-
-    slice_pop(&ui->parent_stack);
-}
-
-void ui_begin() {
-    slice_clear(&ui->elements);
-    slice_clear(&ui->parent_stack);
+    slice_pop(&ui_ctx->parent_stack);
 }
 
 f32 f32_max(f32 a, f32 b) {
@@ -71,8 +106,9 @@ void ui_end(Arena* temp_arena) {
     ArenaTemp checkpoint = arena_begin_temp_allocs(temp_arena);
     defer(arena_end_temp_allocs(checkpoint));
 
+    UI_Frame* ui = &ui_ctx->frame_buffer[ui_ctx->active_frame];
 
-    // Element* child = root->first_child;
+
     Slice<UI_Element*> pre_stack = slice_create<UI_Element*>(temp_arena, 512);
     Slice<UI_Element*> post_stack = slice_create<UI_Element*>(temp_arena, 512);
 
@@ -100,7 +136,7 @@ void ui_end(Arena* temp_arena) {
         UI_Element* current = slice_back(&post_stack);
         slice_pop(&post_stack);
 
-        float2 text_size = font::text_dimensions(ui->fonts[current->font], current->text, current->font_size);
+        float2 text_size = font::text_dimensions(ui_ctx->fonts[current->font], current->text, current->font_size);
         // text_size
 
         // post order stuff goes here
@@ -181,6 +217,8 @@ void ui_draw(Renderer* renderer, Arena* temp_arena) {
     ArenaTemp checkpoint = arena_begin_temp_allocs(temp_arena);
     defer(arena_end_temp_allocs(checkpoint));
 
+    UI_Frame* ui = &ui_ctx->frame_buffer[ui_ctx->active_frame];
+
     Slice<UI_Element*> pre_stack = slice_create<UI_Element*>(temp_arena, 512);
     Slice<UI_Element*> post_stack = slice_create<UI_Element*>(temp_arena, 512);
 
@@ -204,7 +242,7 @@ void ui_draw(Renderer* renderer, Arena* temp_arena) {
         }
 
         renderer::draw_screen_rect(renderer, {f32x2_to_vec2(current->computed_position), f32x2_to_vec2(current->computed_size)}, current->color);
-        font::draw_text(renderer, ui->fonts[current->font], current->text, current->font_size, {current->computed_position[Axis2_X],current->computed_position[Axis2_Y]});
+        font::draw_text(renderer, ui_ctx->fonts[current->font], current->text, current->font_size, {current->computed_position[Axis2_X],current->computed_position[Axis2_Y]});
     }
 
     while (post_stack.length > 0) {

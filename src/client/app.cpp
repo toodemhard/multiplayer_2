@@ -296,29 +296,43 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
 
     ui_set_ctx(&s->ui);
 
-    ui_begin();
+    ui_begin(s->m_input);
 
     ui_begin_row({
         .semantic_position = {position_offset_px(100),position_offset_px(300)},
         .color = {1,0,0,1}
     });
-        ui_begin_row({
-            .text="aa a a a adfasdf sadfasdf",
+        UI_Index id = ui_begin_row({
+            .text="fasdf",
             .font_size=32,
             // .semantic_position = {{}, position_offset_px(-50)},
             // .color = {1,1,0,1}
         });
         ui_end_row();
-        ui_begin_row({
+        if (ui_element_signals(id)) {
+            ui_get(id)->color = {0.5,1,0.2,1};
+
+            ui_begin_row({
+                .semantic_size = {size_px(100), size_px(50)},
+                .color = {0,0,1,1},
+            });
+            ui_end_row();
+        }
+
+        id = ui_begin_row({
             .semantic_position = {{}, position_offset_px(50)},
             .semantic_size = {size_px(100), size_px(100)},
             .color = {0.2,1,0.6,1}
         });
         ui_end_row();
+        if (ui_element_signals(id)) {
+            ui_get(id)->color = {1,0.5,.1,1};
+        }
 
     ui_end_row();
 
     ui_end(frame_arena);
+
 
 
 
@@ -690,6 +704,21 @@ extern "C" UPDATE(update) {
     arena_reset(&state->temp_arena);
 
     // kys();
+
+    if (is_reloaded) {
+        const char* str = "b";
+        printf("%llu\n", fnv1a(slice_create_view((u8*)str, strlen(str))));
+
+
+        Hashmap h = hashmap_create(&state->temp_arena, 100);
+
+        hashmap_set(&h, literal("why"), 345);
+        hashmap_set(&h, literal("asdf"), 9448362);
+
+        u32 x = hashmap_get(&h, literal("why"));
+        u32 y = hashmap_get(&h, literal("asdf"));
+
+    }
 
     bool quit = false;
 
