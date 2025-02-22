@@ -62,24 +62,24 @@ T& array_get(Array<T, N>* array, u64 index) {
     return array->data[index];
 }
 
+// currently this is serving fixed arraylist, fixed array, buffer view, just with different functions
+// in future it could even be dynamic arraylist
+// maybe should be different types idfk
+// hard to tell which it's supposed to be
 template<typename T>
 struct Slice {
     T* data;
-    u32 length;
-    u32 capacity;
+    u64 length;
+    u64 capacity;
 
     T& operator[](i32 index) const {
         return slice_get(this, index);
     }
 };
 
-typedef Slice<u8> Bitlist;
-void bitlist_init(Bitlist* bitlist, Arena* arena, u32 capacity);
-bool bitlist_get(Bitlist* bitlist, u32 index);
-void bitlist_set(Bitlist* bitlist, u32 index, bool value);
 
 template<typename T>
-T& slice_get(const Slice<T>* slice, u32 index) {
+T& slice_get(const Slice<T>* slice, u64 index) {
     ASSERT(index >= 0);
     ASSERT(index < slice->length)
 
@@ -87,7 +87,7 @@ T& slice_get(const Slice<T>* slice, u32 index) {
 }
 
 template<typename T>
-Slice<T> slice_create_view(T* memory, u32 length) {
+Slice<T> slice_create_view(T* memory, u64 length) {
     return Slice<T> {
         .data = memory,
         .length = length,
@@ -96,14 +96,23 @@ Slice<T> slice_create_view(T* memory, u32 length) {
 }
 
 template<typename T>
-Slice<T> slice_create(Arena* arena, u32 capacity) {
+Slice<T> slice_create(Arena* arena, u64 capacity) {
     Slice<T> slice;
     slice_init(&slice, arena, capacity);
     return slice;
 }
 
 template<typename T>
-void slice_init(Slice<T>* slice, Arena* arena, u32 capacity) {
+Slice<T> slice_create_fixed(Arena* arena, u64 length) {
+    Slice<T> slice;
+    slice.data = (T*)arena_allocate(arena, length * sizeof(T));
+    slice.length = length;
+    slice.capacity = length;
+    return slice;
+}
+
+template<typename T>
+void slice_init(Slice<T>* slice, Arena* arena, u64 capacity) {
     slice->data = (T*)arena_allocate(arena, capacity * sizeof(T));
     slice->length = 0;
     slice->capacity = capacity;
@@ -135,15 +144,39 @@ T& slice_back(Slice<T>* slice) {
 }
 
 template<typename T>
-void slice_push_range(Slice<T>* slice, T* elements, u32 count) {
+void slice_push_range(Slice<T>* slice, T* elements, u64 count) {
     ASSERT(slice->length + count <= slice->capacity);
 
     memcpy(&(slice->data[slice->length]), elements, count * sizeof(T));
     slice->length += count;
 }
 
-// template<typename T>
-// T& operator[] 
+struct String8 {
+    u8* data;
+    u64 length;
+};
+
+
+struct Hashmap {
+    Slice<String8> keys;
+    Slice<u32> values;
+
+    u64 count;
+};
+
+String8 literal(const char* str);
+
+Hashmap hashmap_create(Arena* arena, u64 capacity);
+bool hashmap_key_exists(const Hashmap* hashmap, String8 key);
+u32 hashmap_get(const Hashmap* hashmap, String8 key);
+void hashmap_set(Hashmap* hashmap, String8 key, u32 value);
+
+u64 fnv1a(Slice<u8> key);
+
+typedef Slice<u8> Bitlist;
+void bitlist_init(Bitlist* bitlist, Arena* arena, u64 capacity);
+bool bitlist_get(Bitlist* bitlist, u64 index);
+void bitlist_set(Bitlist* bitlist, u64 index, bool value);
 
 constexpr u64 kilobytes(f64 x) {
     return 1024ULL * x;
