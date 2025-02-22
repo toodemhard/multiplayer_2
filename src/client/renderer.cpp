@@ -437,7 +437,7 @@ void draw_sprite(Renderer* renderer, Rect normalized_rect, const SpritePropertie
         slice_push(&draw_list, DrawItem{
             .type = PipelineType::Sprite,
             .texture_id = properties.texture_id,
-            .vertex_buffer_offset = renderer->vertex_data.length,
+            .vertex_buffer_offset = (u32)renderer->vertex_data.length,
             .vertices_size = sizeof(sprite_vertex),
         });
     }
@@ -585,7 +585,7 @@ void end_rendering(Renderer* renderer) {
         auto gpu_buffer_region = SDL_GPUBufferRegion{
             .buffer = renderer->dynamic_vertex_buffer,
             .offset = 0,
-            .size = renderer->vertex_data.length,
+            .size = (u32)renderer->vertex_data.length,
         };
         SDL_UploadToGPUBuffer(copy_pass, &transfer_buffer_location, &gpu_buffer_region, true);
     }
@@ -597,7 +597,7 @@ void end_rendering(Renderer* renderer) {
         auto gpu_buffer_region = SDL_GPUBufferRegion{
             .buffer = renderer->dynamic_index_buffer,
             .offset = 0,
-            .size = renderer->index_data.length,
+            .size = (u32)renderer->index_data.length,
         };
         SDL_UploadToGPUBuffer(copy_pass, &transfer_buffer_location, &gpu_buffer_region, true);
     }
@@ -805,9 +805,9 @@ void draw_world_lines(Renderer* renderer, Camera2D camera, glm::vec2* vertices, 
     if (add_new_draw) {
         slice_push(&draw_list, DrawItem{
             .type = PipelineType::Line,
-            .vertex_buffer_offset = renderer->vertex_data.length,
+            .vertex_buffer_offset = (u32)renderer->vertex_data.length,
             .vertices_size = verts_size,
-            .index_buffer_offset = renderer->index_data.length,
+            .index_buffer_offset = (u32)renderer->index_data.length,
             .indices_size = indices_size,
         });
     }
@@ -850,9 +850,9 @@ void draw_world_polygon(Renderer* renderer, const Camera2D& camera, glm::vec2* v
     if (push_new_draw) {
         slice_push(&draw_list, DrawItem{
             .type = PipelineType::Mesh,
-            .vertex_buffer_offset = renderer->vertex_data.length,
+            .vertex_buffer_offset = (u32)renderer->vertex_data.length,
             .vertices_size = verts_size,
-            .index_buffer_offset = renderer->index_data.length,
+            .index_buffer_offset = (u32)renderer->index_data.length,
             .indices_size = indxs_size,
         });
     }
@@ -908,9 +908,9 @@ void draw_rect(Renderer* renderer, Rect normalized_rect, float4 rgba) {
     if (push_new_draw) {
         slice_push(&draw_list, DrawItem{
             .type = PipelineType::Mesh,
-            .vertex_buffer_offset = renderer->vertex_data.length,
+            .vertex_buffer_offset = (u32)renderer->vertex_data.length,
             .vertices_size = sizeof(vertices),
-            .index_buffer_offset = renderer->index_data.length,
+            .index_buffer_offset = (u32)renderer->index_data.length,
             .indices_size = sizeof(indices),
         });
     }

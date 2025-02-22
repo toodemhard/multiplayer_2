@@ -5,6 +5,10 @@
 #define ASSERT(condition) if (!(condition)) { __debugbreak(); }
 
 
+#define internal static
+#define global static
+#define local_persist static
+
 template <typename F>
 struct privDefer {
 	F f;
@@ -22,6 +26,10 @@ privDefer<F> defer_func(F f) {
 #define DEFER_3(x)    DEFER_2(x, __COUNTER__)
 #define defer(code)   auto DEFER_3(_defer_) = defer_func([&](){code;})
 
+// struct Pool {
+//
+// }
+
 struct Arena {
     u8* start = nullptr;
     u64 current;
@@ -35,9 +43,12 @@ struct ArenaTemp {
 
 // void array_length()
 
-void arena_init(Arena* arena, void* start, size_t size);
-void* arena_allocate(Arena* arena, size_t size);
-void* arena_allocate_align(Arena* arena, size_t size, size_t alignment);
+Arena arena_suballoc(Arena* arena, u64 size);
+
+Arena arena_create(void* start, u64 size);
+void arena_init(Arena* arena, void* start, u64 size);
+void* arena_allocate(Arena* arena, u64 size);
+void* arena_allocate_align(Arena* arena, u64 size, u64 alignment);
 void arena_reset(Arena* arena);
 ArenaTemp arena_begin_temp_allocs(Arena* arena);
 void arena_end_temp_allocs(ArenaTemp temp);

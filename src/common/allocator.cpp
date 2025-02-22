@@ -38,23 +38,32 @@ void scratch_release(ArenaTemp temp) {
 }
 
 
+Arena arena_suballoc(Arena* arena, u64 size) {
+    return arena_create(arena_allocate(arena, size), size);
+}
 
-void arena_init(Arena* arena, void* start, size_t size) {
+Arena arena_create(void* start, u64 size) {
+    Arena arena;
+    arena_init(&arena, start, size);
+    return arena;
+}
+
+void arena_init(Arena* arena, void* start, u64 size) {
     arena->start = (u8*)start;
     arena->current = 0;
     arena->capacity = size;
 }
 
-void* arena_allocate(Arena* arena, size_t size) {
+void* arena_allocate(Arena* arena, u64 size) {
     return arena_allocate_align(arena, size, alignof(std::max_align_t));
 }
 
-void* arena_allocate_align(Arena* arena, size_t size, size_t alignment) {
+void* arena_allocate_align(Arena* arena, u64 size, u64 alignment) {
     // const auto aligned_size = (size + alignment - 1) & ~(alignment - 1);
     
-    uintptr_t current_ptr = (uintptr_t)arena->start + (uintptr_t)arena->current;
-    uintptr_t offset = (current_ptr + alignment - 1) & ~(alignment - 1);
-    offset -= (uintptr_t)arena->start;
+    u64 current_ptr = (u64)arena->start + (u64)arena->current;
+    u64 offset = (current_ptr + alignment - 1) & ~(alignment - 1);
+    offset -= (u64)arena->start;
 
 
     ASSERT(offset+size <= arena->capacity)
@@ -81,10 +90,6 @@ ArenaTemp arena_begin_temp_allocs(Arena* arena) {
 void arena_end_temp_allocs(ArenaTemp temp) {
     temp.arena->current = temp.reset_pos;
 }
-
-#define internal static
-#define global static
-#define local_persist static
 
 const global u64 fnv_offset_basis = 14695981039346656037ULL;
 const global u64 fnv_prime = 1099511628211ULL;
