@@ -5,6 +5,12 @@
 
 #include <windows.h>
 
+// #if defined(TRACY_DELAYED_INIT) && defined(TRACY_MANUAL_LIFETIME)
+//     #pragma message("aaaaaaaaaaaaa")
+// #endif
+
+// #include "client/TracyProfiler.hpp"
+
 struct DLL {
     SDL_SharedObject* object;
     
@@ -13,6 +19,7 @@ struct DLL {
 };
 
 void load_dll(DLL* dll) {
+    ZoneScoped;
     if (dll->object != NULL) {
         SDL_UnloadObject(dll->object);
     }
@@ -32,11 +39,15 @@ void load_dll(DLL* dll) {
 
 
 void run(){
-    {
-        b2WorldDef def = b2DefaultWorldDef();
-        auto world_id = b2CreateWorld(&def);
-        b2DestroyWorld(world_id);
-    }
+    // tracy::StartupProfiler();
+    TracyNoop;
+    // {
+    //     b2WorldDef def = b2DefaultWorldDef();
+    //     auto world_id = b2CreateWorld(&def);
+    //     b2DestroyWorld(world_id);
+    // }
+
+    ASSERT(SDL_LoadObject("box2dd.dll") != NULL)
 
 
 
@@ -68,6 +79,8 @@ void run(){
 
     // std::cout << std::format("{}\n", x);
 
+    bool reload = false;
+
     while (1) {
         std::filesystem::file_time_type current_write;
         try {
@@ -79,7 +92,7 @@ void run(){
         // auto other_write = std::filesystem::last_write_time("./game.dll");
 
         using namespace std::chrono_literals;
-        if (last_write != current_write) {
+        if (last_write != current_write || reload) {
             bool file_locked = true;
             while (file_locked) {
                 HANDLE file = CreateFileA(
@@ -114,10 +127,12 @@ void run(){
         }
 
         auto signals = dll.update(memory);
+        reload = signals.reload;
 
         if (signals.quit) {
             return;
         }
 
     }
+    // tracy::ShutdownProfiler();
 }
