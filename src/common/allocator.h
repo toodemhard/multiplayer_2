@@ -4,10 +4,33 @@
 
 #define ASSERT(condition) if (!(condition)) { __debugbreak(); }
 
+
+template <typename F>
+struct privDefer {
+	F f;
+	privDefer(F f) : f(f) {}
+	~privDefer() { f(); }
+};
+
+template <typename F>
+privDefer<F> defer_func(F f) {
+	return privDefer<F>(f);
+}
+
+#define DEFER_1(x, y) x##y
+#define DEFER_2(x, y) DEFER_1(x, y)
+#define DEFER_3(x)    DEFER_2(x, __COUNTER__)
+#define defer(code)   auto DEFER_3(_defer_) = defer_func([&](){code;})
+
 struct Arena {
-    u8* m_start = nullptr;
-    u32 m_current;
-    u32 m_capacity;
+    u8* start = nullptr;
+    u64 current;
+    u64 capacity;
+};
+
+struct ArenaTemp {
+    Arena* arena;
+    u64 reset_pos;
 };
 
 // void array_length()
@@ -16,7 +39,28 @@ void arena_init(Arena* arena, void* start, size_t size);
 void* arena_allocate(Arena* arena, size_t size);
 void* arena_allocate_align(Arena* arena, size_t size, size_t alignment);
 void arena_reset(Arena* arena);
+ArenaTemp arena_begin_temp_allocs(Arena* arena);
+void arena_end_temp_allocs(ArenaTemp temp);
 
+ArenaTemp scratch_get(Arena** conflicts, i32 count);
+void scratch_release(ArenaTemp temp);
+
+template<typename T, u64 N>
+struct Array {
+    T data[N];
+    static constexpr u64 length = N;
+
+    T& operator[](i32 index) {
+        return array_get(this, index);
+    }
+};
+
+template<typename T, u64 N>
+T& array_get(Array<T, N>* array, u64 index) {
+    ASSERT(index >= 0);
+    ASSERT(index < array->length)
+    return array->data[index];
+}
 
 template<typename T>
 struct Slice {
@@ -36,16 +80,26 @@ void bitlist_set(Bitlist* bitlist, u32 index, bool value);
 
 template<typename T>
 T& slice_get(const Slice<T>* slice, u32 index) {
+    ASSERT(index >= 0);
     ASSERT(index < slice->length)
 
     return slice->data[index];
 }
 
 template<typename T>
+Slice<T> slice_create_view(T* memory, u32 length) {
+    return Slice<T> {
+        .data = memory,
+        .length = length,
+        .capacity = length,
+    };
+}
+
+template<typename T>
 Slice<T> slice_create(Arena* arena, u32 capacity) {
-    Slice<T> array;
-    slice_init(&array, arena, capacity);
-    return array;
+    Slice<T> slice;
+    slice_init(&slice, arena, capacity);
+    return slice;
 }
 
 template<typename T>
@@ -61,6 +115,23 @@ void slice_push(Slice<T>* slice, T element) {
 
     slice->data[slice->length] = element;
     slice->length += 1;
+}
+
+template<typename T> 
+void slice_pop(Slice<T>* slice) {
+    ASSERT(slice->length > 0);
+    slice->length -= 1;
+}
+
+template<typename T>
+void slice_clear(Slice<T>* slice) {
+    slice->length = 0;
+}
+
+template<typename T> 
+T& slice_back(Slice<T>* slice) {
+    ASSERT(slice->length > 0);
+    return (*slice)[slice->length - 1];
 }
 
 template<typename T>
