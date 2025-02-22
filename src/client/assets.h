@@ -18,7 +18,7 @@ constexpr const char * font_paths[] {
     FONT_TABLE(ASSET_PATH)
 };
 
-enum class FontID : int {
+enum FontID {
     FONT_TABLE(ASSET_NAME)
     font_count,
 };
