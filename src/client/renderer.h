@@ -23,7 +23,7 @@ struct Texture {
 
 struct PositionColorVertex {
     glm::vec2 position;
-    RGBA color;
+    float4 color;
 };
 
 struct PositionUvColorVertex {
@@ -166,12 +166,12 @@ Rect screen_rect_to_normalized(Rect rect, glm::vec2 resolution);
 
 void draw_sprite_world(Renderer* renderer, Camera2D camera, Rect world_rect, const SpriteProperties& properties);
 void draw_sprite_screen(Renderer* renderer, Rect screen_rect, const SpriteProperties& properties);
-void draw_world_lines(Renderer* renderer, Camera2D camera, glm::vec2* vertices, int vert_count, RGBA color);
-void draw_world_rect(Renderer* renderer, Camera2D camera, Rect rect, RGBA rgba);
-void draw_screen_rect(Renderer* renderer, Rect rect, RGBA rgba);
+void draw_world_lines(Renderer* renderer, Camera2D camera, glm::vec2* vertices, int vert_count, float4 color);
+void draw_world_rect(Renderer* renderer, Camera2D camera, Rect rect, float4 rgba);
+void draw_screen_rect(Renderer* renderer, Rect rect, float4 rgba);
 
 Texture load_texture(Renderer* renderer, std::optional<TextureID> texture_id, const Image& image);
 
-void draw_world_polygon(Renderer* renderer, const Camera2D& camera, glm::vec2* verts, int vert_count, RGBA color);
+void draw_world_polygon(Renderer* renderer, const Camera2D& camera, glm::vec2* verts, int vert_count, float4 color);
 
 } // namespace renderer

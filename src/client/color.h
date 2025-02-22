@@ -1,11 +1,21 @@
 #pragma once
 
+#include "common/types.h"
+
+struct float4 {
+    f32 r, g, b, a;
+};
+
+struct float2 {
+    f32 x, y;
+};
+
 struct RGBA {
-    uint8_t r, g, b, a;
+    u8 r, g, b, a;
 };
 
 struct RGB {
-    uint8_t r, g, b;
+    u8 r, g, b;
 };
 
 namespace color {
