@@ -2,14 +2,6 @@
 
 #include "common/types.h"
 
-struct float4 {
-    f32 r, g, b, a;
-};
-
-struct float2 {
-    f32 x, y;
-};
-
 struct RGBA {
     u8 r, g, b, a;
 };

@@ -1,9 +1,9 @@
 #include "box2d/box2d.h"
 #include <SDL3/SDL.h>
 #include <tracy/Tracy.hpp>
-#include "glm/glm.hpp"
 #include "yojimbo.h"
 
+#include <math.h>
 #include <cstring>
 #include <cstdint>
 #include <optional>

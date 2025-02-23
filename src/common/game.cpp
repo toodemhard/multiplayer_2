@@ -2,14 +2,6 @@
 
 #include "game.h"
 
-glm::vec2 b2vec_to_glmvec(b2Vec2 vec) {
-    return glm::vec2{vec.x, vec.y};
-}
-
-b2Vec2 glmvec_to_b2vec(glm::vec2 vec) {
-    return b2Vec2{vec.x, vec.y};
-}
-
 // durations in seconds 
 // multiply by tick rate to get duration in ticks
 
@@ -71,10 +63,10 @@ EntityHandle entity_list_add(Slice<Entity>* entity_list, Entity entity) {
 }
 
 
-void create_box(GameState* state, glm::vec2 position) {
+void create_box(GameState* state, float2 position) {
     auto body_def = b2DefaultBodyDef();
     body_def.type = b2_dynamicBody;
-    body_def.position = glmvec_to_b2vec(position);
+    body_def.position = position.b2vec;
     body_def.linearDamping = 4;
     body_def.fixedRotation = true;
     auto body_id = b2CreateBody(state->world_id, &body_def);
@@ -94,11 +86,11 @@ void create_box(GameState* state, glm::vec2 position) {
     b2CreatePolygonShape(body_id, &shape_def, &polygon);
 }
 
-void create_bullet(GameState* state, glm::vec2 position, glm::vec2 direction, u32 current_tick, i32 tick_rate) {
+void create_bullet(GameState* state, float2 position, float2 direction, u32 current_tick, i32 tick_rate) {
     auto body_def = b2DefaultBodyDef();
     body_def.type = b2_dynamicBody;
-    body_def.position = glmvec_to_b2vec(position);
-    body_def.linearVelocity = glmvec_to_b2vec(direction * bullet_speed);
+    body_def.position = position.b2vec;
+    body_def.linearVelocity = (direction * bullet_speed).b2vec;
     body_def.fixedRotation = true;
 
     auto body_id = b2CreateBody(state->world_id, &body_def);
@@ -163,8 +155,8 @@ const float dash_duration = dash_distance / dash_speed;
 
 const float bullet_damage = 10;
 
-glm::vec2 rotate(glm::vec2 vector, f32 angle) {
-    glm::mat2 rotation_matrix = {
+float2 rotate(float2 vector, f32 angle) {
+    float2x2 rotation_matrix = {
         cos(angle), -sin(angle),
         sin(angle), cos(angle)
     };
@@ -197,8 +189,8 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
         auto visitor = (Entity*)b2Shape_GetUserData(beginTouch->visitorShapeId);
 
         if (visitor != NULL && visitor->flags & etbf(EntityComponent::hittable)) {
-            auto inc_dir = glm::normalize(b2vec_to_glmvec(b2Body_GetLinearVelocity(sensor->body_id)));
-            b2Body_ApplyLinearImpulse(visitor->body_id, glmvec_to_b2vec(inc_dir * 2.0f), b2Body_GetWorldCenterOfMass(visitor->body_id), true);
+            auto inc_dir = normalize(float2{.b2vec=b2Body_GetLinearVelocity(sensor->body_id)});
+            b2Body_ApplyLinearImpulse(visitor->body_id, (inc_dir * 2.0f).b2vec, b2Body_GetWorldCenterOfMass(visitor->body_id), true);
 
             visitor->hit_flash_end_tick = current_tick + hit_flash_duration * tick_rate;
 
@@ -227,7 +219,7 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
 
         if (ent->entity_type == EntityType::Player) {
             const PlayerInput* input = &inputs[ent->player_id];
-            glm::vec2 move_input{};
+            float2 move_input{};
             if (input->up) {
                 move_input.y += 1;
             }
@@ -250,10 +242,10 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
                 ent->current_spell = 1;
             }
 
-            auto velocity = glm::vec2{0, 0};
+            auto velocity = float2{0, 0};
             // move_input.x += 1;
 
-            // auto print_vec2 = [current_tick](glm::vec2 vec) {
+            // auto print_vec2 = [current_tick](float2 vec) {
             //     // printf("%d, %f, %f\n", current_tick, vec.x, vec.y);
             // };
 
@@ -261,8 +253,8 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
                 if (move_input.x == 0 && move_input.y == 0) {
 
                 }
-                if (glm::length(move_input) > 0) {
-                    auto move_direction = glm::normalize(move_input);
+                if (magnitude(move_input) > 0) {
+                    auto move_direction = normalize(move_input);
                     velocity = move_direction * player_speed;
                     // printf("%f, %f\n", velocity.x, velocity.y);
 
@@ -285,10 +277,10 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
             }
 
             if (input->fire) {
-                glm::vec2 player_pos = b2vec_to_glmvec(b2Body_GetPosition(ent->body_id));
-                glm::vec2 direction = {1,0};
-                if (glm::length(input->cursor_world_pos - player_pos) > 0) {
-                    direction = glm::normalize(input->cursor_world_pos - player_pos);
+                float2 player_pos = {.b2vec=b2Body_GetPosition(ent->body_id)};
+                float2 direction = {1,0};
+                if (magnitude(input->cursor_world_pos - player_pos) > 0) {
+                    direction = normalize(input->cursor_world_pos - player_pos);
                 }
 
                 if (ent->current_spell == 0) {

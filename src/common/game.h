@@ -1,5 +1,6 @@
 #pragma once
-#include "common/allocator.h"
+#include "allocator.h"
+#include "common/base_math.h"
 #include "types.h"
 
 enum class PlayerAnimationState {
@@ -21,7 +22,7 @@ struct PlayerInput {
     bool slot2;
     bool slot3;
     bool slot4;
-    glm::vec2 cursor_world_pos;
+    float2 cursor_world_pos;
 };
 
 constexpr int max_player_count = 8;
@@ -65,7 +66,7 @@ struct Entity {
 
     u32 player_id;
     PlayerState player_state;
-    glm::vec2 dash_direction;
+    float2 dash_direction;
     u32 dash_end_tick;
     u16 current_spell;
 
@@ -110,13 +111,12 @@ constexpr EntityComponentFlags etbf(EntityComponent component) {
     return 1 << component;
 }
 
-glm::vec2 b2vec_to_glmvec(b2Vec2 vec);
 
 void state_init(GameState* state, Arena* arena);
 
 void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_player_count], u32 current_tick, i32 tick_rate);
 
-void create_box(GameState* state, glm::vec2 position);
+void create_box(GameState* state, float2 position);
 
 EntityHandle create_player(GameState* state);
 

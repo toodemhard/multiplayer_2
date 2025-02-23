@@ -15,6 +15,7 @@
 
 
 // const int asdfhkj = 13413432;
+constexpr int tick_rate = 128;
 
 constexpr double fixed_dt = 1.0 / tick_rate;
 constexpr double speed_up_fraction = 0.05;
@@ -62,16 +63,16 @@ void render_state(Renderer* renderer, SDL_Window* window, GameState* state, int 
         TextureID texture;
         switch (ent->entity_type) {
         case EntityType::Player: {
-            world_rect.scale = {2,2};
-            texture = TextureID::player_png;
+            world_rect.size = {2,2};
+            texture = TextureID_player_png;
         } break;
         case EntityType::Bullet: {
-            world_rect.scale = {0.5,0.5};
-            texture = TextureID::bullet_png;
+            world_rect.size = {0.5,0.5};
+            texture = TextureID_bullet_png;
         } break;
         case EntityType::Box: {
-            world_rect.scale = {1,1};
-            texture = TextureID::box_png;
+            world_rect.size = {1,1};
+            texture = TextureID_box_png;
         } break;
 
         }
@@ -82,10 +83,10 @@ void render_state(Renderer* renderer, SDL_Window* window, GameState* state, int 
             t = 1;
         }
 
-        world_rect.position = b2vec_to_glmvec(b2Body_GetPosition(ent->body_id));
+        world_rect.position.b2vec = b2Body_GetPosition(ent->body_id);
 
         if (ent->flip_sprite) {
-            world_rect.scale.x *= -1;
+            world_rect.size.x *= -1;
         }
 
         draw_sprite_world(renderer, camera, world_rect, SpriteProperties{
@@ -95,8 +96,8 @@ void render_state(Renderer* renderer, SDL_Window* window, GameState* state, int 
         });
 
         if (ent->flags & etbf(EntityComponent::hittable)) {
-            draw_world_rect(renderer, camera, {world_rect.position - glm::vec2{0, -1}, {1, 0.1}}, {0.2, 0.2, 0.2, 1.0});
-            draw_world_rect( renderer, camera, {world_rect.position - glm::vec2{0, -1}, {ent->health / (float)box_health, 0.1}}, {1, 0.2, 0.1, 1.0});
+            draw_world_rect(renderer, camera, {.position = world_rect.position - float2{0, -1}, .size={1, 0.1}}, {0.2, 0.2, 0.2, 1.0});
+            draw_world_rect( renderer, camera, {.position=world_rect.position - float2{0, -1}, .size={ent->health / (float)box_health, 0.1}}, {1, 0.2, 0.1, 1.0});
         }
     }
 
@@ -213,7 +214,7 @@ void DrawSolidPolygon(b2Transform transform, const b2Vec2* vertices, int vertexC
         transed_verts[i] = vert;
     }
 
-    renderer::draw_world_polygon(&renderer, *renderer.active_camera, (glm::vec2*)transed_verts.data(), vertexCount, hex_to_rgban(color));
+    renderer::draw_world_polygon(&renderer, *renderer.active_camera, (float2*)transed_verts.data(), vertexCount, hex_to_rgban(color));
 }
 
 void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context) {
@@ -221,7 +222,7 @@ void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void
 
     auto asdf = hex_to_rgba(color);
 
-    renderer::draw_world_polygon(&renderer, *renderer.active_camera, (glm::vec2*)vertices, vertexCount, hex_to_rgban(color));
+    renderer::draw_world_polygon(&renderer, *renderer.active_camera, (float2*)vertices, vertexCount, hex_to_rgban(color));
 }
 
 
@@ -259,7 +260,7 @@ static Chunk chunks[4] = {
         .position = {0, chunk_width},
         .tiles = {Tile{
             .is_set = true,
-                .texture = TextureID::tilemap_png,
+                .texture = TextureID_tilemap_png,
                 .x=32,
                 .w = 16,
                 .h = 16,
@@ -272,7 +273,7 @@ static Chunk chunks[4] = {
         .position = {0, 0},
         .tiles = {Tile{
             .is_set = true,
-            .texture = TextureID::tilemap_png,
+            .texture = TextureID_tilemap_png,
             .w = 16,
             .h = 16,
         }}
@@ -314,7 +315,7 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
 
             ui_begin_row({
                 .semantic_size = {size_px(100), size_px(50)},
-                .color = {0,0,1,1},
+                .color = {0,1,1,1},
             });
             ui_end_row();
         }
@@ -356,7 +357,7 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
         state_update(&s->m_state, &tick_arena, s->inputs, s->current_tick, tick_rate);
 
 
-        auto player_pos = b2vec_to_glmvec(b2Body_GetPosition(entity_list_get(&s->m_state.entities, s->player_handle)->body_id));
+        auto player_pos = float2{.b2vec=b2Body_GetPosition(entity_list_get(&s->m_state.entities, s->player_handle)->body_id)};
         s->m_camera.position = player_pos;
         s->current_tick++;
 
@@ -377,7 +378,7 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
             i32 y = (i32)chunk.position.y + (floor(pos.y) / grid_step);
             Tile tile = {
                 true,
-                TextureID::tilemap_png,
+                TextureID_tilemap_png,
                 0,
                 0,
                 16,
@@ -402,10 +403,10 @@ void local_scene_render(LocalScene* s, Renderer* renderer, Arena* frame_arena, S
             renderer::draw_sprite_world(
                 renderer,
                 s->m_camera,
-                {chunk.position + glm::vec2{tile_index % chunk_width + 0.5, i32(tile_index / chunk_width) + 0.5}, {1, 1}},
+                {.position = chunk.position + float2{tile_index % chunk_width + 0.5f, i32(tile_index / chunk_width) + 0.5f}, .size={1, 1}},
                 {
-                    .texture_id = TextureID::tilemap_png,
-                    .src_rect = Rect{{tile.x, tile.y}, {16,16}},
+                    .texture_id = TextureID_tilemap_png,
+                    .src_rect = Rect{float2{(f32)tile.x, (f32)tile.y}, {16,16}},
                 }
             );
         }
@@ -423,20 +424,20 @@ void local_scene_render(LocalScene* s, Renderer* renderer, Arena* frame_arena, S
     if (s->m_edit_mode) {
         i32 y_count = s->m_camera.scale.y / grid_step + 1;
         i32 x_count = s->m_camera.scale.x / grid_step + 1;
-        glm::vec2 top_left_point = s->m_camera.position + glm::vec2{-s->m_camera.scale.x, s->m_camera.scale.y} / 2.0f;
+        float2 top_left_point = s->m_camera.position + float2{-s->m_camera.scale.x, s->m_camera.scale.y} / 2.0f;
 
         float4 grid_color = {0.2, 0.2, 0.2, 1};
         for (i32 y = 0; y < y_count; y++) {
             i32 start_y_index = (i32) (top_left_point.y / grid_step);
-            glm::vec2 left_point = glm::vec2{top_left_point.x, (start_y_index - y) * grid_step};
-            glm::vec2 line[] = { left_point, left_point + glm::vec2{s->m_camera.scale.x, 0} };
+            float2 left_point = float2{top_left_point.x, (start_y_index - y) * grid_step};
+            float2 line[] = { left_point, left_point + float2{s->m_camera.scale.x, 0} };
             renderer::draw_world_lines(renderer, s->m_camera, line, 2, grid_color);
         }
 
         for (i32 x = 0; x < x_count; x++) {
             i32 start_x_index = (i32) (top_left_point.x / grid_step);
-            glm::vec2 top_point = glm::vec2{(start_x_index + x) * grid_step, top_left_point.y};
-            glm::vec2 line[] = { top_point, top_point - glm::vec2{0, s->m_camera.scale.y} };
+            float2 top_point = float2{(start_x_index + x) * grid_step, top_left_point.y};
+            float2 line[] = { top_point, top_point - float2{0, s->m_camera.scale.y} };
             renderer::draw_world_lines(renderer, s->m_camera, line, 2, grid_color);
         }
 
@@ -452,29 +453,28 @@ void local_scene_render(LocalScene* s, Renderer* renderer, Arena* frame_arena, S
         //     y -= 1;
         // }
 
-        glm::vec2 p2 = glm::vec2{x * grid_step, y * grid_step} + (grid_step / 2);
-        glm::vec2 kys[] = {{0,0}, {1,0}};
-        renderer::draw_world_rect(renderer, s->m_camera, {p2,{1,1}}, {1,0,0,1});
+        float2 p2 = float2{x * grid_step, y * grid_step} + (grid_step / 2) * float2_one;
+        renderer::draw_world_rect(renderer, s->m_camera, Rect{(float2)p2,{1,1}}, {1,0,0,1});
 
     }
 
     // renderer::draw_world_sprite(renderer, m_camera, {{0,0}, {1,1}}, {
-    //     .texture_id=TextureID::tilemap_png,
+    //     .texture_id=TextureID_tilemap_png,
     //     .src_rect=Rect{{16,0}, {16,16}}
     // });
     
     // renderer::draw_world_lines(renderer, m_camera, kys, 2, {255,255,0,255});
-    renderer::draw_sprite_world(renderer, s->m_camera, {{0,1}, {1,1}}, {
-        .texture_id = TextureID::depth_test_png,
+    renderer::draw_sprite_world(renderer, s->m_camera, {float2{0,1}, {1,1}}, {
+        .texture_id = TextureID_depth_test_png,
     });
 
 
 
     // auto rect = renderer::world_rect_to_normalized(m_camera, {{1,1}, {1,1}});
-    // renderer::draw_textured_rect(renderer, TextureID::amogus_png, rect, {});
+    // renderer::draw_textured_rect(renderer, TextureID_amogus_png, rect, {});
     using namespace renderer;
 
-    draw_screen_rect(renderer, {{300,0}, {50,50}}, float4{0.9,0.2,0,1});
+    draw_screen_rect(renderer, {float2{300,0}, {50,50}}, float4{0.9,0.2,0,1});
 
     // draw_screen_rect(renderer, {{1024 /2 - 10 , 768 / 2}, {1024 / 2, 200}}, {255,0,0,255});
 
@@ -485,10 +485,10 @@ void local_scene_render(LocalScene* s, Renderer* renderer, Arena* frame_arena, S
 
     // draw_screen_rect(renderer, {{100,500}, {70,50}}, RGBA{100,100,0,255});
 
-    draw_sprite_screen(renderer, {{100,0}, {100,100}}, {.texture_id=TextureID::pot_jpg});
+    draw_sprite_screen(renderer, {float2{100,0}, {100,100}}, {.texture_id=TextureID_pot_jpg});
 
     font::draw_text(renderer, s->fonts[FontID::Avenir_LT_Std_95_Black_ttf], "fasdhkf adhjsfk jhasdklfh", 32, {200,200});
-    glm::vec2 idk[] = {{-1, 1}, {1, 1}, {1, -1}, {-1, -1}};
+    float2 idk[] = {{-1, 1}, {1, 1}, {1, -1}, {-1, -1}};
     // renderer::draw_world_polygon(renderer, m_camera, idk, 4, color::red);
 
     ui_draw(renderer, frame_arena);
@@ -640,8 +640,8 @@ extern "C" INIT(init) {
         panic("failed to initialize renderer");
     }
 
-    // Texture textures[(int)ImageID::image_count];
-    std::future<void> texture_futures[(int)ImageID::image_count];
+    // Texture textures[ImageID_Count];
+    std::future<void> texture_futures[ImageID_Count];
 
     auto image_to_texture = [](Renderer& renderer, ImageID image_id) {
         int width, height, comp;
@@ -649,7 +649,7 @@ extern "C" INIT(init) {
         renderer::load_texture(&renderer, image_id_to_texture_id(image_id), Image{.w = width, .h = height, .data = image});
     };
 
-    for (int i = 0; i < (int)ImageID::image_count; i++) {
+    for (int i = 0; i < ImageID_Count; i++) {
         texture_futures[i] = std::async(std::launch::async, image_to_texture, std::ref(state->renderer), (ImageID)i);
     }
 
@@ -661,7 +661,7 @@ extern "C" INIT(init) {
 
     state->input.init_keybinds(Input::default_keybindings);
 
-    glm::vec2 player_position(0, 0);
+    float2 player_position{0, 0};
 
     // state->local_scene.frame = 12312;
     // (&state->local_scene)->m_input = &state->input;
@@ -670,9 +670,9 @@ extern "C" INIT(init) {
 
 
 
-    InitializeYojimbo();
+    // InitializeYojimbo();
 
-    for (int i = 0; i < (int)ImageID::image_count; i++) {
+    for (int i = 0; i < ImageID_Count; i++) {
         texture_futures[i].wait();
     }
 
@@ -783,7 +783,7 @@ extern "C" UPDATE(update) {
         renderer::begin_rendering(&state->renderer, state->window, &state->temp_arena);
 
         if (is_reloaded) {
-            create_box(&state->local_scene.m_state, glm::vec2{2, 1});
+            create_box(&state->local_scene.m_state, float2{2, 1});
             std::cout << "reloaded\n";
 
             // SDL_SetWindowAlwaysOnTop(state->window, true);

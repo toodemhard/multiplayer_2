@@ -244,7 +244,7 @@ namespace font {
     using namespace renderer;
     using namespace font;
 
-    void draw_text(Renderer* renderer, const Font& font, const char* text, float font_size, glm::vec2 position, RGBA color, float max_width) {
+    void draw_text(Renderer* renderer, const Font& font, const char* text, float font_size, float2 position, RGBA color, float max_width) {
         ZoneScoped;
 
         if (text == nullptr) {
@@ -266,9 +266,9 @@ namespace font {
 
                 float w = char_info.x1 - char_info.x0;
                 float h = char_info.y1 - char_info.y0;
-                auto src = Rect{{char_info.x0, char_info.y0}, {w, h}};
+                auto src = Rect{(float)char_info.x0, (float)char_info.y0, w, h};
                 auto dst = Rect{
-                    {x + char_info.xoff * size_ratio, font_size + position.y + char_info.yoff * size_ratio},
+                    float2{x + char_info.xoff * size_ratio, font_size + position.y + char_info.yoff * size_ratio},
                     {w * size_ratio, h * size_ratio}
                 };
 

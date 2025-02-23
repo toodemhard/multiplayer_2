@@ -1,3 +1,4 @@
+#pragma once
 #include <stdint.h>
 
 typedef uint64_t u64;
@@ -12,3 +13,7 @@ typedef int8_t i8;
 
 typedef float f32;
 typedef double f64;
+
+// struct float2 {
+//     f32 x, y;
+// };

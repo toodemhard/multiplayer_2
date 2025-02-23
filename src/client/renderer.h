@@ -9,11 +9,8 @@
 #include "assets.h"
 #include "color.h"
 #include "common/allocator.h"
+#include "common/base_math.h"
 
-struct Rect {
-    glm::vec2 position;
-    glm::vec2 scale;
-};
 
 struct Texture {
     SDL_GPUTexture* texture;
@@ -22,41 +19,41 @@ struct Texture {
 };
 
 struct PositionColorVertex {
-    glm::vec2 position;
+    float2 position;
     float4 color;
 };
 
 struct PositionUvColorVertex {
-    glm::vec2 position;
-    glm::vec2 uv;
+    float2 position;
+    float2 uv;
     RGBA color;
 };
 
 struct MixColor {
-    glm::vec4 color;
+    float4 color;
     float t;
 };
 
 // struct TextureRectVert {
-//     glm::vec2 position;
-//     glm::vec2 
+//     float2 position;
+//     float2 
 // }
 
 struct Camera2D {
-    glm::vec2 position;
-    glm::vec2 scale;
+    float2 position;
+    float2 scale;
 };
 
 struct RectVertex {
-    glm::vec2 position;
-    glm::vec2 uv;
+    float2 position;
+    float2 uv;
 };
 
 struct SpriteVertex {
-    glm::vec2 position;
-    glm::vec2 size;
-    glm::vec2 uv_position;
-    glm::vec2 uv_size;
+    float2 position;
+    float2 size;
+    float2 uv_position;
+    float2 uv_size;
     
     RGBA mult_color;
     RGBA mix_color;
@@ -113,7 +110,7 @@ struct Renderer {
 
     SDL_GPUDevice* device;
 
-    Texture textures[(int)TextureID::texture_count];
+    Texture textures[TextureID_Count];
 
     SDL_GPUTexture* swapchain_texture;
     SDL_GPUTexture* depth_texture;
@@ -143,13 +140,13 @@ struct Image {
 };
 
 
-inline glm::vec2 screen_to_world_pos(const Camera2D& cam, glm::vec2 screen_pos, int s_w, int s_h) {
+inline float2 screen_to_world_pos(const Camera2D& cam, float2 screen_pos, int s_w, int s_h) {
     screen_pos.y = s_h - screen_pos.y;
 
-    return cam.position + (screen_pos / glm::vec2((float)s_w, (float)s_h) - 0.5f) * cam.scale;
+    return cam.position + (screen_pos / float2{(float)s_w, (float)s_h} - 0.5f * float2_one) * cam.scale;
 }
 
-glm::vec2 snap_pos(glm::vec2 pos);
+float2 snap_pos(float2 pos);
 
 
 namespace renderer {
@@ -160,18 +157,18 @@ int init_renderer(Renderer* renderer_out, SDL_Window* window);
 void begin_rendering(Renderer* renderer, SDL_Window* window, Arena* temp_arena);
 void end_rendering(Renderer* renderer);
 
-glm::vec2 world_to_normalized(Camera2D camera, glm::vec2 world_pos);
+float2 world_to_normalized(Camera2D camera, float2 world_pos);
 Rect world_rect_to_normalized(Camera2D camera, Rect world_rect);
-Rect screen_rect_to_normalized(Rect rect, glm::vec2 resolution);
+Rect screen_rect_to_normalized(Rect rect, float2 resolution);
 
 void draw_sprite_world(Renderer* renderer, Camera2D camera, Rect world_rect, const SpriteProperties& properties);
 void draw_sprite_screen(Renderer* renderer, Rect screen_rect, const SpriteProperties& properties);
-void draw_world_lines(Renderer* renderer, Camera2D camera, glm::vec2* vertices, int vert_count, float4 color);
+void draw_world_lines(Renderer* renderer, Camera2D camera, float2* vertices, int vert_count, float4 color);
 void draw_world_rect(Renderer* renderer, Camera2D camera, Rect rect, float4 rgba);
 void draw_screen_rect(Renderer* renderer, Rect rect, float4 rgba);
 
 Texture load_texture(Renderer* renderer, std::optional<TextureID> texture_id, const Image& image);
 
-void draw_world_polygon(Renderer* renderer, const Camera2D& camera, glm::vec2* verts, int vert_count, float4 color);
+void draw_world_polygon(Renderer* renderer, const Camera2D& camera, float2* verts, int vert_count, float4 color);
 
 } // namespace renderer

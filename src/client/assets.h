@@ -9,9 +9,10 @@ constexpr const char * image_paths[] {
     IMAGE_TABLE(ASSET_PATH)
 };
 
-enum class ImageID : int {
-    IMAGE_TABLE(ASSET_NAME)
-    image_count,
+#define IMAGE_ID(a,b) ImageID_##a,
+enum ImageID {
+    IMAGE_TABLE(IMAGE_ID)
+    ImageID_Count,
 };
 
 constexpr const char * font_paths[] {
@@ -23,10 +24,12 @@ enum FontID {
     font_count,
 };
 
-enum class TextureID : int {
-    IMAGE_TABLE(ASSET_NAME)
-    FONT_TABLE(ASSET_NAME)
-    texture_count,
+#define TEXTURE_ID(a,b) TextureID_##a,
+enum TextureID : int {
+    TextureID_Invalid = -1,
+    IMAGE_TABLE(TEXTURE_ID)
+    FONT_TABLE(TEXTURE_ID)
+    TextureID_Count,
 };
 
 inline TextureID image_id_to_texture_id(ImageID image_id) {
@@ -34,5 +37,5 @@ inline TextureID image_id_to_texture_id(ImageID image_id) {
 }
 
 inline TextureID font_id_to_texture_id(FontID font_id) {
-    return TextureID((int)ImageID::image_count + (int)font_id);
+    return TextureID((int)ImageID_Count + (int)font_id);
 }

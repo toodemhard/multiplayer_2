@@ -15,7 +15,7 @@ i32 truncate_to_i32(f32 value) {
     return (i32)value;
 }
 
-glm::vec2 snap_pos(glm::vec2 pos) {
+float2 snap_pos(float2 pos) {
     return {truncate_to_i32(pos.x * 16.0f) / 16.0f, truncate_to_i32(pos.y * 16.0f) / 16.0f};
 }
 
@@ -93,7 +93,7 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
                 .location = 1,
                 .buffer_slot = 0,
                 .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
-                .offset = sizeof(glm::vec2),
+                .offset = sizeof(float2),
             },
         };
 
@@ -141,7 +141,7 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
                 .location = 1,
                 .buffer_slot = 0,
                 .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
-                .offset = sizeof(glm::vec2),
+                .offset = sizeof(float2),
             },
         };
 
@@ -305,7 +305,7 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
             SDL_GPUVertexAttribute {
                 .buffer_slot = 0,
                 .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
-                .offset = sizeof(glm::vec2),
+                .offset = sizeof(float2),
             },
             SDL_GPUVertexAttribute {
                 .buffer_slot = 1,
@@ -394,7 +394,7 @@ void draw_sprite_world(Renderer* renderer, Camera2D camera, Rect world_rect, con
 }
 
 void draw_sprite_screen(Renderer* renderer, Rect screen_rect, const SpriteProperties& properties) {
-    auto resolution = glm::vec2{renderer->window_width, renderer->window_height};
+    auto resolution = float2{(f32)renderer->window_width, (f32)renderer->window_height};
     auto norm_rect = screen_rect_to_normalized(screen_rect, resolution);
 
     draw_sprite(renderer, norm_rect, properties);
@@ -403,21 +403,21 @@ void draw_sprite_screen(Renderer* renderer, Rect screen_rect, const SpriteProper
 
 void draw_sprite(Renderer* renderer, Rect normalized_rect, const SpriteProperties& properties) {
 
-    auto normalized_texture_rect = Rect{{0,0}, {1,1}};
+    auto normalized_texture_rect = Rect{float2{0,0}, {1,1}};
     if (properties.src_rect.has_value()) {
         auto& texture = renderer->textures[(int)properties.texture_id];
         auto& src_rect = properties.src_rect.value();
         normalized_texture_rect = {
-            .position = src_rect.position / glm::vec2{texture.w, texture.h},
-            .scale = src_rect.scale / glm::vec2{texture.w, texture.h},
+            .position = src_rect.position / float2{(f32)texture.w, (f32)texture.h},
+            .size = src_rect.size / float2{(f32)texture.w, (f32)texture.h},
         };
     }
 
     SpriteVertex sprite_vertex = {
         .position = normalized_rect.position,
-        .size = normalized_rect.scale,
+        .size = normalized_rect.size,
         .uv_position = normalized_texture_rect.position,
-        .uv_size = normalized_texture_rect.scale,
+        .uv_size = normalized_texture_rect.size,
         .mult_color = properties.mult_color,
         .mix_color = properties.mix_color,
         .t = properties.t,
@@ -495,14 +495,14 @@ SDL_GPUShader* load_shader(
     return shader;
 }
 
-glm::vec2 world_to_normalized(Camera2D camera, glm::vec2 world_pos) {
+float2 world_to_normalized(Camera2D camera, float2 world_pos) {
     return ((world_pos - camera.position) / camera.scale * 2.0f);
 }
 
 Rect world_rect_to_normalized(Camera2D camera, Rect world_rect) {
     return Rect{
         (world_rect.position - camera.position) / camera.scale * 2.0f,
-        world_rect.scale / camera.scale,
+        world_rect.size / camera.scale,
     };
 }
 
@@ -757,7 +757,7 @@ Texture load_texture(Renderer* renderer, std::optional<TextureID> texture_id, co
     return texture_ref;
 }
 
-// void draw_lines(Renderer& renderer, glm::vec2* vertices, int vert_count, RGBA color) {
+// void draw_lines(Renderer& renderer, float2* vertices, int vert_count, RGBA color) {
 //     int start_index = renderer.line_vertices.size();
 //     for (int i = start_index; i < start_index + vert_count - 1; i++) {
 //         renderer.line_indices.emplace_back(i);
@@ -781,7 +781,7 @@ RGBA rgban_to_rgba(float4 rgba) {
     };
 }
 
-void draw_world_lines(Renderer* renderer, Camera2D camera, glm::vec2* vertices, int vert_count, float4 color) {
+void draw_world_lines(Renderer* renderer, Camera2D camera, float2* vertices, int vert_count, float4 color) {
     camera.position = snap_pos(camera.position);
 
     int start_index = 0;
@@ -827,7 +827,7 @@ void draw_world_lines(Renderer* renderer, Camera2D camera, glm::vec2* vertices, 
     }
 }
 
-void draw_world_polygon(Renderer* renderer, const Camera2D& camera, glm::vec2* verts, int vert_count, float4 color) {
+void draw_world_polygon(Renderer* renderer, const Camera2D& camera, float2* verts, int vert_count, float4 color) {
     ASSERT(vert_count >= 3)
 
     bool push_new_draw = true;
@@ -921,7 +921,7 @@ void draw_rect(Renderer* renderer, Rect normalized_rect, float4 rgba) {
 
     for (int i = 0; i < 4; i++) {
         auto& vert = vertices[i].position;
-        vert = vert * normalized_rect.scale + normalized_rect.position;
+        vert = vert * normalized_rect.size + normalized_rect.position;
         vertices[i].color = rgba;
     }
 
@@ -929,9 +929,9 @@ void draw_rect(Renderer* renderer, Rect normalized_rect, float4 rgba) {
     slice_push_range(&renderer->index_data, (u8*)indices, sizeof(indices));
 }
 
-Rect screen_rect_to_normalized(Rect rect, glm::vec2 resolution) {
-    rect.position += rect.scale / 2.0f;
-    auto normal_rect = Rect{.position = rect.position / resolution * 2.0f - 1.0f, .scale = rect.scale / resolution};
+Rect screen_rect_to_normalized(Rect rect, float2 resolution) {
+    rect.position = rect.position + rect.size / 2.0f;
+    auto normal_rect = Rect{.position = rect.position / resolution * 2.0f - 1.0f * float2_one, .size = rect.size / resolution};
     normal_rect.position.y *= -1;
     
     return normal_rect;
@@ -942,7 +942,7 @@ void draw_world_rect(Renderer* renderer, Camera2D camera, Rect rect, float4 rgba
 }
 
 void draw_screen_rect(Renderer* renderer, Rect rect, float4 rgba) {
-    auto resolution = glm::vec2{renderer->window_width, renderer->window_height};
+    auto resolution = float2{(f32)renderer->window_width, (f32)renderer->window_height};
     draw_rect(renderer, screen_rect_to_normalized(rect, resolution), rgba);
 }
 

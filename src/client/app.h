@@ -1,10 +1,10 @@
 #pragma once
 
+#include "common/game.h"
 #include "common/allocator.h"
 #include "renderer.h"
 #include "color.h"
 #include "font.h"
-#include "client.h"
 #include "input.h"
 #include "assets.h"
 #include "ui.h"
@@ -12,7 +12,7 @@
 
 const Camera2D default_camera{
     {0, 0},
-    glm::vec2{1 * 4.0f/3.0f, 1} * 12.0f,
+    float2{1 * 4.0f/3.0f, 1} * 12.0f,
 };
 
 constexpr int chunk_width = 8;
@@ -22,14 +22,14 @@ constexpr int chunk_size = chunk_width * chunk_width;
 struct Tile {
     bool is_set;
     TextureID texture;
-    u16 x;
-    u16 y;
-    u16 w;
-    u16 h;
+    i32 x;
+    i32 y;
+    u32 w;
+    u32 h;
 };
 
 struct Chunk {
-    glm::vec2 position;
+    float2 position;
     Tile tiles[chunk_width * chunk_width];
 };
 

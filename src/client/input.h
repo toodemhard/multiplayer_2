@@ -1,4 +1,5 @@
 #pragma once
+#include "common/base_math.h"
 
 namespace Input {
 
@@ -47,7 +48,7 @@ class Input {
     bool mouse_held(int button) const;
     bool mouse_up(int button) const;
 
-    glm::vec2 mouse_pos{};
+    float2 mouse_pos{};
     float wheel{};
     std::optional<std::string> input_text;
     std::array<bool, SDL_SCANCODE_COUNT> keyboard_repeat{};
@@ -60,7 +61,6 @@ class Input {
     SDL_MouseButtonFlags button_down_flags{};
     SDL_MouseButtonFlags button_up_flags{};
 
-  private:
     const bool* keyboard_held = SDL_GetKeyboardState(NULL);
     SDL_MouseButtonFlags button_held_flags{};
 

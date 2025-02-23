@@ -1,6 +1,6 @@
 #include "../pch.h"
 
-#include "imgui.h"
+// #include "imgui.h"
 
 #include "client.h"
 
@@ -30,16 +30,16 @@ void GameClient::ClientDisconnected(int client_index) {}
 void GameClient::update() {
     yojimbo::NetworkInfo net_info;
     m_client.GetNetworkInfo(net_info);
-    ImGui::Begin("net debug");
-    ImGui::Text("RTT: %fms", net_info.RTT);
-    ImGui::Text("Jitter: %f", net_info.averageJitter);
-    ImGui::Text("Loss: %f%%", net_info.packetLoss);
-    ImGui::Text("Up Bandwidth: %fkbps", net_info.sentBandwidth);
-    ImGui::Text("Down Bandwidth: %fkbps", net_info.receivedBandwidth);
-
-    ImGui::Text("Current Tick: %d", m_current_tick);
-
-    ImGui::End();
+    // ImGui::Begin("net debug");
+    // ImGui::Text("RTT: %fms", net_info.RTT);
+    // ImGui::Text("Jitter: %f", net_info.averageJitter);
+    // ImGui::Text("Loss: %f%%", net_info.packetLoss);
+    // ImGui::Text("Up Bandwidth: %fkbps", net_info.sentBandwidth);
+    // ImGui::Text("Down Bandwidth: %fkbps", net_info.receivedBandwidth);
+    //
+    // ImGui::Text("Current Tick: %d", m_current_tick);
+    //
+    // ImGui::End();
 }
 
 void GameClient::fixed_update(float dt, PlayerInput input, Input::Input& input_2, int* throttle_ticks) {
