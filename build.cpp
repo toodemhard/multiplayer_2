@@ -448,7 +448,7 @@ int main(int argc, char* argv[]) {
             .rel_include_paths = {"public"},
             .lib_path = "TracyClient.lib",
             .shared_lib_path = "TracyClient.dll",
-            .cmake_args = "-DBUILD_SHARED_LIBS=ON -DTRACY_ENABLE=ON -DTRACY_DELAYED_INIT=ON -DTRACY_MANUAL_LIFETIME=ON"
+            .cmake_args = "-DBUILD_SHARED_LIBS=ON -DTRACY_ENABLE=ON"// -DTRACY_DELAYED_INIT=ON -DTRACY_MANUAL_LIFETIME=ON"
         },
         lib {
             .name = "yojimbo",
@@ -500,7 +500,7 @@ int main(int argc, char* argv[]) {
                 "glm",
                 "SDL",
                 "tracy",
-                "yojimbo",
+                // "yojimbo",
                 "imgui",
             },
             .include_dirs = include_dirs,
