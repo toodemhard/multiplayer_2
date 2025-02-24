@@ -12,10 +12,10 @@ enum UI_SizeType {
 };
 
 enum RectSide {
-    RectSide_Top,
-    RectSide_Bottom,
     RectSide_Left,
     RectSide_Right,
+    RectSide_Top,
+    RectSide_Bottom,
     RectSide_Count,
 };
 
@@ -54,9 +54,11 @@ struct UI_Element {
 
     Axis2 grow_axis;
 
-    float4 color;
     UI_Size border[RectSide_Count];
     UI_Size padding[RectSide_Count];
+    float4 background_color;
+    float4 border_color;
+    float4 font_color;
 
     // computed stuff possibly read only to user
     f32 computed_position[Axis2_Count];
@@ -103,10 +105,11 @@ UI_Element* ui_get(UI_Index index);
 bool ui_element_signals(UI_Index index);
 void ui_set_ctx(UI* _ui);
 void ui_init(UI* ui, Arena* arena, Slice<Font> fonts);
-void ui_draw(Renderer* renderer, Arena* temp_arena);
+void ui_draw(UI* ui_ctx, Renderer* renderer, Arena* temp_arena);
 UI_Index ui_begin_row(UI_Element element);
 void ui_end_row();
 void ui_begin(Input::Input* input);
+UI_Index ui_push_leaf(UI_Element element);
 void ui_end(Arena* temp_arena);
 
 constexpr UI_Position position_offset_px(f32 value) {
@@ -116,3 +119,7 @@ constexpr UI_Position position_offset_px(f32 value) {
 constexpr UI_Size size_px(f32 value) {
     return UI_Size{UI_SizeType_Pixels, value};
 }
+
+#define sides_px(v) {size_px(v), size_px(v), size_px(v), size_px(v)}
+
+#define sides2_px(v1, v2) {size_px(v1), size_px(v1), size_px(v2), size_px(v2)}

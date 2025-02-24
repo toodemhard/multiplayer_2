@@ -63,6 +63,12 @@ void ui_begin(Input::Input* input) {
     ui_ctx->cursor_pos = *((float2*)&input->mouse_pos);
 }
 
+UI_Index ui_push_leaf(UI_Element element) {
+    UI_Index index = ui_begin_row(element);
+    ui_end_row();
+    return index;
+}
+
 UI_Index ui_begin_row(UI_Element element) {
     UI_Frame* ui = &ui_ctx->frame_buffer[ui_ctx->active_frame];
 
@@ -183,6 +189,11 @@ void ui_end(Arena* temp_arena) {
 
             if (current->padding[i].type == UI_SizeType_Pixels) {
                 current->computed_padding[i] += current->padding[i].value;
+                current->computed_size[i / 2] += current->computed_padding[i];
+            }
+
+            if (current->border[i].type == UI_SizeType_Pixels) {
+                current->computed_border[i] += current-> border[i].value;
             }
 
         }
@@ -245,7 +256,7 @@ void ui_end(Arena* temp_arena) {
     }
 }
 
-float2 f32x2_to_vec2(f32 vec[2]) {
+float2 f32arr_to_float2(f32 vec[2]) {
     return {vec[0], vec[1]};
 }
 
@@ -253,7 +264,7 @@ float2 float2_add(float2 a, float2 b) {
     return {a.x + b.x, a.y + b.y};
 }
 
-void ui_draw(Renderer* renderer, Arena* temp_arena) {
+void ui_draw(UI* ui_ctx, Renderer* renderer, Arena* temp_arena) {
     ArenaTemp checkpoint = arena_begin_temp_allocs(temp_arena);
     defer(arena_end_temp_allocs(checkpoint));
 
@@ -280,15 +291,34 @@ void ui_draw(Renderer* renderer, Arena* temp_arena) {
 
             child = child->prev_sibling;
         }
-        Rect rect = {f32x2_to_vec2(current->computed_position), f32x2_to_vec2(current->computed_size)};
-        const auto* padding = &current->computed_padding;
-        rect.w += *padding[RectSide_Left] + *padding[RectSide_Right];
-        rect.h += *padding[RectSide_Top] + *padding[RectSide_Bottom];
-        renderer::draw_screen_rect(renderer, rect, current->color);
+        Rect rect = {f32arr_to_float2(current->computed_position), f32arr_to_float2(current->computed_size)};
+        renderer::draw_screen_rect(renderer, rect, current->background_color);
 
+        for (i32 i = 0; i < RectSide_Count; i++) {
+            i32 horizontal = i / 2;
+            i32 vertical = 1 - i / 2;
+            f32 border_width = current->computed_border[i];
+            Rect border_rect = {
+                .x = current->computed_position[Axis2_X],
+                .y = current->computed_position[Axis2_Y],
+                .w = vertical * border_width + horizontal * current->computed_size[Axis2_X],
+                .h = horizontal * border_width + vertical * current->computed_size[Axis2_Y],
+            };
+            if (i == RectSide_Right) {
+                border_rect.x += current->computed_size[Axis2_X] - border_width;
+            }
+            if (i == RectSide_Bottom) {
+                border_rect.y += current->computed_size[Axis2_Y] - border_width;
+            }
+            renderer::draw_screen_rect(renderer, border_rect, current->border_color);
+        }
+        // rect.w += padding[RectSide_Left] + padding[RectSide_Right];
+        // rect.h += padding[RectSide_Top] + padding[RectSide_Bottom];
+
+        const f32* padding = current->computed_padding;
         float2 position = {
-            current->computed_position[Axis2_X] + *padding[RectSide_Left],
-            current->computed_position[Axis2_Y] + *padding[RectSide_Top],
+            current->computed_position[Axis2_X] + padding[RectSide_Left],
+            current->computed_position[Axis2_Y] + padding[RectSide_Top],
         };
         font::draw_text(renderer, ui_ctx->fonts[current->font], current->text, current->font_size, *(float2*)&position);
     }
