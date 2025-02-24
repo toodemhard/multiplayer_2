@@ -180,8 +180,8 @@ void ui_end(Arena* temp_arena) {
                 current->computed_size[i] = semantic_size->value;
             }
 
-            if (semantic_size->type == UI_SizeType_SumContents) {
-                current->computed_size[i] += ((f32*)&text_size)[i];
+            if (semantic_size->type == UI_SizeType_SumContent) {
+                current->computed_size[i] += text_size[i];
             }
         }
 
@@ -193,7 +193,8 @@ void ui_end(Arena* temp_arena) {
             }
 
             if (current->border[i].type == UI_SizeType_Pixels) {
-                current->computed_border[i] += current-> border[i].value;
+                current->computed_border[i] += current->border[i].value;
+                current->computed_size[i / 2] += current->computed_border[i];
             }
 
         }
@@ -202,7 +203,7 @@ void ui_end(Arena* temp_arena) {
         if (parent) {
             Axis2 grow_axis = parent->grow_axis;
             for (i32 i = 0; i < Axis2_Count; i++) {
-                if (parent->semantic_size[i].type == UI_SizeType_SumContents) {
+                if (parent->semantic_size[i].type == UI_SizeType_SumContent) {
 
                     if (i == grow_axis) {
                         parent->computed_size[i] += current->computed_size[i];
@@ -245,13 +246,16 @@ void ui_end(Arena* temp_arena) {
                 if (current->parent) {
                     const UI_Element* prev_sibling = current->prev_sibling;
 
-                    current->computed_position[i] = parent->computed_position[i];
+                    current->computed_position[i] = parent->content_position[i];
                     if (current->prev_sibling && i == parent->grow_axis) {
                         current->computed_position[i] = prev_sibling->computed_position[i] + prev_sibling->computed_size[i];
                     }
+
                 }
                 current->computed_position[i] += current->semantic_position[i].value;
             }
+            current->content_position[i] = current->computed_position[i];
+            current->content_position[i] += current->computed_padding[i * 2] + current->computed_border[i * 2];
         }
     }
 }
@@ -291,7 +295,7 @@ void ui_draw(UI* ui_ctx, Renderer* renderer, Arena* temp_arena) {
 
             child = child->prev_sibling;
         }
-        Rect rect = {f32arr_to_float2(current->computed_position), f32arr_to_float2(current->computed_size)};
+        Rect rect = {current->computed_position, current->computed_size};
         renderer::draw_screen_rect(renderer, rect, current->background_color);
 
         for (i32 i = 0; i < RectSide_Count; i++) {
@@ -315,12 +319,12 @@ void ui_draw(UI* ui_ctx, Renderer* renderer, Arena* temp_arena) {
         // rect.w += padding[RectSide_Left] + padding[RectSide_Right];
         // rect.h += padding[RectSide_Top] + padding[RectSide_Bottom];
 
-        const f32* padding = current->computed_padding;
-        float2 position = {
-            current->computed_position[Axis2_X] + padding[RectSide_Left],
-            current->computed_position[Axis2_Y] + padding[RectSide_Top],
-        };
-        font::draw_text(renderer, ui_ctx->fonts[current->font], current->text, current->font_size, *(float2*)&position);
+        // if (current->image != ImageID_Invalid) {
+        //     renderer::draw_sprite_screen(renderer);
+        //
+        // }
+
+        font::draw_text(renderer, ui_ctx->fonts[current->font], current->text, current->font_size, current->content_position);
     }
 
     while (post_stack.length > 0) {

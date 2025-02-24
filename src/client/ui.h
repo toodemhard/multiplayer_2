@@ -6,7 +6,7 @@
 #include "font.h"
 
 enum UI_SizeType {
-    UI_SizeType_SumContents,
+    UI_SizeType_SumContent,
     UI_SizeType_Pixels,
     UI_SizeType_BaseFontRelative,
 };
@@ -47,7 +47,7 @@ struct UI_Element {
     FontID font;
     i32 font_size;
 
-    TextureID image;
+    ImageID image;
 
     UI_Position semantic_position[Axis2_Count];
     UI_Size semantic_size[Axis2_Count];
@@ -61,10 +61,11 @@ struct UI_Element {
     float4 font_color;
 
     // computed stuff possibly read only to user
-    f32 computed_position[Axis2_Count];
-    f32 computed_size[Axis2_Count];
+    float2 computed_position;
+    float2 computed_size;
     f32 computed_padding[RectSide_Count];
     f32 computed_border[RectSide_Count];
+    float2 content_position;
 
     UI_Element* first_child;
     UI_Element* last_child;
@@ -75,6 +76,7 @@ struct UI_Element {
     
     bool is_hovered;
 };
+
 
 typedef u64 UI_Index;
 
