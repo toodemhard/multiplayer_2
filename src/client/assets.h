@@ -6,11 +6,13 @@
 #define ASSET_NAME(a, b) a,
 
 constexpr const char * image_paths[] {
+    "null",
     IMAGE_TABLE(ASSET_PATH)
 };
 
 #define IMAGE_ID(a,b) ImageID_##a,
 enum ImageID {
+    ImageID_NULL,
     IMAGE_TABLE(IMAGE_ID)
     ImageID_Count,
 };
@@ -26,7 +28,7 @@ enum FontID {
 
 #define TEXTURE_ID(a,b) TextureID_##a,
 enum TextureID : int {
-    TextureID_Invalid = -1,
+    TextureID_Invalid,
     IMAGE_TABLE(TEXTURE_ID)
     FONT_TABLE(TEXTURE_ID)
     TextureID_Count,

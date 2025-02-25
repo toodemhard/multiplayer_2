@@ -167,7 +167,7 @@ void draw_world_lines(Renderer* renderer, Camera2D camera, float2* vertices, int
 void draw_world_rect(Renderer* renderer, Camera2D camera, Rect rect, float4 rgba);
 void draw_screen_rect(Renderer* renderer, Rect rect, float4 rgba);
 
-Texture load_texture(Renderer* renderer, std::optional<TextureID> texture_id, const Image& image);
+Texture load_texture(Renderer* renderer, TextureID texture_id, const Image& image);
 
 void draw_world_polygon(Renderer* renderer, const Camera2D& camera, float2* verts, int vert_count, float4 color);
 

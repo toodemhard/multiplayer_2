@@ -43,11 +43,12 @@ void x() {
 
 }
 
-void ui_init(UI* ui_ctx, Arena* arena, Slice<Font> fonts) {
+void ui_init(UI* ui_ctx, Arena* arena, Slice<Font> fonts, Renderer* renderer) {
     for (i32 i = 0; i < 2; i++) {
         ui_ctx->frame_arenas[i] = arena_suballoc(arena, megabytes(0.5));
         ui_frame_init(&ui_ctx->frame_buffer[i], &ui_ctx->frame_arenas[i]);
     }
+    ui_ctx->renderer = renderer;
 
     slice_init(&ui_ctx->parent_stack, arena, 1024);
     ui_ctx->fonts = fonts;
@@ -171,17 +172,37 @@ void ui_end(Arena* temp_arena) {
         slice_pop(&post_stack);
 
         float2 text_size = font::text_dimensions(ui_ctx->fonts[current->font], current->text, current->font_size);
+
+        float2 image_size = {};
+
+        if (current->image != ImageID_NULL) {
+            const Texture* texture = &ui_ctx->renderer->textures[current->image];
+            image_size = {(f32)texture->w, (f32)texture->h};
+        }
+
+
         // text_size
 
         // post order stuff goes here
         for (i32 i = 0; i < Axis2_Count; i++) {
-            UI_Size* semantic_size = &current->semantic_size[i];
+            UI_Size* semantic_size = &current->size[i];
             if (semantic_size->type == UI_SizeType_Pixels) {
                 current->computed_size[i] = semantic_size->value;
             }
 
             if (semantic_size->type == UI_SizeType_SumContent) {
                 current->computed_size[i] += text_size[i];
+
+                current->computed_size[i] += image_size[i];
+            }
+        }
+
+        for (i32 i = 0; i < Axis2_Count; i++) {
+            UI_Size* semantic_size = &current->size[i];
+            if (semantic_size->type == UI_SizeType_ImageProportional) {
+                i32 other_axis = (i + 1) % Axis2_Count;
+                current->computed_size[i] = current->computed_size[other_axis] * (image_size[i] / image_size[other_axis]);
+
             }
         }
 
@@ -203,7 +224,7 @@ void ui_end(Arena* temp_arena) {
         if (parent) {
             Axis2 grow_axis = parent->grow_axis;
             for (i32 i = 0; i < Axis2_Count; i++) {
-                if (parent->semantic_size[i].type == UI_SizeType_SumContent) {
+                if (parent->size[i].type == UI_SizeType_SumContent) {
 
                     if (i == grow_axis) {
                         parent->computed_size[i] += current->computed_size[i];
@@ -241,7 +262,7 @@ void ui_end(Arena* temp_arena) {
         // pre order stuff goes here
 
         for (i32 i = 0; i < Axis2_Count; i++) {
-            if (current->semantic_position[i].type == UI_PositionType_AutoOffset) {
+            if (current->position[i].type == UI_PositionType_AutoOffset) {
                 UI_Element* parent = current->parent;
                 if (current->parent) {
                     const UI_Element* prev_sibling = current->prev_sibling;
@@ -252,7 +273,7 @@ void ui_end(Arena* temp_arena) {
                     }
 
                 }
-                current->computed_position[i] += current->semantic_position[i].value;
+                current->computed_position[i] += current->position[i].value;
             }
             current->content_position[i] = current->computed_position[i];
             current->content_position[i] += current->computed_padding[i * 2] + current->computed_border[i * 2];
@@ -315,6 +336,13 @@ void ui_draw(UI* ui_ctx, Renderer* renderer, Arena* temp_arena) {
                 border_rect.y += current->computed_size[Axis2_Y] - border_width;
             }
             renderer::draw_screen_rect(renderer, border_rect, current->border_color);
+        }
+
+        if (current->image != ImageID_NULL) {
+            renderer::draw_sprite_screen(renderer, {current->content_position, current->computed_size}, 
+            SpriteProperties{
+                .texture_id = image_id_to_texture_id(current->image)
+            });
         }
         // rect.w += padding[RectSide_Left] + padding[RectSide_Right];
         // rect.h += padding[RectSide_Top] + padding[RectSide_Bottom];

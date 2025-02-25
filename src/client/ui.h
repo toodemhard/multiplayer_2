@@ -8,6 +8,7 @@
 enum UI_SizeType {
     UI_SizeType_SumContent,
     UI_SizeType_Pixels,
+    UI_SizeType_ImageProportional,
     UI_SizeType_BaseFontRelative,
 };
 
@@ -49,8 +50,8 @@ struct UI_Element {
 
     ImageID image;
 
-    UI_Position semantic_position[Axis2_Count];
-    UI_Size semantic_size[Axis2_Count];
+    UI_Position position[Axis2_Count];
+    UI_Size size[Axis2_Count];
 
     Axis2 grow_axis;
 
@@ -98,6 +99,8 @@ struct UI {
     f32 base_font_size;
 
     float2 cursor_pos;
+
+    Renderer* renderer;
 };
 
 struct ElementProps {
@@ -106,7 +109,7 @@ struct ElementProps {
 UI_Element* ui_get(UI_Index index);
 bool ui_element_signals(UI_Index index);
 void ui_set_ctx(UI* _ui);
-void ui_init(UI* ui, Arena* arena, Slice<Font> fonts);
+void ui_init(UI* ui, Arena* arena, Slice<Font> fonts, Renderer* renderer);
 void ui_draw(UI* ui_ctx, Renderer* renderer, Arena* temp_arena);
 UI_Index ui_begin_row(UI_Element element);
 void ui_end_row();
@@ -120,6 +123,9 @@ constexpr UI_Position position_offset_px(f32 value) {
 
 constexpr UI_Size size_px(f32 value) {
     return UI_Size{UI_SizeType_Pixels, value};
+}
+constexpr UI_Size size_proportional() {
+    return UI_Size{UI_SizeType_ImageProportional};
 }
 
 #define sides_px(v) {size_px(v), size_px(v), size_px(v), size_px(v)}

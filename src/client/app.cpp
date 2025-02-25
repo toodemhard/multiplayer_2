@@ -148,13 +148,13 @@ PlayerInput input_state(Input::Input& input, const Camera2D& camera) {
     }
 
     if (input.key_down(SDL_SCANCODE_1)) {
-        player_input.slot0 = true;
+        player_input.select_spell[0] = true;
     }
     if (input.key_down(SDL_SCANCODE_2)) {
-        player_input.slot1 = true;
+        player_input.select_spell[1] = true;
     }
     if (input.key_down(SDL_SCANCODE_3)) {
-        player_input.slot2 = true;
+        player_input.select_spell[2] = true;
     }
 
 
@@ -167,6 +167,7 @@ PlayerInput input_state(Input::Input& input, const Camera2D& camera) {
     }
 
     player_input.cursor_world_pos = screen_to_world_pos(camera, input.mouse_pos, window_width, window_height);
+    
 
     return player_input;
 }
@@ -235,7 +236,7 @@ void local_scene_init(LocalScene* scene, Arena* level_arena, Input::Input* input
 
     renderer->active_camera = &scene->m_camera;
 
-    ui_init(&scene->ui, level_arena, fonts);
+    ui_init(&scene->ui, level_arena, fonts, renderer);
 
     state_init(&scene->m_state, level_arena);
 
@@ -300,34 +301,40 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
     ui_begin(s->m_input);
 
     ui_begin_row({
-        .semantic_position = {position_offset_px(100),position_offset_px(300)},
-        .color = {1,0,0,1}
+        .position = {position_offset_px(50),position_offset_px(300)},
+        .border = sides_px(4),
+        .background_color = {1,0,0,1},
+        .border_color = {1,1,1,1},
     });
         UI_Index id = ui_begin_row({
             .text="fasdf",
             .font_size=32,
+            .border = sides_px(4),
+            .padding = sides_px(5),
+            .background_color = {0.2,0.2,0.2,1},
+            .border_color = {1,1,0,1},
             // .semantic_position = {{}, position_offset_px(-50)},
-            // .color = {1,1,0,1}
         });
         ui_end_row();
         if (ui_element_signals(id)) {
-            ui_get(id)->color = {0.5,1,0.2,1};
+            ui_get(id)->background_color = {0.5,0.3,0.2,1};
 
             ui_begin_row({
-                .semantic_size = {size_px(100), size_px(50)},
-                .color = {0,1,1,1},
+                .size = {size_px(100), size_px(50)},
+                .background_color = {0,1,1,1},
             });
             ui_end_row();
         }
 
         id = ui_begin_row({
-            .semantic_position = {{}, position_offset_px(50)},
-            .semantic_size = {size_px(100), size_px(100)},
-            .color = {0.2,1,0.6,1}
+            .image = ImageID_pot_jpg,
+            .position = {},
+            .size = {size_px(200), size_proportional()},
+            .background_color = {0.2,1,0.6,1}
         });
         ui_end_row();
         if (ui_element_signals(id)) {
-            ui_get(id)->color = {1,0.5,.1,1};
+            ui_get(id)->background_color = {1,0.5,.1,1};
         }
 
     ui_end_row();
@@ -491,7 +498,7 @@ void local_scene_render(LocalScene* s, Renderer* renderer, Arena* frame_arena, S
     float2 idk[] = {{-1, 1}, {1, 1}, {1, -1}, {-1, -1}};
     // renderer::draw_world_polygon(renderer, m_camera, idk, 4, color::red);
 
-    ui_draw(renderer, frame_arena);
+    ui_draw(&s->ui, renderer, frame_arena);
 
 }
 
@@ -639,6 +646,7 @@ extern "C" INIT(init) {
     if (init_renderer(&state->renderer, state->window) != 0) {
         panic("failed to initialize renderer");
     }
+    
 
     // Texture textures[ImageID_Count];
     std::future<void> texture_futures[ImageID_Count];
@@ -649,14 +657,16 @@ extern "C" INIT(init) {
         renderer::load_texture(&renderer, image_id_to_texture_id(image_id), Image{.w = width, .h = height, .data = image});
     };
 
-    for (int i = 0; i < ImageID_Count; i++) {
+    for (i32 i = ImageID_NULL + 1; i < ImageID_Count; i++) {
         texture_futures[i] = std::async(std::launch::async, image_to_texture, std::ref(state->renderer), (ImageID)i);
+        // image_to_texture(state->renderer, (ImageID)i);
     }
 
     std::future<void> font_futures[FontID::font_count];
 
     for (i32 i = 0; i < FontID::font_count; i++) {
         font_futures[i] = std::async(std::launch::async, font::load_font, &state->fonts[i], std::ref(state->renderer), FontID::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
+        // font::load_font(&state->fonts[i], state->renderer, FontID::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
     }
 
     state->input.init_keybinds(Input::default_keybindings);
@@ -672,7 +682,7 @@ extern "C" INIT(init) {
 
     // InitializeYojimbo();
 
-    for (int i = 0; i < ImageID_Count; i++) {
+    for (int i = ImageID_NULL + 1; i < ImageID_Count; i++) {
         texture_futures[i].wait();
     }
 
@@ -781,7 +791,6 @@ extern "C" UPDATE(update) {
     {
         auto render_begin_time = std::chrono::high_resolution_clock::now();
         renderer::begin_rendering(&state->renderer, state->window, &state->temp_arena);
-
         if (is_reloaded) {
             create_box(&state->local_scene.m_state, float2{2, 1});
             std::cout << "reloaded\n";

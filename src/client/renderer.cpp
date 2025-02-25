@@ -692,7 +692,7 @@ void end_rendering(Renderer* renderer) {
 // other stuff user has to keep it
 // texture id only for renderer managed texture
 // renderer needs to know about textures for bucketing draw calls
-Texture load_texture(Renderer* renderer, std::optional<TextureID> texture_id, const Image& image) {
+Texture load_texture(Renderer* renderer, TextureID texture_id, const Image& image) {
     ZoneScoped;
 
     const int comp = 4;
@@ -751,8 +751,8 @@ Texture load_texture(Renderer* renderer, std::optional<TextureID> texture_id, co
     SDL_ReleaseGPUTransferBuffer(renderer->device, texture_transfer_buffer);
 
     auto texture_ref = Texture{.texture = texture, .sampler = sampler, .w = image.w, .h = image.h};
-    if (texture_id.has_value()) {
-        renderer->textures[(int)texture_id.value()] = texture_ref;
+    if (texture_id) {
+        renderer->textures[texture_id] = texture_ref;
     }
     return texture_ref;
 }
