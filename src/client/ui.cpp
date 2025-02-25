@@ -15,34 +15,6 @@ internal void ui_frame_init(UI_Frame* frame, Arena* arena) {
     frame->hashed_elements = hashmap_create(arena, 1024);
 }
 
-struct A {
-    float2 xy;
-    float2 wh;
-
-
-};
-
-union f32_Rect {
-    struct {
-        float2 xy;
-        float2 wh;
-    };
-    struct {
-        f32 x;
-        f32 y;
-        f32 w;
-        f32 h;
-    };
-};
-
-void x() {
-    f32_Rect a = {3,5,2,1};
-
-    f32_Rect b = {float2{3,5},float2{2,1}};
-    a.xy = {23,123};
-
-}
-
 void ui_init(UI* ui_ctx, Arena* arena, Slice<Font> fonts, Renderer* renderer) {
     for (i32 i = 0; i < 2; i++) {
         ui_ctx->frame_arenas[i] = arena_suballoc(arena, megabytes(0.5));
@@ -62,6 +34,11 @@ void ui_begin(Input::Input* input) {
     slice_clear(&ui_ctx->parent_stack);
 
     ui_ctx->cursor_pos = *((float2*)&input->mouse_pos);
+
+    Renderer* renderer = ui_ctx->renderer;
+    ui_begin_row({
+        .size = {size_px(renderer->window_width), size_px(renderer->window_height)},
+    });
 }
 
 UI_Index ui_push_leaf(UI_Element element) {
@@ -138,6 +115,7 @@ f32 f32_max(f32 a, f32 b) {
 }
 
 void ui_end(Arena* temp_arena) {
+    ui_end_row();
     ArenaTemp checkpoint = arena_begin_temp_allocs(temp_arena);
     defer(arena_end_temp_allocs(checkpoint));
 
@@ -201,7 +179,7 @@ void ui_end(Arena* temp_arena) {
             UI_Size* semantic_size = &current->size[i];
             if (semantic_size->type == UI_SizeType_ImageProportional) {
                 i32 other_axis = (i + 1) % Axis2_Count;
-                current->computed_size[i] = current->computed_size[other_axis] * (image_size[i] / image_size[other_axis]);
+                current->computed_size[i] += current->computed_size[other_axis] * (image_size[i] / image_size[other_axis]);
 
             }
         }
@@ -237,6 +215,7 @@ void ui_end(Arena* temp_arena) {
 
     }
 
+    Slice<float2> position_stack = slice_create<float2>(temp_arena, 512);
     slice_clear(&pre_stack);
     if (ui->elements.length > 0) {
         slice_push(&pre_stack, &ui->elements[0]);
@@ -261,23 +240,24 @@ void ui_end(Arena* temp_arena) {
 
         // pre order stuff goes here
 
+        UI_Element* parent = current->parent;
         for (i32 i = 0; i < Axis2_Count; i++) {
             if (current->position[i].type == UI_PositionType_AutoOffset) {
-                UI_Element* parent = current->parent;
                 if (current->parent) {
-                    const UI_Element* prev_sibling = current->prev_sibling;
-
-                    current->computed_position[i] = parent->content_position[i];
-                    if (current->prev_sibling && i == parent->grow_axis) {
-                        current->computed_position[i] = prev_sibling->computed_position[i] + prev_sibling->computed_size[i];
+                    current->computed_position[i] = parent->next_position[i];
+                    if (i == parent->grow_axis && !(current->flags & UI_Flags_Float)) {
+                        parent->next_position[i] += current->computed_size[i];
                     }
+
 
                 }
                 current->computed_position[i] += current->position[i].value;
             }
+
             current->content_position[i] = current->computed_position[i];
             current->content_position[i] += current->computed_padding[i * 2] + current->computed_border[i * 2];
         }
+        current->next_position = current->content_position;
     }
 }
 
@@ -338,8 +318,15 @@ void ui_draw(UI* ui_ctx, Renderer* renderer, Arena* temp_arena) {
             renderer::draw_screen_rect(renderer, border_rect, current->border_color);
         }
 
+        float2 content_size = current->computed_size;
+        for (i32 i = 0; i < RectSide_Count; i++) {
+            i32 axis = i / Axis2_Count;
+            content_size[axis] -= current->computed_border[i] + current->computed_padding[i];
+        }
+        
+
         if (current->image != ImageID_NULL) {
-            renderer::draw_sprite_screen(renderer, {current->content_position, current->computed_size}, 
+            renderer::draw_sprite_screen(renderer, {current->content_position, content_size}, 
             SpriteProperties{
                 .texture_id = image_id_to_texture_id(current->image)
             });

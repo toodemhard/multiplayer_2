@@ -31,7 +31,7 @@ struct UI_Size {
     f32 value;
 };
 
-enum UI_PositionType{ 
+enum UI_PositionType { 
     UI_PositionType_AutoOffset,
     UI_PositionType_Absolute,
 };
@@ -41,9 +41,13 @@ struct UI_Position {
     f32 value;
 };
 
+enum UI_Flags {
+    UI_Flags_Float = 1 << 0,
+};
+
 struct UI_Element {
-    i32 value;
     // user config
+    UI_Flags flags;
     const char* text;
     FontID font;
     i32 font_size;
@@ -67,6 +71,8 @@ struct UI_Element {
     f32 computed_padding[RectSide_Count];
     f32 computed_border[RectSide_Count];
     float2 content_position;
+
+    float2 next_position;
 
     UI_Element* first_child;
     UI_Element* last_child;
