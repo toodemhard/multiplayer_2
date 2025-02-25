@@ -15,6 +15,14 @@ union float2 {
     };
     f32 v[2];
     b2Vec2 b2vec;
+
+    f32& operator[](i32 index) {
+        return v[index];
+    }
+
+    const f32& operator[](i32 index) const {
+        return v[index];
+    }
 };
 
 struct float2x2 {
