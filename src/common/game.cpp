@@ -235,12 +235,18 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
                 ent->flip_sprite = true;
             }
 
-            if (input->slot0) {
-                ent->current_spell = 0;
+            // if (input->selected_spell) {
+            //     ent->current_spell = 0;
+            // }
+            // if (input->selected_spell) {
+            //     ent->current_spell = 1;
+            // }
+            for (i32 i = 0; i < 10; i++) {
+                if (input->select_spell[i]) {
+                    ent->current_spell = i;
+                }
             }
-            if (input->slot1) {
-                ent->current_spell = 1;
-            }
+
 
             auto velocity = float2{0, 0};
             // move_input.x += 1;

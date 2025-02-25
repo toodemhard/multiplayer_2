@@ -17,11 +17,7 @@ struct PlayerInput {
     bool fire;
     bool dash;
 
-    bool slot0;
-    bool slot1;
-    bool slot2;
-    bool slot3;
-    bool slot4;
+    bool select_spell[10];
     float2 cursor_world_pos;
 };
 
