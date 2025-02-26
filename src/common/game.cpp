@@ -243,8 +243,14 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
             // }
             for (i32 i = 0; i < 10; i++) {
                 if (input->select_spell[i]) {
-                    ent->current_spell = i;
+                    ent->selected_spell = i;
                 }
+            }
+
+            if (input->move_spell_dst != input->move_spell_src) {
+                SpellType b = ent->hotbar[input->move_spell_dst];
+                ent->hotbar[input->move_spell_dst] = ent->hotbar[input->move_spell_src];
+                ent->hotbar[input->move_spell_src] = b;
             }
 
 
@@ -289,11 +295,16 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
                     direction = normalize(input->cursor_world_pos - player_pos);
                 }
 
-                if (ent->current_spell == 0) {
+                SpellType selected_spell = SpellType_NULL;
+                if (ent->selected_spell >= 0 && ent->selected_spell < hotbar_length) {
+                    selected_spell = ent->hotbar[ent->selected_spell];
+                }
+
+                if (selected_spell == SpellType_Bolt) {
                     create_bullet(state, player_pos, direction, current_tick, tick_rate);
                 }
 
-                if (ent->current_spell == 1) {
+                if (selected_spell == SpellType_SpreadBolt) {
 
                     i32 projectile_count = 4;
 
@@ -307,7 +318,7 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
 
                 }
 
-                printf("%d\n", ent->current_spell);
+                printf("%d\n", ent->selected_spell);
 
             }
         }
@@ -328,6 +339,8 @@ EntityHandle create_player(GameState* state) {
         .entity_type = EntityType::Player,
         // .flags = etbf(hittable),
         .body_id = body_id,
+        .hotbar = {SpellType_Bolt},
+        // .hotbar = {SpellType_Bolt, SpellType_SpreadBolt},
         .health = 100,
     };
 

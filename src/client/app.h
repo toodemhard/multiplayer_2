@@ -34,23 +34,23 @@ struct Chunk {
 };
 
 struct LocalScene {
-    Input::Input* m_input;
+    Input::Input* input;
     Input::Input tick_input; // accumulates input events over multiple frames for cases where render freq > tick freq its here for a reason pls dont delete
-    Renderer* m_renderer;
+    Renderer* renderer;
 
     Slice<Font> fonts;
 
     UI ui;
 
-    Camera2D m_camera = default_camera;
+    Camera2D camera = default_camera;
 
-    GameState m_state{};
+    GameState state{};
 
-    bool m_edit_mode;
+    bool edit_mode;
 
 
     double accumulator = 0.0;
-    uint32_t frame = {};
+    u64 frame = {};
     double time = {};
     int current_tick = 0;
 
@@ -59,6 +59,13 @@ struct LocalScene {
 
     PlayerInput inputs[max_player_count];
     b2DebugDraw m_debug_draw{};
+
+    bool inventory_open;
+    bool moving_spell;
+    u16 spell_move_src;
+    u16 spell_move_dst;
+    bool move_submit;
+
 
     Arena* level_arena;
 };

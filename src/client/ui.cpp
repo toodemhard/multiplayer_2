@@ -36,21 +36,21 @@ void ui_begin(Input::Input* input) {
     ui_ctx->cursor_pos = *((float2*)&input->mouse_pos);
 
     Renderer* renderer = ui_ctx->renderer;
-    ui_begin_row({
+    ui_push_row({
         .size = {size_px(renderer->window_width), size_px(renderer->window_height)},
     });
 }
 
-UI_Index ui_push_leaf(UI_Element element) {
-    UI_Index index = ui_begin_row(element);
-    ui_end_row();
+UI_Key ui_push_leaf(UI_Element element) {
+    UI_Key index = ui_push_row(element);
+    ui_pop_row();
     return index;
 }
 
-UI_Index ui_begin_row(UI_Element element) {
+UI_Key ui_push_row(UI_Element element) {
     UI_Frame* ui = &ui_ctx->frame_buffer[ui_ctx->active_frame];
 
-    UI_Index index = ui->elements.length;
+    UI_Key index = ui->elements.length;
     slice_push(&ui->elements, element);
     UI_Element* element_ptr = &slice_back(&ui->elements);
 
@@ -78,11 +78,11 @@ UI_Index ui_begin_row(UI_Element element) {
     return index;
 }
 
-UI_Element* ui_get(UI_Index index) {
+UI_Element* ui_get(UI_Key index) {
     return &ui_ctx->frame_buffer[ui_ctx->active_frame].elements[index];
 }
 
-bool ui_element_signals(UI_Index index) {
+bool ui_hover(UI_Key index) {
     u64 last_index = (ui_ctx->active_frame + 1) % 2;
     UI_Frame* last_frame = &ui_ctx->frame_buffer[last_index];
 
@@ -103,7 +103,7 @@ bool ui_element_signals(UI_Index index) {
     return is_hover;
 }
 
-void ui_end_row() {
+void ui_pop_row() {
     slice_pop(&ui_ctx->parent_stack);
 }
 
@@ -115,7 +115,7 @@ f32 f32_max(f32 a, f32 b) {
 }
 
 void ui_end(Arena* temp_arena) {
-    ui_end_row();
+    ui_pop_row();
     ArenaTemp checkpoint = arena_begin_temp_allocs(temp_arena);
     defer(arena_end_temp_allocs(checkpoint));
 
@@ -136,12 +136,27 @@ void ui_end(Arena* temp_arena) {
         slice_push(&post_stack, current);
         slice_pop(&pre_stack);
 
-
         UI_Element* child = current->last_child;
         while (child) {
             slice_push(&pre_stack, child);
 
             child = child->prev_sibling;
+        }
+
+
+
+        UI_Element* parent = current->parent;
+        if (parent) {
+            for (i32 i = 0; i < Axis2_Count; i++) {
+                UI_Size* size = &current->size[i];
+                if (size->type == UI_SizeType_Pixels) {
+                    current->computed_size[i] = size->value;
+                }
+
+                if (size->type == UI_SizeType_ParentFraction) {
+                    current->computed_size[i] = parent->computed_size[i] * size->value;
+                }
+            }
         }
     }
 
@@ -164,9 +179,6 @@ void ui_end(Arena* temp_arena) {
         // post order stuff goes here
         for (i32 i = 0; i < Axis2_Count; i++) {
             UI_Size* semantic_size = &current->size[i];
-            if (semantic_size->type == UI_SizeType_Pixels) {
-                current->computed_size[i] = semantic_size->value;
-            }
 
             if (semantic_size->type == UI_SizeType_SumContent) {
                 current->computed_size[i] += text_size[i];
@@ -331,13 +343,6 @@ void ui_draw(UI* ui_ctx, Renderer* renderer, Arena* temp_arena) {
                 .texture_id = image_id_to_texture_id(current->image)
             });
         }
-        // rect.w += padding[RectSide_Left] + padding[RectSide_Right];
-        // rect.h += padding[RectSide_Top] + padding[RectSide_Bottom];
-
-        // if (current->image != ImageID_Invalid) {
-        //     renderer::draw_sprite_screen(renderer);
-        //
-        // }
 
         font::draw_text(renderer, ui_ctx->fonts[current->font], current->text, current->font_size, current->content_position);
     }
@@ -345,9 +350,5 @@ void ui_draw(UI* ui_ctx, Renderer* renderer, Arena* temp_arena) {
     while (post_stack.length > 0) {
         UI_Element* current = slice_back(&post_stack);
         slice_pop(&post_stack);
-
-        // renderer::draw_screen_rect
-
-
     }
 }

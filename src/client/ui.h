@@ -8,6 +8,7 @@
 enum UI_SizeType {
     UI_SizeType_SumContent,
     UI_SizeType_Pixels,
+    UI_SizeType_ParentFraction,
     UI_SizeType_ImageProportional,
     UI_SizeType_BaseFontRelative,
 };
@@ -51,14 +52,11 @@ struct UI_Element {
     const char* text;
     FontID font;
     i32 font_size;
-
     ImageID image;
+    Axis2 grow_axis;
 
     UI_Position position[Axis2_Count];
     UI_Size size[Axis2_Count];
-
-    Axis2 grow_axis;
-
     UI_Size border[RectSide_Count];
     UI_Size padding[RectSide_Count];
     float4 background_color;
@@ -85,7 +83,7 @@ struct UI_Element {
 };
 
 
-typedef u64 UI_Index;
+typedef u64 UI_Key;
 
 
 // need to have access to last frame state
@@ -112,15 +110,15 @@ struct UI {
 struct ElementProps {
 };
 
-UI_Element* ui_get(UI_Index index);
-bool ui_element_signals(UI_Index index);
+UI_Element* ui_get(UI_Key index);
+bool ui_hover(UI_Key index);
 void ui_set_ctx(UI* _ui);
 void ui_init(UI* ui, Arena* arena, Slice<Font> fonts, Renderer* renderer);
 void ui_draw(UI* ui_ctx, Renderer* renderer, Arena* temp_arena);
-UI_Index ui_begin_row(UI_Element element);
-void ui_end_row();
+UI_Key ui_push_row(UI_Element element);
+void ui_pop_row();
 void ui_begin(Input::Input* input);
-UI_Index ui_push_leaf(UI_Element element);
+UI_Key ui_push_leaf(UI_Element element);
 void ui_end(Arena* temp_arena);
 
 constexpr UI_Position position_offset_px(f32 value) {

@@ -8,20 +8,29 @@ namespace Input {
     _(move_left, SDL_SCANCODE_A)                                                                                                           \
     _(move_down, SDL_SCANCODE_S)                                                                                                           \
     _(move_right, SDL_SCANCODE_D)                                                                                                          \
-    _(dash, SDL_SCANCODE_SPACE)
+    _(dash, SDL_SCANCODE_SPACE)\
+    _(hotbar_slot_1, SDL_SCANCODE_1)\
+    _(hotbar_slot_2, SDL_SCANCODE_2)\
+    _(hotbar_slot_3, SDL_SCANCODE_3)\
+    _(hotbar_slot_4, SDL_SCANCODE_4)\
+    _(hotbar_slot_5, SDL_SCANCODE_5)\
+    _(hotbar_slot_6, SDL_SCANCODE_6)\
+    _(hotbar_slot_7, SDL_SCANCODE_7)\
+    _(hotbar_slot_8, SDL_SCANCODE_8)\
 
-#define ACTION(a, b) a,
+#define ACTION(a, b) ActionID_##a,
 
 enum ActionID {
-    KEYBINDINGS(ACTION) count,
+    KEYBINDINGS(ACTION) 
+    count,
 };
 
 struct Keybind {
-    uint32_t action_id;
+    ActionID action_id;
     SDL_Scancode scancode;
 };
 
-#define KEYBIND(a, b) Keybind{ActionID::a, b},
+#define KEYBIND(a, b) Keybind{ActionID_##a, b},
 constexpr std::array<Keybind, ActionID::count> default_keybindings = {KEYBINDINGS(KEYBIND)};
 
 #define AS_STRING(a, b) #a,
@@ -44,9 +53,9 @@ class Input {
 
     bool modifier(const SDL_Keymod modifiers) const;
 
-    bool mouse_down(int button) const;
-    bool mouse_held(int button) const;
-    bool mouse_up(int button) const;
+    bool mouse_down(SDL_MouseButtonFlags button) const;
+    bool mouse_held(SDL_MouseButtonFlags button) const;
+    bool mouse_up(SDL_MouseButtonFlags button) const;
 
     float2 mouse_pos{};
     float wheel{};

@@ -17,8 +17,11 @@ struct PlayerInput {
     bool fire;
     bool dash;
 
-    bool select_spell[10];
+    bool select_spell[8];
     float2 cursor_world_pos;
+
+    u16 move_spell_src;
+    u16 move_spell_dst;
 };
 
 constexpr int max_player_count = 8;
@@ -26,6 +29,12 @@ constexpr int max_player_count = 8;
 enum class PlayerState {
     Neutral,
     Dashing,
+};
+
+enum SpellType {
+    SpellType_NULL,
+    SpellType_Bolt,
+    SpellType_SpreadBolt,
 };
 
 enum class EntityType {
@@ -50,6 +59,9 @@ enum EntityComponent {
     expires,
 };
 
+constexpr i32 hotbar_length = 8;
+constexpr i32 inventory_rows = 4;
+
 struct Entity {
     //automatically set by create_ent()
     bool is_active;
@@ -60,11 +72,13 @@ struct Entity {
 
     b2BodyId body_id;
 
+    Array<SpellType, 10> hotbar;
+
     u32 player_id;
     PlayerState player_state;
     float2 dash_direction;
     u32 dash_end_tick;
-    u16 current_spell;
+    u16 selected_spell;
 
     bool flip_sprite;
 

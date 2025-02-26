@@ -44,15 +44,15 @@ bool Input::modifier(const SDL_Keymod modifiers) const {
     return (modifiers & mod_state);
 }
 
-bool Input::mouse_down(int button) const {
+bool Input::mouse_down(SDL_MouseButtonFlags button) const {
     return (button_down_flags & SDL_BUTTON_MASK(button));
 }
 
-bool Input::mouse_held(int button) const {
+bool Input::mouse_held(SDL_MouseButtonFlags button) const {
     return (button_held_flags & SDL_BUTTON_MASK(button)) || mouse_down(button);
 }
 
-bool Input::mouse_up(int button) const {
+bool Input::mouse_up(SDL_MouseButtonFlags button) const {
     return (button_up_flags & SDL_BUTTON_MASK(button));
 }
 
