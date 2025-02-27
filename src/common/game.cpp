@@ -10,17 +10,28 @@ const static float bullet_expire_duration = 2;
 const static int substep_count = 4;
 const static float hit_flash_duration = 0.1;
 
+bool entity_handle_equals(EntityHandle a, EntityHandle b) {
+    return a.index == b.index && a.generation == b.generation;
+}
+
+EntityHandle entity_ptr_to_handle(const Slice<Entity>* ent_list, Entity* ent_ptr) {
+    return {EntityIndex(ent_ptr - ent_list->data), ent_ptr->generation};
+}
 
 EntityIndex entity_ptr_to_index(const Slice<Entity>* ent_list, Entity* ent_ptr) {
     return (ent_ptr - ent_list->data);
 }
 
 bool entity_is_valid(const Slice<Entity>* entity_list, EntityHandle handle) {
-    if (entity_list->data[handle.index].generation == handle.generation) {
-        return true;
+    if (!entity_list->data[handle.index].is_active) {
+        return false;
     }
 
-    return false;
+    if (entity_list->data[handle.index].generation != handle.generation) {
+        return false;
+    }
+
+    return true;
 }
 
 Entity* entity_list_get(const Slice<Entity>* entity_list, EntityHandle handle) {
@@ -72,8 +83,8 @@ void create_box(GameState* state, float2 position) {
     auto body_id = b2CreateBody(state->world_id, &body_def);
 
     Entity box = {
-        .entity_type = EntityType::Box,
-        .flags = etbf(EntityComponent::hittable),
+        .type = EntityType::Box,
+        .flags = EntityFlags_hittable,
         .body_id = body_id,
         .health = box_health,
     };
@@ -86,7 +97,7 @@ void create_box(GameState* state, float2 position) {
     b2CreatePolygonShape(body_id, &shape_def, &polygon);
 }
 
-void create_bullet(GameState* state, float2 position, float2 direction, u32 current_tick, i32 tick_rate) {
+void create_bullet(GameState* state, EntityHandle owner, float2 position, float2 direction, u32 current_tick, i32 tick_rate) {
     auto body_def = b2DefaultBodyDef();
     body_def.type = b2_dynamicBody;
     body_def.position = position.b2vec;
@@ -97,10 +108,11 @@ void create_bullet(GameState* state, float2 position, float2 direction, u32 curr
     auto polygon = b2MakeBox(0.25, 0.25);
 
     Entity bullet = {
-        .entity_type = EntityType::Bullet,
-        .flags = etbf(EntityComponent::attack) | etbf(EntityComponent::expires),
+        .type = EntityType::Bullet,
+        .flags = EntityFlags_attack | EntityFlags_expires,
         .body_id = body_id,
         .expire_tick = current_tick + (u32)(bullet_expire_duration * tick_rate),
+        .owner = owner,
     };
 
     EntityHandle handle = entity_list_add(&state->entities, bullet);
@@ -188,7 +200,13 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
         auto sensor = (Entity*)b2Shape_GetUserData(beginTouch->sensorShapeId);
         auto visitor = (Entity*)b2Shape_GetUserData(beginTouch->visitorShapeId);
 
-        if (visitor != NULL && visitor->flags & etbf(EntityComponent::hittable)) {
+        if (visitor == NULL) {
+            continue;
+        }
+
+        bool skip_owner = !(sensor->flags & EntityFlags_damage_owner) && entity_handle_equals(sensor->owner, entity_ptr_to_handle(&state->entities, visitor));
+
+        if (!skip_owner && visitor != NULL && visitor->flags & EntityFlags_hittable) {
             auto inc_dir = normalize(float2{.b2vec=b2Body_GetLinearVelocity(sensor->body_id)});
             b2Body_ApplyLinearImpulse(visitor->body_id, (inc_dir * 2.0f).b2vec, b2Body_GetWorldCenterOfMass(visitor->body_id), true);
 
@@ -209,15 +227,15 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
             continue;
         }
 
-        if (ent->flags & etbf(EntityComponent::expires) && current_tick >= ent->expire_tick) {
+        if (ent->flags & EntityFlags_expires && current_tick >= ent->expire_tick) {
             slice_push(&delete_list, i);
         }
 
-        if (ent->flags & etbf(EntityComponent::hittable) && ent->health <= 0) {
+        if (ent->flags & EntityFlags_hittable && ent->health <= 0) {
             slice_push(&delete_list, i);
         }
 
-        if (ent->entity_type == EntityType::Player) {
+        if (ent->type == EntityType::Player) {
             const PlayerInput* input = &inputs[ent->player_id];
             float2 move_input{};
             if (input->up) {
@@ -288,6 +306,8 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
                 }
             }
 
+            EntityHandle handle = {i, ent->generation};
+
             if (input->fire) {
                 float2 player_pos = {.b2vec=b2Body_GetPosition(ent->body_id)};
                 float2 direction = {1,0};
@@ -301,7 +321,7 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
                 }
 
                 if (selected_spell == SpellType_Bolt) {
-                    create_bullet(state, player_pos, direction, current_tick, tick_rate);
+                    create_bullet(state, handle, player_pos, direction, current_tick, tick_rate);
                 }
 
                 if (selected_spell == SpellType_SpreadBolt) {
@@ -313,7 +333,7 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
 
                     for (i32 i = 0; i < projectile_count; i++) {
                         f32 dir_offset = lerp(range_start, range_end, (f32)i / (projectile_count - 1));
-                        create_bullet(state, player_pos, rotate(direction, dir_offset), current_tick, tick_rate);
+                        create_bullet(state, handle, player_pos, rotate(direction, dir_offset), current_tick, tick_rate);
                     }
 
                 }
@@ -336,8 +356,8 @@ EntityHandle create_player(GameState* state) {
     auto body_id = b2CreateBody(state->world_id, &body_def);
     
     Entity player = {
-        .entity_type = EntityType::Player,
-        // .flags = etbf(hittable),
+        .type = EntityType::Player,
+        .flags = EntityFlags_hittable,
         .body_id = body_id,
         .hotbar = {SpellType_Bolt},
         // .hotbar = {SpellType_Bolt, SpellType_SpreadBolt},

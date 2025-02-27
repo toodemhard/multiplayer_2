@@ -61,7 +61,7 @@ void render_state(Renderer* renderer, SDL_Window* window, GameState* state, int 
 
         Rect world_rect = {};
         TextureID texture;
-        switch (ent->entity_type) {
+        switch (ent->type) {
         case EntityType::Player: {
             world_rect.size = {2,2};
             texture = TextureID_player_png;
@@ -79,7 +79,7 @@ void render_state(Renderer* renderer, SDL_Window* window, GameState* state, int 
 
         RGBA flash_color = {255,255,255,255};
         f32 t = 0;
-        if (ent->flags & etbf(EntityComponent::hittable) && ent->hit_flash_end_tick > current_tick) {
+        if (ent->flags & EntityFlags_hittable && ent->hit_flash_end_tick > current_tick) {
             t = 1;
         }
 
@@ -95,7 +95,7 @@ void render_state(Renderer* renderer, SDL_Window* window, GameState* state, int 
             .t = t,
         });
 
-        if (ent->flags & etbf(EntityComponent::hittable)) {
+        if (ent->flags & EntityFlags_hittable) {
             draw_world_rect(renderer, camera, {.position = world_rect.position - float2{0, -1}, .size={1, 0.1}}, {0.2, 0.2, 0.2, 1.0});
             draw_world_rect( renderer, camera, {.position=world_rect.position - float2{0, -1}, .size={ent->health / (float)box_health, 0.1}}, {1, 0.2, 0.1, 1.0});
         }
@@ -456,7 +456,10 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
         state_update(&s->state, &tick_arena, s->inputs, s->current_tick, tick_rate);
 
 
-        auto player_pos = float2{.b2vec=b2Body_GetPosition(entity_list_get(&s->state.entities, s->player_handle)->body_id)};
+        float2 player_pos = {};
+        if (entity_is_valid(&s->state.entities, s->player_handle)) {
+            player_pos = float2{.b2vec=b2Body_GetPosition(entity_list_get(&s->state.entities, s->player_handle)->body_id)};
+        }
         s->camera.position = player_pos;
         s->current_tick++;
 
@@ -852,6 +855,8 @@ extern "C" UPDATE(update) {
         if (is_reloaded) {
             create_box(&state->local_scene.state, float2{2, 1});
             std::cout << "reloaded\n";
+
+            // create_player(&state->local_scene.state);
 
             // SDL_SetWindowAlwaysOnTop(state->window, true);
         }

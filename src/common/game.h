@@ -44,7 +44,22 @@ enum class EntityType {
     Dummy,
 };
 
-typedef u64 EntityComponentFlags;
+
+typedef u64 EntityFlags;
+#define ENTITY_FLAGS(_)\
+_(hittable)\
+_(expires)\
+_(attack)\
+_(damage_owner)\
+
+#define ENTITY_FLAG_INDEX(a) EntityFlagIndex_##a,
+enum {
+    ENTITY_FLAGS(ENTITY_FLAG_INDEX)
+};
+#define ENTITY_FLAGS_ENUM(a) EntityFlags_##a = 1 << EntityFlagIndex_##a,
+enum {
+    ENTITY_FLAGS(ENTITY_FLAGS_ENUM)
+};
 
 typedef u32 EntityIndex;
 
@@ -53,11 +68,6 @@ struct EntityHandle {
     u32 generation;
 };
 
-enum EntityComponent {
-    attack,
-    hittable,
-    expires,
-};
 
 constexpr i32 hotbar_length = 8;
 constexpr i32 inventory_rows = 4;
@@ -67,8 +77,8 @@ struct Entity {
     bool is_active;
     u32 generation;
 
-    EntityType entity_type;
-    EntityComponentFlags flags;
+    EntityType type;
+    EntityFlags flags;
 
     b2BodyId body_id;
 
@@ -88,6 +98,8 @@ struct Entity {
 
     // expires
     u32 expire_tick;
+
+    EntityHandle owner;
 };
 
 constexpr int bullets_capacity = 16;
@@ -117,9 +129,9 @@ struct GameState {
     b2BodyId ground_id;
 };
 
-constexpr EntityComponentFlags etbf(EntityComponent component) {
-    return 1 << component;
-}
+// constexpr EntityFlags etbf(EntityComponent component) {
+//     return 1 << component;
+// }
 
 
 void state_init(GameState* state, Arena* arena);
@@ -132,3 +144,4 @@ EntityHandle create_player(GameState* state);
 
 Entity* entity_list_get(const Slice<Entity>* entity_list, EntityHandle handle);
 
+bool entity_is_valid(const Slice<Entity>* entity_list, EntityHandle handle);
