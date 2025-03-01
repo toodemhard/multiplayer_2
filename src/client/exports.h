@@ -3,9 +3,9 @@ struct Signals {
     bool reload;
 };
 
-#define INIT(name) void name(void* memory)
-typedef INIT(init_func);
-extern "C" INIT(init);
+// #define INIT(name) void name(void* memory)
+// typedef INIT(init_func);
+// extern "C" INIT(init);
 
 
 #define UPDATE(name) Signals name(void* memory)

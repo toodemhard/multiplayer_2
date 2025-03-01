@@ -1,12 +1,5 @@
-#include "../pch.h"
+#include "pch.h"
 #include "allocator.h"
-
-static constexpr int scratch_count = 2;
-thread_local Arena scratch_arenas[scratch_count];
-
-
-void thread_local_scratch_init() {
-}
 
 ArenaTemp scratch_get(Arena** conflicts, i32 count) {
     Arena* ret_arena;
@@ -39,7 +32,7 @@ void scratch_release(ArenaTemp temp) {
 
 
 Arena arena_suballoc(Arena* arena, u64 size) {
-    return arena_create(arena_allocate(arena, size), size);
+    return arena_create(arena_alloc(arena, size), size);
 }
 
 Arena arena_create(void* start, u64 size) {
@@ -54,11 +47,11 @@ void arena_init(Arena* arena, void* start, u64 size) {
     arena->capacity = size;
 }
 
-void* arena_allocate(Arena* arena, u64 size) {
-    return arena_allocate_align(arena, size, alignof(std::max_align_t));
+void* arena_alloc(Arena* arena, u64 size) {
+    return arena_alloc_align(arena, size, alignof(std::max_align_t));
 }
 
-void* arena_allocate_align(Arena* arena, u64 size, u64 alignment) {
+void* arena_alloc_align(Arena* arena, u64 size, u64 alignment) {
     // const auto aligned_size = (size + alignment - 1) & ~(alignment - 1);
     
     u64 current_ptr = (u64)arena->start + (u64)arena->current;

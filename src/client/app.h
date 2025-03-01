@@ -8,7 +8,6 @@
 #include "input.h"
 #include "assets.h"
 #include "ui.h"
-#include <chrono>
 
 const Camera2D default_camera{
     {0, 0},
@@ -84,8 +83,11 @@ struct State {
 
     std::chrono::time_point<std::chrono::steady_clock> last_frame_time;
 
-    std::vector<RGBA> rects;
-
     Arena temp_arena;
     Arena level_arena;
+
+    ENetHost* client;
+    ENetPeer* server;
+
+    bool initialized;
 };

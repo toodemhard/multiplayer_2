@@ -1,4 +1,4 @@
-#include "../pch.h"
+#include "pch.h"
 
 #include "common/allocator.h"
 #include "client/exports.h"
@@ -14,7 +14,7 @@
 struct DLL {
     SDL_SharedObject* object;
     
-    init_func* init;
+    // init_func* init;
     update_func* update;
 };
 
@@ -34,20 +34,15 @@ void load_dll(DLL* dll) {
     }
 
     dll->update = (update_func*)SDL_LoadFunction(dll->object, "update");
-    dll->init = (init_func*)SDL_LoadFunction(dll->object, "init");
+    // dll->init = (init_func*)SDL_LoadFunction(dll->object, "init");
 }
 
 
 void run(){
-    // tracy::StartupProfiler();
     TracyNoop;
-    // {
-    //     b2WorldDef def = b2DefaultWorldDef();
-    //     auto world_id = b2CreateWorld(&def);
-    //     b2DestroyWorld(world_id);
-    // }
 
     ASSERT(SDL_LoadObject("box2dd.dll") != NULL)
+    ASSERT(SDL_LoadObject("enet.dll") != NULL)
 
 
 
@@ -57,27 +52,16 @@ void run(){
     load_dll(&dll);
 
 
-    void* memory = malloc(megabytes(16));
+    u64 memory_size = megabytes(16);
+    void* memory = malloc(memory_size);
+    memset(memory, 0, memory_size);
 
     auto pwd = std::filesystem::current_path();
 
-    // KYS kys{};
-    // kys.allocFcn = alloc;
-    // kys.freeFcn = free;
-
-    // char buffer[1024];
-    // DWORD bytes_returned
-    // ReadDirectoryChanges(HANDLE hDirectory, LPVOID lpBuffer, DWORD nBufferLength, BOOL bWatchSubtree, DWORD dwNotifyFilter, &bytes_returned, LPOVERLAPPED lpOverlapped, int lpCompletionRoutine)
-    //
-    // )
-
-
-    dll.init(memory);
+    // dll.init(memory);
 
     auto last_write = std::filesystem::last_write_time("./game.dll");
 
-
-    // std::cout << std::format("{}\n", x);
 
     bool reload = false;
 
@@ -134,5 +118,4 @@ void run(){
         }
 
     }
-    // tracy::ShutdownProfiler();
 }

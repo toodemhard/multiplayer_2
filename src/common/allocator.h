@@ -47,14 +47,17 @@ Arena arena_suballoc(Arena* arena, u64 size);
 
 Arena arena_create(void* start, u64 size);
 void arena_init(Arena* arena, void* start, u64 size);
-void* arena_allocate(Arena* arena, u64 size);
-void* arena_allocate_align(Arena* arena, u64 size, u64 alignment);
+void* arena_alloc(Arena* arena, u64 size);
+void* arena_alloc_align(Arena* arena, u64 size, u64 alignment);
 void arena_reset(Arena* arena);
 ArenaTemp arena_begin_temp_allocs(Arena* arena);
 void arena_end_temp_allocs(ArenaTemp temp);
 
 ArenaTemp scratch_get(Arena** conflicts, i32 count);
 void scratch_release(ArenaTemp temp);
+
+static constexpr int scratch_count = 2;
+inline thread_local Arena scratch_arenas[scratch_count];
 
 template<typename T, u64 N>
 struct Array {
@@ -116,7 +119,7 @@ Slice<T> slice_create(Arena* arena, u64 capacity) {
 template<typename T>
 Slice<T> slice_create_fixed(Arena* arena, u64 length) {
     Slice<T> slice;
-    slice.data = (T*)arena_allocate(arena, length * sizeof(T));
+    slice.data = (T*)arena_alloc(arena, length * sizeof(T));
     slice.length = length;
     slice.capacity = length;
     return slice;
@@ -124,7 +127,7 @@ Slice<T> slice_create_fixed(Arena* arena, u64 length) {
 
 template<typename T>
 void slice_init(Slice<T>* slice, Arena* arena, u64 capacity) {
-    slice->data = (T*)arena_allocate(arena, capacity * sizeof(T));
+    slice->data = (T*)arena_alloc(arena, capacity * sizeof(T));
     slice->length = 0;
     slice->capacity = capacity;
 }
@@ -162,10 +165,26 @@ void slice_push_range(Slice<T>* slice, T* elements, u64 count) {
     slice->length += count;
 }
 
+template<typename T>
+void slice_copy_range(void* dst, const Slice<T>* slice, u64 start, u64 count) {
+    ASSERT(start + count <= slice->capacity);
+
+    memcpy(dst, &slice->data[start], sizeof(T) * count);
+}
+
 struct String8 {
     u8* data;
     u64 length;
 };
+
+inline char* c_str(Arena* arena, String8 string) {
+    Slice<u8> idk = slice_create_fixed<u8>(arena, string.length + 1);
+    memcpy(idk.data, string.data, string.length);
+
+    idk[idk.length - 1] = '\0';
+
+    return (char*)idk.data;
+}
 
 
 struct Hashmap {
@@ -199,4 +218,47 @@ constexpr u64 megabytes(f64 x) {
 
 constexpr u64 gigabytes(f64 x) {
     return megabytes(1024ULL) * x;
+}
+
+template<typename T, size_t N>
+struct RingBuffer {
+    u32 start;
+    u32 end;
+    u32 size;
+    T buffer[N];
+};
+
+template<typename T, size_t N>
+void ring_buffer_push_back(RingBuffer<T, N>* r, T item) {
+    // if (m_size >= N) {
+    //     return;
+    // }
+    ASSERT(r->size < N)
+
+    if (r->size < N) {
+        r->size++;
+    }
+
+    r->buffer[r->start] = item;
+    r->start++;
+    if (r->start >= N) {
+        r->start = 0;
+    }
+}
+
+template<typename T, size_t N>
+void ring_buffer_pop_front(RingBuffer<T, N>* r) {
+    if (r->size <= 0) {
+        return;
+    }
+
+    r->size--;
+    r->buffer[r->end] = {};
+
+    r->end++;
+
+    if (r->end >= N) {
+        r->end = 0;
+
+    }
 }

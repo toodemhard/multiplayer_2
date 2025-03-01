@@ -1,4 +1,4 @@
-#include "../pch.h"
+#include "pch.h"
 
 #include "panic.h"
 #include "renderer.h"
@@ -7,6 +7,7 @@
 #include "app.h"
 #include "exports.h"
 
+#include "common/net_common.h"
 #include "common/game.h"
 
 // #if defined(TRACY_ENABLE)
@@ -15,7 +16,7 @@
 
 
 // const int asdfhkj = 13413432;
-constexpr int tick_rate = 128;
+// constexpr int tick_rate = 128;
 
 constexpr double fixed_dt = 1.0 / tick_rate;
 constexpr double speed_up_fraction = 0.05;
@@ -160,12 +161,7 @@ PlayerInput input_state(Input::Input& input, const Camera2D& camera) {
         player_input.select_spell[2] = true;
     }
 
-
-    if (input.key_down(SDL_SCANCODE_F)) {
-        printf("asdf\n");
-    }
-
-    if (input.mouse_down(SDL_BUTTON_LEFT) || input.key_down(SDL_SCANCODE_F)) {
+    if (input.mouse_down(SDL_BUTTON_LEFT)) {
         player_input.fire = true;
     }
 
@@ -293,7 +289,7 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
     ZoneScoped;
 
     Arena tick_arena;
-    arena_init(&tick_arena, arena_allocate(frame_arena, megabytes(1)), megabytes(1));
+    arena_init(&tick_arena, arena_alloc(frame_arena, megabytes(1)), megabytes(1));
 
     s->accumulator += delta_time;
 
@@ -339,13 +335,11 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
 
         if (s->inventory_open) {
             if (ui_hover(id) && s->input->mouse_down(SDL_BUTTON_LEFT) && player->hotbar[i] != SpellType_NULL) {
-                printf("asd: %d\n", i);
                 s->moving_spell = true;
                 s->spell_move_src = i;
             }
 
             if (s->moving_spell && ui_hover(id) && s->input->mouse_up(SDL_BUTTON_LEFT)) {
-                printf("move %d to %d", s->spell_move_src, i);
                 s->spell_move_dst = i;
                 s->move_submit = true;
                 move_submit_frame = s->frame;
@@ -365,8 +359,6 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
         }
 
         if (i == 0 && image != ImageID_NULL && next_frame) {
-            printf("ehhh\n");
-
             next_frame = false;
         }
 
@@ -679,7 +671,7 @@ void poll_event() {}
 //     }
 // };
 
-extern "C" INIT(init) {
+bool init(void* memory) {
     ZoneScoped;
     using namespace renderer;
     b2WorldDef world_def = b2DefaultWorldDef();
@@ -702,11 +694,15 @@ extern "C" INIT(init) {
     // (State&)memory = State{};
     Arena god_allocator{};
     arena_init(&god_allocator, memory, megabytes(16));
-    State* state = (State*)arena_allocate(&god_allocator, sizeof(State));
+    State* state = (State*)arena_alloc(&god_allocator, sizeof(State));
     new (state) State{};
 
-    arena_init(&state->temp_arena, arena_allocate(&god_allocator, megabytes(5)), megabytes(5));
-    arena_init(&state->level_arena, arena_allocate(&god_allocator, megabytes(5)), megabytes(5));
+    arena_init(&state->temp_arena, arena_alloc(&god_allocator, megabytes(5)), megabytes(5));
+    arena_init(&state->level_arena, arena_alloc(&god_allocator, megabytes(5)), megabytes(5));
+
+    for (i32 i = 0; i < scratch_count; i++)  {
+        scratch_arenas[i] = arena_suballoc(&god_allocator, megabytes(1));
+    }
 
 
     // panic("asasdf {} {}", 234, 65345);
@@ -775,23 +771,41 @@ extern "C" INIT(init) {
     local_scene_init(&state->local_scene, &state->level_arena, &state->input, &state->renderer, fonts_view);
     // double last_render_duration = 0.0;
 
-    // tick is update
-    // frame is animation keyframe
+    state->client = enet_host_create(NULL, 1, 2, 0, 0);
+    if (state->client == NULL) {
+        fprintf (stderr, "An error occurred while trying to create an ENet client host.\n");
+        return false;
+    }
 
-    // MultiplayerScene multi_scene(input, &font);
-    // multi_scene.connect();
+    ENetAddress address;
+    enet_address_set_host(&address, "127.0.0.1");
+    address.port = 1234;
+    state->server = enet_host_connect(state->client, &address, 2, 0);
+    if (!state->server) {
+        fprintf(stderr, "no peer");
+        return false;
+    }
 
-    state->rects = {{255, 0, 0, 255}, {255, 255, 0, 255}, {0, 255, 255, 255}};
-    //
-
+    state->initialized = true;
+    return true;
 }
+
+// extern "C" INIT(Init) {
+// }
 
 extern "C" UPDATE(update) {
     auto state = (State*)memory;
 
+    bool quit = false;
+
+    if (!state->initialized) {
+        if (!init(memory)) {
+            quit = true;
+        }
+    }
+
     arena_reset(&state->temp_arena);
 
-    bool quit = false;
 
     auto this_frame_time = std::chrono::high_resolution_clock::now();
     double delta_time = std::chrono::duration_cast<std::chrono::duration<double>>(this_frame_time - state->last_frame_time).count();
@@ -836,9 +850,60 @@ extern "C" UPDATE(update) {
         }
     }
 
-    if(state->input.mouse_down(0)) {
-       printf("sdkhfsd\n");
+
+    if (state->input.key_down(SDL_SCANCODE_F)) {
+        // ArenaTemp temp = scratch_get(0, 0);
+        // defer(scratch_release(temp));
+
+
+        Stream stream = {
+            .slice = slice_create<u8>(&state->temp_arena, 512),
+            .operation = Stream_Write,
+        };
+
+
+        TestMessage message = {
+             .str = literal("KYS!"),
+        };
+        serialize_test_message(&stream, NULL, &message);
+
+        ENetPacket* packet = enet_packet_create(stream.slice.data, stream.current, ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT);
+        enet_peer_send(state->server, Channel_Unreliable, packet);
     }
+
+
+
+
+    ENetEvent net_event;
+    while (enet_host_service(state->client, &net_event, 0)) {
+        switch (net_event.type) {
+        case ENET_EVENT_TYPE_CONNECT:
+            printf ("A new client connected from %x:%u.\n", 
+                net_event.peer -> address.host,
+                net_event.peer -> address.port
+            );
+
+            /* Store any relevant client information here. */
+            net_event.peer -> data = (void*)"Client information";
+
+            break;
+        case ENET_EVENT_TYPE_RECEIVE:
+            printf ("A packet of length %zu containing %s was received from %s on channel %u.\n",
+                net_event.packet->dataLength,
+                net_event.packet->data,
+                (u8*)net_event.peer->data,
+                net_event.channelID
+            );
+            enet_packet_destroy (net_event.packet);
+            break;
+        }
+    }
+
+    // if (state->input.key_down(SDL_SCANCODE_F) && state->input.modifier(SDL_KMOD_CTRL)) {
+    //     printf("reset");
+    //     state->initialized = false;
+    //
+    // }
 
 
     // update
