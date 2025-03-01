@@ -1,4 +1,4 @@
-#include "../pch.h"
+#include "pch.h"
 
 #include "game.h"
 
@@ -337,9 +337,6 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
                     }
 
                 }
-
-                printf("%d\n", ent->selected_spell);
-
             }
         }
     }
@@ -359,7 +356,7 @@ EntityHandle create_player(GameState* state) {
         .type = EntityType::Player,
         .flags = EntityFlags_hittable,
         .body_id = body_id,
-        .hotbar = {SpellType_Bolt},
+        .hotbar = {SpellType_Bolt, SpellType_SpreadBolt},
         // .hotbar = {SpellType_Bolt, SpellType_SpreadBolt},
         .health = 100,
     };

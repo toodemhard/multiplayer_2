@@ -60,11 +60,6 @@ struct SpriteVertex {
     float t;
 };
 
-struct TextureDrawInfo {
-    std::vector<PositionUvColorVertex> verts;
-    std::vector<uint16_t> indices;
-};
-
 // struct Slice {
 //     int start, count;
 // };

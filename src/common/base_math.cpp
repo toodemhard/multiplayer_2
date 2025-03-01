@@ -1,5 +1,12 @@
-#include "../pch.h"
+#include "pch.h"
 #include "common/base_math.h"
+
+f32 f32_max(f32 a, f32 b) {
+    if (b > a) {
+        return b;
+    }
+    return a;
+}
 
 float2 operator+(const float2& a, const float2& b) {
     float2 c;

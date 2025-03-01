@@ -1,4 +1,4 @@
-#include "../pch.h"
+#include "pch.h"
 
 #include "tracy/Tracy.hpp"
 
@@ -299,7 +299,7 @@ namespace font {
             int32_t c;
             auto bytes_skip = utf8decode_unsafe(text, &c);
             if (c == '\n') {
-                max_width = std::max(max_width, width);
+                max_width = f32_max(max_width, width);
                 width = 0;
                 lines++;
             } else {
@@ -310,7 +310,7 @@ namespace font {
 
             text += bytes_skip;
         }
-        max_width = std::max(max_width, width);
+        max_width = f32_max(max_width, width);
 
         return float2{max_width * size_ratio, lines * font_size};
     }

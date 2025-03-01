@@ -1,4 +1,4 @@
-#include "../pch.h"
+#include "pch.h"
 
 #include "ui.h"
 
@@ -105,13 +105,6 @@ bool ui_hover(UI_Key index) {
 
 void ui_pop_row() {
     slice_pop(&ui_ctx->parent_stack);
-}
-
-f32 f32_max(f32 a, f32 b) {
-    if (b > a) {
-        return b;
-    }
-    return a;
 }
 
 void ui_end(Arena* temp_arena) {

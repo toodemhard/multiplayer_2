@@ -1,4 +1,4 @@
-#include "../pch.h"
+#include "pch.h"
 
 #include "renderer.h"
 #include "assets.h"

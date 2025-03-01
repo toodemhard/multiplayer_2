@@ -63,8 +63,8 @@ const char* lib_path = "../../lib";
 #define TRACY_DEFINES "/D TRACY_ENABLE"// /D TRACY_MANUAL_LIFETIME /D TRACY_DELAYED_INIT";
 const char* tracy_defines = TRACY_DEFINES;
 
-const char* compile_flags = "-nologo /std:c++20 /EHsc /Zi /MP /MDd " TRACY_DEFINES;
-const char* pch_flags = R"(/Yu"../pch.h" /Fp"pch.pch")";
+const char* compile_flags = "-nologo /std:c++20 /EHsc /Zi /MP /MDd " TRACY_DEFINES " /D ENET_DLL";
+const char* pch_flags = R"(/Yu"pch.h" /Fp"pch.pch")";
 
 
 std::filesystem::path project_root;
@@ -395,7 +395,7 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
             auto now = std::chrono::system_clock::now().time_since_epoch().count();
 
 
-            commands += std::format("link {} /DLL {} pch.obj {} msvcrtd.lib /PDB:{}_game.pdb /OUT:{}.dll /EXPORT:init /EXPORT:update", linker_flags, obj_args,  lib_files, now, target.name);
+            commands += std::format("link {} /DLL {} pch.obj {} msvcrtd.lib /PDB:{}_game.pdb /OUT:{}.dll /EXPORT:update", linker_flags, obj_args,  lib_files, now, target.name);
         } break;
         }
 
@@ -432,11 +432,6 @@ int main(int argc, char* argv[]) {
             .cmake_args = R"(-DBUILD_SHARED_LIBS=ON)"
         },
         lib {
-            .name = "glm",
-            .rel_include_paths = {"."},
-            .lib_path = "glm/glm.lib",
-        },
-        lib {
             .name = "SDL",
             .rel_include_paths = {"include"},
             .lib_path = "SDL3.lib",
@@ -462,6 +457,13 @@ int main(int argc, char* argv[]) {
                 "reliable.lib",
                 "yojimbo.lib",
             }
+        },
+        lib {
+            .name = "enet",
+            .rel_include_paths = {"include"},
+            .lib_path = "enet.lib",
+            .shared_lib_path = "enet.dll",
+            .cmake_args = "-DBUILD_SHARED_LIBS=ON"
         },
     };
     int lib_count = sizeof(libs) / sizeof(lib);
@@ -497,11 +499,9 @@ int main(int argc, char* argv[]) {
             },
             .libs = {
                 "box2d",
-                "glm",
                 "SDL",
                 "tracy",
-                // "yojimbo",
-                "imgui",
+                "enet",
             },
             .include_dirs = include_dirs,
         },
@@ -518,10 +518,30 @@ int main(int argc, char* argv[]) {
                 "tracy",
                 "box2d",
                 "SDL",
+                "enet",
             },
             .include_dirs = include_dirs,
-
-            // .linker_flags=" /WHOLEARCHIVE:box2dd.lib"
+        },
+        target{
+            .type = target_type::executable,
+            .name = "server",
+            .files = {
+                source_file { 
+                    .type = files_type::glob,
+                    .glob_dir = "src/server",
+                },
+                source_file { 
+                    .type = files_type::glob,
+                    .glob_dir = "src/common",
+                },
+            },
+            .libs = {
+                // "tracy",
+                "box2d",
+                "enet",
+                // "SDL",
+            },
+            .include_dirs = include_dirs,
         },
     };
 

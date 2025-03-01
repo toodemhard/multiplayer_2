@@ -56,3 +56,4 @@ float2 operator*(const float2x2& a, const float2& b);
 
 float magnitude(const float2& a);
 float2 normalize(const float2& a);
+f32 f32_max(f32 a, f32 b);
