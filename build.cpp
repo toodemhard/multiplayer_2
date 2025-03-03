@@ -383,7 +383,9 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
 
         }
 
-        system("del *_game.pdb *_game.rdi");
+        if (strcmp(target.name, "game") == 0) {
+            system("del *_game.pdb *_game.rdi");
+        }
 
         std::string commands = "";
         const char* linker_flags = "/DEBUG /INCREMENTAL:NO";
@@ -539,7 +541,7 @@ int main(int argc, char* argv[]) {
                 // "tracy",
                 "box2d",
                 "enet",
-                // "SDL",
+                "SDL",
             },
             .include_dirs = include_dirs,
         },
