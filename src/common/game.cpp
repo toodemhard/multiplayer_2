@@ -187,7 +187,7 @@ float deg_to_rad(float deg) {
     return deg * deg_in_rads;
 }
 
-void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_player_count], u32 current_tick, i32 tick_rate) {
+void state_update(GameState* state, Arena* temp_arena, Inputs inputs, u32 current_tick, i32 tick_rate) {
     const f64 dt = 1.0 / tick_rate;
 
     b2World_Step(state->world_id, dt, substep_count);
@@ -236,7 +236,19 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
         }
 
         if (ent->type == EntityType::Player) {
-            const PlayerInput* input = &inputs[ent->player_id];
+            const PlayerInput* input = NULL;
+            for (u32 input_idx = 0; input_idx < inputs.ids.length; input_idx++){
+                if (inputs.ids[input_idx] == ent->client_id) {
+                    input = &inputs.inputs[input_idx];
+                    break;
+                }
+            }
+            PlayerInput idk = {};
+
+            if (!input) {
+                input = &idk;
+            }
+
             float2 move_input{};
             if (input->up) {
                 move_input.y += 1;
@@ -253,13 +265,7 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
                 ent->flip_sprite = true;
             }
 
-            // if (input->selected_spell) {
-            //     ent->current_spell = 0;
-            // }
-            // if (input->selected_spell) {
-            //     ent->current_spell = 1;
-            // }
-            for (i32 i = 0; i < 10; i++) {
+            for (i32 i = 0; i < input->select_spell.length; i++) {
                 if (input->select_spell[i]) {
                     ent->selected_spell = i;
                 }
@@ -345,7 +351,7 @@ void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_pl
     }
 }
 
-EntityHandle create_player(GameState* state) {
+EntityHandle create_player(GameState* state, ClientID client_id) {
     auto body_def = b2DefaultBodyDef();
     body_def.type = b2_dynamicBody;
     body_def.position = b2Vec2{0.0, 1.0};
@@ -357,6 +363,7 @@ EntityHandle create_player(GameState* state) {
         .flags = EntityFlags_hittable,
         .body_id = body_id,
         .hotbar = {SpellType_Bolt, SpellType_SpreadBolt},
+        .client_id = client_id,
         // .hotbar = {SpellType_Bolt, SpellType_SpreadBolt},
         .health = 100,
     };

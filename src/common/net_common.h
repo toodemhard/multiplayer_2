@@ -1,5 +1,6 @@
 #pragma once
 #include "common/allocator.h"
+#include "common/game.h"
 // #include "game.h"
 // #include "serialize.h"
 
@@ -9,12 +10,15 @@ constexpr int input_buffer_capacity = 16;
 constexpr int target_input_buffer_size = 3;
 
 
-constexpr int tick_rate = 128;
+constexpr int tick_rate = 64;
+constexpr f64 fixed_dt = 1.0 / tick_rate;
 // const inline yojimbo::Address server_address(127, 0, 0, 1, 5000);
 
 
 enum MessageType {
     MessageType_Test,
+    MessageType_Input,
+    MessageType_Snapshot,
 };
 
 // Snapshot,
@@ -39,55 +43,42 @@ enum StreamOperation {
     Stream_Read,
 };
 
+// for initialization just allocate slice, zero rest
 struct Stream {
     Slice<u8> slice;
     u64 current;
+    u8 bit_index;
     StreamOperation operation;
 };
 
-inline void serialize_int(Stream* stream, i32* num) {
-    u64 size = sizeof(*num);
-    if (stream->operation == Stream_Read) {
-        slice_copy_range(num, &stream->slice, stream->current, size);
-    }
-    if (stream->operation == Stream_Write) {
-        slice_push_range(&stream->slice, (u8*)num, size);
-    }
-    stream->current += size;
-}
+Stream stream_create(Slice<u8> slice, StreamOperation operation);
 
-inline void serialize_bytes(Stream* stream, u8* bytes, u64 size) {
-    if (stream->operation == Stream_Read) {
-        slice_copy_range(bytes, &stream->slice, stream->current, size);
-    }
-    if (stream->operation == Stream_Write) {
-        slice_push_range(&stream->slice, bytes, size);
-    }
-    stream->current += size;
-}
-
-inline void serialize_string(Stream* stream, Arena* read_arena, String8* string) {
-    serialize_bytes(stream, (u8*)&string->length, sizeof(string->length));
-        
-    u64 string_size = string->length * sizeof(*string->data);
-    if (stream->operation == Stream_Read) {
-        string->data = (u8*)arena_alloc(read_arena, string_size);
-    }
-    serialize_bytes(stream, (u8*)string->data, string_size);
-}
+void stream_pos_reset(Stream* stream);
 
 struct TestMessage {
     String8 str;
 };
 
-// when reading from stream dynamically allocated data types like slice, string needs arena to alloc on to
-// when write can be null
-inline void serialize_test_message(Stream* stream, Arena* read_arena, TestMessage* message) {
-    MessageType type = MessageType_Test;
-    serialize_bytes(stream, (u8*)&type, sizeof(type));
-    serialize_string(stream, read_arena, &message->str);
+#define serialize_var(stream, var_ptr) serialize_bytes(stream, (u8*)var_ptr, sizeof(*var_ptr))
+
+
+template<typename T>
+void serialize_slice(Stream* stream, Slice<T>* slice) {
+    serialize_var(stream, &slice->length);
+    ASSERT(slice->length <= slice->capacity);
+
+    for (i32 i = 0; i < slice->length; i++) {
+        serialize_var(stream, &(*slice)[i]);
+    }
 }
 
+void serialize_bool(Stream* stream, bool* value);
+void serialize_int(Stream* stream, i32* num);
+void serialize_bytes(Stream* stream, u8* bytes, u64 size);
+void serialize_string(Stream* stream, Arena* read_arena, String8* string);
+void serialize_test_message(Stream* stream, Arena* read_arena, TestMessage* message);
+
+void serialize_input_message(Stream* stream, PlayerInput* input);
 // enum class GameChannel {
 //     Reliable,
 //     Unreliable,

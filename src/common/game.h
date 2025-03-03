@@ -17,7 +17,7 @@ struct PlayerInput {
     bool fire;
     bool dash;
 
-    bool select_spell[8];
+    Array<bool, 8> select_spell;
     float2 cursor_world_pos;
 
     u16 move_spell_src;
@@ -68,9 +68,25 @@ struct EntityHandle {
     u32 generation;
 };
 
+typedef u64 ClientID;
+
+struct Inputs {
+    Slice<ClientID> ids;
+    Slice<PlayerInput> inputs;
+};
 
 constexpr i32 hotbar_length = 8;
 constexpr i32 inventory_rows = 4;
+
+// visual copy on client idk wtf to call it
+struct Ghost {
+    EntityType type;
+    float2 position;
+    u16 health;
+    bool show_health;
+    bool hit_flash;
+    bool flip_sprite;
+};
 
 struct Entity {
     //automatically set by create_ent()
@@ -84,7 +100,7 @@ struct Entity {
 
     Array<SpellType, 10> hotbar;
 
-    u32 player_id;
+    ClientID client_id;
     PlayerState player_state;
     float2 dash_direction;
     u32 dash_end_tick;
@@ -136,11 +152,11 @@ struct GameState {
 
 void state_init(GameState* state, Arena* arena);
 
-void state_update(GameState* state, Arena* temp_arena, PlayerInput inputs[max_player_count], u32 current_tick, i32 tick_rate);
+void state_update(GameState* state, Arena* temp_arena, Inputs inputs, u32 current_tick, i32 tick_rate);
 
 void create_box(GameState* state, float2 position);
 
-EntityHandle create_player(GameState* state);
+EntityHandle create_player(GameState* state, ClientID client_id);
 
 Entity* entity_list_get(const Slice<Entity>* entity_list, EntityHandle handle);
 
