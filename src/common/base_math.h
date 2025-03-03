@@ -3,6 +3,9 @@
 
 union float4 {
     struct {
+        f32 x,y,z,w;
+    };
+    struct {
         f32 r, g, b, a;
     };
     f32 v[4];

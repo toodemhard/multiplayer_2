@@ -2,7 +2,7 @@
 
 #include "types.h"
 
-#define ASSERT(condition) if (!(condition)) { __debugbreak(); }
+#define ASSERT(condition) if (!(condition)) { fprintf(stderr, "ASSERT: %s %s:%d\n", #condition, __FILE__, __LINE__); __debugbreak(); }
 
 
 #define internal static
@@ -64,6 +64,10 @@ struct Array {
     T data[N];
     static constexpr u64 length = N;
 
+    const T& operator[](i32 index) const {
+        return array_get(this, index);
+    }
+
     T& operator[](i32 index) {
         return array_get(this, index);
     }
@@ -71,6 +75,13 @@ struct Array {
 
 template<typename T, u64 N>
 T& array_get(Array<T, N>* array, u64 index) {
+    ASSERT(index >= 0);
+    ASSERT(index < array->length)
+    return array->data[index];
+}
+
+template<typename T, u64 N>
+const T& array_get(const Array<T, N>* array, u64 index) {
     ASSERT(index >= 0);
     ASSERT(index < array->length)
     return array->data[index];
@@ -224,8 +235,9 @@ template<typename T, size_t N>
 struct RingBuffer {
     u32 start;
     u32 end;
-    u32 size;
+    u32 length;
     T buffer[N];
+    static constexpr u64 capacity = N;
 };
 
 template<typename T, size_t N>
@@ -233,32 +245,31 @@ void ring_buffer_push_back(RingBuffer<T, N>* r, T item) {
     // if (m_size >= N) {
     //     return;
     // }
-    ASSERT(r->size < N)
+    ASSERT(r->length < N)
 
-    if (r->size < N) {
-        r->size++;
+    if (r->length < N) {
+        r->length++;
     }
 
-    r->buffer[r->start] = item;
-    r->start++;
-    if (r->start >= N) {
-        r->start = 0;
+    r->buffer[r->end] = item;
+    r->end++;
+    if (r->end >= N) {
+        r->end = 0;
     }
 }
 
 template<typename T, size_t N>
-void ring_buffer_pop_front(RingBuffer<T, N>* r) {
-    if (r->size <= 0) {
-        return;
+T ring_buffer_pop_front(RingBuffer<T, N>* r) {
+    ASSERT(r->length > 0)
+
+    r->length--;
+    T ret = r->buffer[r->start];
+
+    r->start++;
+
+    if (r->start >= N) {
+        r->start = 0;
     }
 
-    r->size--;
-    r->buffer[r->end] = {};
-
-    r->end++;
-
-    if (r->end >= N) {
-        r->end = 0;
-
-    }
+    return ret;
 }
