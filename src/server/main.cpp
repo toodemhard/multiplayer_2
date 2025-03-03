@@ -200,7 +200,7 @@ int main() {
             for (i32 i = 0; i < clients.length; i++) {
                 slice_push(&inputs.ids, clients[i].id);
                 PlayerInput input = {};
-                // printf("%d\n", clients[i].input_buffer.length);
+                printf("%d\n", clients[i].input_buffer.length);
                 if (clients[i].input_buffer.length > 0) {
                      input = ring_buffer_pop_front(&clients[i].input_buffer);
                 }
@@ -228,6 +228,7 @@ int main() {
                         .type = ent->type,
                         .position = {.b2vec=b2Body_GetPosition(ent->body_id)},
                         .health = (u16)ent->health,
+                        .show_health = (bool)(ent->flags & EntityFlags_hittable),
                         .hit_flash = ent->hit_flash_end_tick > s->current_tick,
                         .flip_sprite = ent->flip_sprite,
                     });
@@ -239,17 +240,18 @@ int main() {
                 .operation = Stream_Write,
             };
 
-            MessageType message_type = MessageType_Snapshot;
-            serialize_var(&stream, &message_type);
-            serialize_slice(&stream, &ghosts);
 
-            ENetPacket* packet = enet_packet_create((void*)stream.slice.data, stream.slice.length, ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT);
 
             for (i32 i = 0; i < clients.length; i++) {
                 Client* client = &clients[i];
+                u8 input_buffer_size = (u8)client->input_buffer.length;
+                serialize_snapshot(&stream, &input_buffer_size, &ghosts);
+                ENetPacket* packet = enet_packet_create((void*)stream.slice.data, stream.slice.length, ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT);
                 enet_peer_send(client->peer, Channel_Unreliable, packet);
+                enet_host_flush(server);
+
+                stream_pos_reset(&stream);
             }
-            enet_host_flush(server);
 
             // printf("tick: %d", s->current_tick);
             s->current_tick++;

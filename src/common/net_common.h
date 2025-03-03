@@ -79,6 +79,7 @@ void serialize_string(Stream* stream, Arena* read_arena, String8* string);
 void serialize_test_message(Stream* stream, Arena* read_arena, TestMessage* message);
 
 void serialize_input_message(Stream* stream, PlayerInput* input);
+void serialize_snapshot(Stream* stream, u8* input_buffer_size, Slice<Ghost>* ghosts);
 // enum class GameChannel {
 //     Reliable,
 //     Unreliable,

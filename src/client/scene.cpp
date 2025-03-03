@@ -227,10 +227,15 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
             };
             MessageType message_type;   // = *(MessageType*)net_event.packet->data;
             serialize_var(&stream, &message_type);
+            stream_pos_reset(&stream);
 
             if (message_type == MessageType_Snapshot) {
                 printf("asdl %f\n", delta_time);
-                serialize_slice(&stream, &s->latest_snapshot);
+                // serialize_slice(&stream, &s->latest_snapshot);
+                u8 input_buffer_size;
+                serialize_snapshot(&stream, &input_buffer_size, &s->latest_snapshot);
+
+                s->accumulator += (target_input_buffer_size - input_buffer_size) / (f64)tick_rate * 0.01;
             }
 
             enet_packet_destroy (net_event.packet);

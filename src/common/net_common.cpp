@@ -15,6 +15,13 @@ void stream_pos_reset(Stream* stream) {
     stream->bit_index = 0;
 }
 
+void serialize_snapshot(Stream* stream, u8* input_buffer_size, Slice<Ghost>* ghosts) {
+    MessageType message_type = MessageType_Snapshot;
+    serialize_var(stream, &message_type);
+    serialize_var(stream, input_buffer_size);
+    serialize_slice(stream, ghosts);
+}
+
 void serialize_input_message(Stream* stream, PlayerInput* input) {
     MessageType type = MessageType_Input;
     serialize_var(stream, &type);
