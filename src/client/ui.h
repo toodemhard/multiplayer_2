@@ -135,3 +135,12 @@ constexpr UI_Size size_proportional() {
 #define sides_px(v) {size_px(v), size_px(v), size_px(v), size_px(v)}
 
 #define sides2_px(v1, v2) {size_px(v1), size_px(v1), size_px(v2), size_px(v2)}
+
+// https://github.com/EpicGamesExt/raddebugger/blob/master/src/base/base_core.h
+#define DeferLoop(begin, end) for(int _i_ = ((begin), 0); !_i_; _i_ += 1, (end))
+
+// i32 i = (printf("fakdhf\n"), 123);
+// comma operator runs multiple expressions and return last although = is higher precedence
+
+#define ui_row(...)\
+DeferLoop(ui_push_row(__VA_ARGS__), ui_pop_row())\
