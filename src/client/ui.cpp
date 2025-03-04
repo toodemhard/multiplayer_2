@@ -107,6 +107,17 @@ void ui_pop_row() {
     slice_pop(&ui_ctx->parent_stack);
 }
 
+
+// no idea how last ui worked
+// there was only 1 post order and 1 pre order?????
+// post order is free in build call
+
+// possible on init: fixed size, absolute pos, size fraction of parent if parent fixed
+// postorder: fit content
+// preorder: grow
+// preorder: positions
+
+
 void ui_end(Arena* temp_arena) {
     ui_pop_row();
     ArenaTemp checkpoint = arena_begin_temp_allocs(temp_arena);
@@ -121,7 +132,6 @@ void ui_end(Arena* temp_arena) {
     if (ui->elements.length > 0) {
         slice_push(&pre_stack, &ui->elements[0]);
     }
-
 
     // postorder dfs with 2 stacks idfk
     while (pre_stack.length > 0) {
@@ -138,6 +148,7 @@ void ui_end(Arena* temp_arena) {
 
 
 
+        //preorder
         UI_Element* parent = current->parent;
         if (parent) {
             for (i32 i = 0; i < Axis2_Count; i++) {
@@ -157,7 +168,12 @@ void ui_end(Arena* temp_arena) {
         UI_Element* current = slice_back(&post_stack);
         slice_pop(&post_stack);
 
-        float2 text_size = font::text_dimensions(ui_ctx->fonts[current->font], current->text, current->font_size);
+        // postorder
+        if (current->font_size.type == FontSizeType_Default) {
+            current->font_size.value = 16;
+        }
+
+        float2 text_size = font::text_dimensions(ui_ctx->fonts[current->font], current->text, current->font_size.value);
 
         float2 image_size = {};
 
@@ -167,13 +183,11 @@ void ui_end(Arena* temp_arena) {
         }
 
 
-        // text_size
 
-        // post order stuff goes here
         for (i32 i = 0; i < Axis2_Count; i++) {
             UI_Size* semantic_size = &current->size[i];
 
-            if (semantic_size->type == UI_SizeType_SumContent) {
+            if (semantic_size->type == UI_SizeType_Fit) {
                 current->computed_size[i] += text_size[i];
 
                 current->computed_size[i] += image_size[i];
@@ -205,10 +219,9 @@ void ui_end(Arena* temp_arena) {
 
         UI_Element* parent = current->parent;
         if (parent) {
-            Axis2 grow_axis = parent->grow_axis;
+            Axis2 grow_axis = parent->stack_axis;
             for (i32 i = 0; i < Axis2_Count; i++) {
-                if (parent->size[i].type == UI_SizeType_SumContent) {
-
+                if (parent->size[i].type == UI_SizeType_Fit) {
                     if (i == grow_axis) {
                         parent->computed_size[i] += current->computed_size[i];
                     } else {
@@ -220,20 +233,70 @@ void ui_end(Arena* temp_arena) {
 
     }
 
-    Slice<float2> position_stack = slice_create<float2>(temp_arena, 512);
+    slice_clear(&pre_stack);
+    if (ui->elements.length > 0) {
+        slice_push(&pre_stack, &ui->elements[0]);
+    }
+
+    // preorder for grow
+    // could be static init actually cuz should only grow if parent fixed size
+    while (pre_stack.length > 0) {
+        UI_Element* current = slice_back(&pre_stack);
+        slice_pop(&pre_stack);
+
+        // grow child elements which have grow sizing property
+        float2 grow_space = current->computed_size;
+        for (i32 side = 0; side < RectSide_Count; side++) {
+            grow_space[side / 2] -= current->computed_padding[side] + current->computed_border[side];
+        }
+
+        i32 grow_children_count_in_stack_dir = 0;
+
+        UI_Element* child = current->last_child;
+        while (child) {
+            slice_push(&pre_stack, child);
+
+            for (i32 axis = 0; axis < Axis2_Count; axis++) {
+                if (axis == current->stack_axis) {
+                    grow_space[axis] -= child->computed_size[axis];
+                }
+                if (child->size[axis].type == UI_SizeType_Grow && axis == current->stack_axis) {
+                    grow_children_count_in_stack_dir++;
+                }
+
+                if(child->size[axis].type == UI_SizeType_Grow && axis != current->stack_axis) {
+                    child->computed_size[axis] += grow_space[axis];
+                }
+            }
+
+            child = child->prev_sibling;
+        }
+
+        child = current->last_child;
+        f32 distribution_of_capital = grow_space[current->stack_axis] / grow_children_count_in_stack_dir;
+        while (child) {
+            for (i32 axis = 0; axis < Axis2_Count; axis++) {
+                if (child->size[axis].type == UI_SizeType_Grow && axis == current->stack_axis) {
+                    child->computed_size[axis] += distribution_of_capital;
+                }
+            }
+
+            child = child->prev_sibling;
+        }
+
+        
+    }
+
     slice_clear(&pre_stack);
     if (ui->elements.length > 0) {
         slice_push(&pre_stack, &ui->elements[0]);
     }
 
 
-    // 2nd preorder for pos after compute size
+    // preorder for pos
     while (pre_stack.length > 0) {
         UI_Element* current = slice_back(&pre_stack);
-        slice_push(&post_stack, current);
         slice_pop(&pre_stack);
-
-
 
         UI_Element* child = current->last_child;
         while (child) {
@@ -250,7 +313,7 @@ void ui_end(Arena* temp_arena) {
             if (current->position[i].type == UI_PositionType_AutoOffset) {
                 if (current->parent) {
                     current->computed_position[i] = parent->next_position[i];
-                    if (i == parent->grow_axis && !(current->flags & UI_Flags_Float)) {
+                    if (i == parent->stack_axis && !(current->flags & UI_Flags_Float)) {
                         parent->next_position[i] += current->computed_size[i];
                     }
 
@@ -337,7 +400,7 @@ void ui_draw(UI* ui_ctx, Renderer* renderer, Arena* temp_arena) {
             });
         }
 
-        font::draw_text(renderer, ui_ctx->fonts[current->font], current->text, current->font_size, current->content_position);
+        font::draw_text(renderer, ui_ctx->fonts[current->font], current->text, current->font_size.value, current->content_position);
     }
 
     while (post_stack.length > 0) {

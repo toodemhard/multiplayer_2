@@ -6,11 +6,12 @@
 #include "font.h"
 
 enum UI_SizeType {
-    UI_SizeType_SumContent,
+    UI_SizeType_Fit,
     UI_SizeType_Pixels,
+    UI_SizeType_BaseFontRelative,
     UI_SizeType_ParentFraction,
     UI_SizeType_ImageProportional,
-    UI_SizeType_BaseFontRelative,
+    UI_SizeType_Grow,
 };
 
 enum RectSide {
@@ -46,14 +47,24 @@ enum UI_Flags {
     UI_Flags_Float = 1 << 0,
 };
 
+enum FontSizeType {
+    FontSizeType_Default,
+    FontSizeType_Pixels,
+};
+
+struct FontSize {
+    FontSizeType type;
+    f32 value;
+};
+
 struct UI_Element {
     // user config
     UI_Flags flags;
     const char* text;
     FontID font;
-    i32 font_size;
+    FontSize font_size;
     ImageID image;
-    Axis2 grow_axis;
+    Axis2 stack_axis;
 
     UI_Position position[Axis2_Count];
     UI_Size size[Axis2_Count];
@@ -128,8 +139,20 @@ constexpr UI_Position position_offset_px(f32 value) {
 constexpr UI_Size size_px(f32 value) {
     return UI_Size{UI_SizeType_Pixels, value};
 }
+
+constexpr UI_Size size_grow() {
+    return UI_Size{UI_SizeType_Grow};
+}
+
 constexpr UI_Size size_proportional() {
     return UI_Size{UI_SizeType_ImageProportional};
+}
+
+constexpr FontSize font_px(f32 value) {
+    return FontSize {
+        FontSizeType_Pixels,
+        value,
+    };
 }
 
 #define sides_px(v) {size_px(v), size_px(v), size_px(v), size_px(v)}
