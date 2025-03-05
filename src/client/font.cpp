@@ -283,7 +283,7 @@ namespace font {
         }
     }
 
-    float2 text_dimensions(const Font& font, const char* text, float font_size) {
+    float2 text_dimensions(const Font& font, const char* text, f32 font_size) {
         float max_width = 0;
         float width = 0;
 

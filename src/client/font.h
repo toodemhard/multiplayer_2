@@ -24,7 +24,7 @@ struct Font {
 namespace font {
     void load_font(Font* font_output, Renderer& renderer, FontID font_id, int w, int h, int font_size);
     void draw_text(Renderer* renderer, const Font& font, const char* text, float font_size, float2 position, RGBA color=color::white, float max_width = 99999);
-    float2 text_dimensions(const Font& font, const char* text, float font_size);
+    float2 text_dimensions(const Font& font, const char* text, f32 font_size);
     float text_height(const char* text, float font_size);
     void generate_font_atlas(std::vector<unsigned char>& bitmap);
 
