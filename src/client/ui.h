@@ -57,10 +57,15 @@ struct FontSize {
     f32 value;
 };
 
+typedef u64 UI_Key;
+
 struct UI_Element {
     // user config
+    UI_Key* out_key;
     UI_Flags flags;
     const char* text;
+    Slice<u8> source_key;
+    Slice<u8> salt_key;
     FontID font;
     FontSize font_size;
     ImageID image;
@@ -75,6 +80,7 @@ struct UI_Element {
     float4 font_color;
 
     // computed stuff possibly read only to user
+    UI_Key key;
     float2 computed_position;
     float2 computed_size;
     f32 computed_padding[RectSide_Count];
@@ -94,18 +100,18 @@ struct UI_Element {
 };
 
 
-typedef u64 UI_Key;
-
-
 // need to have access to last frame state
 struct UI_Frame {
     Slice<UI_Element> elements;
-    Hashmap hashed_elements;
 };
 
 struct UI {
     UI_Frame frame_buffer[2]; //not that kind of frame buffer
     Arena frame_arenas[2]; // plan is to only have reinitializations instead of init and reset pairs
+
+    // values should be index to last frame elements probably
+    Hashmap<u64, u32> cache;
+    // Slice<UI_Element> element_cache;
 
     u32 active_frame;
 
@@ -115,7 +121,10 @@ struct UI {
 
     float2 cursor_pos;
 
+    UI_Key active_element;
+
     Renderer* renderer;
+    Input::Input* input;
 };
 
 struct ElementProps {
@@ -126,10 +135,12 @@ bool ui_hover(UI_Key index);
 void ui_set_ctx(UI* _ui);
 void ui_init(UI* ui, Arena* arena, Slice<Font> fonts, Renderer* renderer);
 void ui_draw(UI* ui_ctx, Renderer* renderer, Arena* temp_arena);
-UI_Key ui_push_row(UI_Element element);
-void ui_pop_row();
+UI_Key ui_push_row_internal(UI_Element element, const char* file, i32 line);
+UI_Key ui_pop_row();
 void ui_begin(Input::Input* input);
-UI_Key ui_push_leaf(UI_Element element);
+bool ui_is_active(UI_Key element);
+bool ui_button(UI_Key element);
+// UI_Key ui_push_leaf(UI_Element element);
 void ui_end(Arena* temp_arena);
 
 constexpr UI_Position position_offset_px(f32 value) {
@@ -165,5 +176,11 @@ constexpr FontSize font_px(f32 value) {
 // i32 i = (printf("fakdhf\n"), 123);
 // comma operator runs multiple expressions and return last although = is higher precedence
 
+#define ui_push_row(...)\
+ui_push_row_internal(__VA_ARGS__, __FILE__, __LINE__)
+
 #define ui_row(...)\
 DeferLoop(ui_push_row(__VA_ARGS__), ui_pop_row())\
+
+#define ui_row_ret(...)\
+(ui_push_row(__VA_ARGS__), ui_pop_row())

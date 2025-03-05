@@ -12,19 +12,21 @@ void ui_set_ctx(UI* _ui) {
 internal void ui_frame_init(UI_Frame* frame, Arena* arena) {
     arena_reset(arena);
     frame->elements = slice_create<UI_Element>(arena, 1024);
-    frame->hashed_elements = hashmap_create(arena, 1024);
+    // frame->hashed_elements = hashmap_create(arena, 1024);
 }
 
-void ui_init(UI* ui_ctx, Arena* arena, Slice<Font> fonts, Renderer* renderer) {
+void ui_init(UI* ui, Arena* arena, Slice<Font> fonts, Renderer* renderer) {
     for (i32 i = 0; i < 2; i++) {
-        ui_ctx->frame_arenas[i] = arena_suballoc(arena, megabytes(0.5));
-        ui_frame_init(&ui_ctx->frame_buffer[i], &ui_ctx->frame_arenas[i]);
+        ui->frame_arenas[i] = arena_suballoc(arena, megabytes(0.5));
+        ui_frame_init(&ui->frame_buffer[i], &ui->frame_arenas[i]);
     }
-    ui_ctx->renderer = renderer;
+    ui->renderer = renderer;
 
-    slice_init(&ui_ctx->parent_stack, arena, 1024);
-    ui_ctx->fonts = fonts;
-    ui_ctx->base_font_size = 16;
+    slice_init(&ui->parent_stack, arena, 1024);
+    ui->fonts = fonts;
+    ui->base_font_size = 16;
+
+    ui->cache = hashmap_create<UI_Key, u32>(arena, 1024);
 }
 
 void ui_begin(Input::Input* input) {
@@ -38,58 +40,102 @@ void ui_begin(Input::Input* input) {
     Renderer* renderer = ui_ctx->renderer;
     ui_push_row({
         .size = {size_px(renderer->window_width), size_px(renderer->window_height)},
+        // .background_color = {0.5,0.5,0.5,1},
     });
+
+    ui_ctx->input = input;
 }
 
-UI_Key ui_push_leaf(UI_Element element) {
-    UI_Key index = ui_push_row(element);
-    ui_pop_row();
-    return index;
+// UI_Key ui_push_leaf(UI_Element element) {
+//     UI_Key index = ui_push_row(element);
+//     ui_pop_row();
+//     return index;
+// }
+
+bool ui_is_active(UI_Key element) {
+    return ui_ctx->active_element == element;
 }
 
-UI_Key ui_push_row(UI_Element element) {
+UI_Key ui_push_row_internal(UI_Element element, const char* file, i32 line) {
     UI_Frame* ui = &ui_ctx->frame_buffer[ui_ctx->active_frame];
 
     UI_Key index = ui->elements.length;
+
+    u32 key_size = element.source_key.length + sizeof(line) + element.salt_key.length;
+
+    ArenaTemp scratch = scratch_get(0,0);
+    defer(scratch_release(scratch));
+    
+    Slice<u8> key = slice_create<u8>(scratch.arena, key_size);
+
+    slice_push_range(&key, slice_data_raw(element.source_key));
+    slice_push_range(&key, (u8*)&line, sizeof(line));
+    slice_push_range(&key, slice_data_raw(element.salt_key));
+
+    element.key = fnv1a(key);
+
+    // if (element.key == ui_ctx->active_element) {
+    //     UI_Size border[RectSide_Count] = sides_px(4);
+    //     memcpy(&element.border, &border, sizeof(element.border));
+    //     element.border_color = {1,1,0,1};
+    // }
+    //
+
     slice_push(&ui->elements, element);
-    UI_Element* element_ptr = &slice_back(&ui->elements);
+    UI_Element* current = &slice_back(ui->elements);
+
+    for (i32 i = 0; i < Axis2_Count; i++) {
+        UI_Size* size = &current->size[i];
+        if (size->type == UI_SizeType_Pixels) {
+            current->computed_size[i] = size->value;
+        }
+    }
 
     if (ui_ctx->parent_stack.length > 0) {
 
-        UI_Element* parent = slice_back(&ui_ctx->parent_stack);
+        UI_Element* parent = slice_back(ui_ctx->parent_stack);
         if (parent->last_child) {
             UI_Element* last = parent->last_child;
 
-            last->next_sibling = element_ptr;
-            element_ptr->prev_sibling = last;
+            last->next_sibling = current;
+            current->prev_sibling = last;
 
-            parent->last_child = element_ptr;
+            parent->last_child = current;
 
         } else {
-            parent->first_child = element_ptr;
-            parent->last_child = element_ptr;
+            parent->first_child = current;
+            parent->last_child = current;
         }
 
-        element_ptr->parent = parent;
+        current->parent = parent;
     }
 
-    slice_push(&ui_ctx->parent_stack, element_ptr);
+    slice_push(&ui_ctx->parent_stack, current);
 
-    return index;
+    if (element.out_key != NULL) {
+        *element.out_key = element.key;
+    }
+
+    return element.key;
 }
 
 UI_Element* ui_get(UI_Key index) {
     return &ui_ctx->frame_buffer[ui_ctx->active_frame].elements[index];
 }
 
-bool ui_hover(UI_Key index) {
+bool ui_button(UI_Key element) {
+    return ui_ctx->input->mouse_down(SDL_BUTTON_LEFT) && ui_hover(element);
+}
+
+bool ui_hover(UI_Key key) {
     u64 last_index = (ui_ctx->active_frame + 1) % 2;
     UI_Frame* last_frame = &ui_ctx->frame_buffer[last_index];
 
     UI_Element zero{};
     UI_Element* element = &zero;
-    if (last_frame->elements.length > index) {
-        element = &last_frame->elements[index];
+
+    if (hashmap_key_exists(&ui_ctx->cache, key)) {
+        element = &last_frame->elements[hashmap_get(&ui_ctx->cache, key)];
     }
 
     float2 p0 = *(float2*)&element->computed_position;
@@ -103,8 +149,10 @@ bool ui_hover(UI_Key index) {
     return is_hover;
 }
 
-void ui_pop_row() {
+UI_Key ui_pop_row() {
+    UI_Key element = slice_back(ui_ctx->parent_stack)->key;
     slice_pop(&ui_ctx->parent_stack);
+    return element;
 }
 
 
@@ -135,7 +183,7 @@ void ui_end(Arena* temp_arena) {
 
     // postorder dfs with 2 stacks idfk
     while (pre_stack.length > 0) {
-        UI_Element* current = slice_back(&pre_stack);
+        UI_Element* current = slice_back(pre_stack);
         slice_push(&post_stack, current);
         slice_pop(&pre_stack);
 
@@ -146,16 +194,11 @@ void ui_end(Arena* temp_arena) {
             child = child->prev_sibling;
         }
 
-
-
         //preorder
         UI_Element* parent = current->parent;
         if (parent) {
             for (i32 i = 0; i < Axis2_Count; i++) {
                 UI_Size* size = &current->size[i];
-                if (size->type == UI_SizeType_Pixels) {
-                    current->computed_size[i] = size->value;
-                }
 
                 if (size->type == UI_SizeType_ParentFraction) {
                     current->computed_size[i] = parent->computed_size[i] * size->value;
@@ -165,7 +208,7 @@ void ui_end(Arena* temp_arena) {
     }
 
     while (post_stack.length > 0) {
-        UI_Element* current = slice_back(&post_stack);
+        UI_Element* current = slice_back(post_stack);
         slice_pop(&post_stack);
 
         // postorder
@@ -230,7 +273,6 @@ void ui_end(Arena* temp_arena) {
                 }
             }
         }
-
     }
 
     slice_clear(&pre_stack);
@@ -241,7 +283,7 @@ void ui_end(Arena* temp_arena) {
     // preorder for grow
     // could be static init actually cuz should only grow if parent fixed size
     while (pre_stack.length > 0) {
-        UI_Element* current = slice_back(&pre_stack);
+        UI_Element* current = slice_back(pre_stack);
         slice_pop(&pre_stack);
 
         // grow child elements which have grow sizing property
@@ -295,7 +337,7 @@ void ui_end(Arena* temp_arena) {
 
     // preorder for pos
     while (pre_stack.length > 0) {
-        UI_Element* current = slice_back(&pre_stack);
+        UI_Element* current = slice_back(pre_stack);
         slice_pop(&pre_stack);
 
         UI_Element* child = current->last_child;
@@ -327,6 +369,22 @@ void ui_end(Arena* temp_arena) {
         }
         current->next_position = current->content_position;
     }
+
+    for (i32 i = 0; i < ui->elements.length; i++) {
+        UI_Element* element = &ui->elements[i];
+
+        hashmap_set(&ui_ctx->cache, element->key, (u32)i);
+
+        if (ui_ctx->input->mouse_down(SDL_BUTTON_LEFT)) {
+            float2 p0 = element->computed_position;
+            float2 p1 = {p0.x + element->computed_size[Axis2_X], p0.y + element->computed_size[Axis2_Y]};
+            float2 cursor = ui_ctx->cursor_pos;
+            // bool is_hover = false;
+            if (cursor.x >= p0.x && cursor.y >= p0.y && cursor.x <= p1.x && cursor.y <= p1.y) {
+                ui_ctx->active_element = element->key;
+            }
+        }
+    }
 }
 
 float2 f32arr_to_float2(f32 vec[2]) {
@@ -353,7 +411,7 @@ void ui_draw(UI* ui_ctx, Renderer* renderer, Arena* temp_arena) {
 
     // postorder dfs with 2 stacks idfk
     while (pre_stack.length > 0) {
-        UI_Element* current = slice_back(&pre_stack);
+        UI_Element* current = slice_back(pre_stack);
         slice_push(&post_stack, current);
         slice_pop(&pre_stack);
 
@@ -404,7 +462,7 @@ void ui_draw(UI* ui_ctx, Renderer* renderer, Arena* temp_arena) {
     }
 
     while (post_stack.length > 0) {
-        UI_Element* current = slice_back(&post_stack);
+        UI_Element* current = slice_back(post_stack);
         slice_pop(&post_stack);
     }
 }
