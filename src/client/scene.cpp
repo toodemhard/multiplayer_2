@@ -301,7 +301,7 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
             image = {};
         }
 
-        ui_push_leaf({
+        ui_push_row({
             .image = image,
             .size = {{UI_SizeType_ParentFraction, 1}, {UI_SizeType_ParentFraction, 1}},
             // .background_color = {1,0,0,1},
@@ -327,7 +327,7 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
     if (s->inventory_open) {
         ui_push_row({
             .flags = UI_Flags_Float,
-            .grow_axis = Axis2_Y,
+            .stack_axis = Axis2_Y,
             .position = {position_offset_px(50), position_offset_px(150)},
         });
 
@@ -343,7 +343,7 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
                     // .background_color = {1,1,1,1},
                     .border_color = color,
                 });
-                ui_push_leaf({
+                ui_row({
                     .image = image,
                     .size = {{UI_SizeType_ParentFraction, 0.5}, {UI_SizeType_ParentFraction, 0.5}},
                     // .background_color = {1,0,0,1},

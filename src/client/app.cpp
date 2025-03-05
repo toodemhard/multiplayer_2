@@ -48,164 +48,6 @@ RGBA norm4_to_rgba(Norm4 norm4) {
 }
 
 
-// dt just to convert tick to time
-// dt should be constant but paramaterizing it to allow different tick rate servers
-// void render_state(Renderer* renderer, SDL_Window* window, GameState* state, int current_tick, double dt, Camera2D camera) {
-//     using namespace renderer;
-//
-//     int idle_frame = current_tick % idle_cycle_period_ticks / idle_period_ticks;
-//
-//     for (i32 i = 0; i < state->entities.length; i++) {
-//         const Entity* ent = &state->entities[i];
-//
-//         if (!ent->is_active) {
-//             continue;
-//         }
-//
-//         Rect world_rect = {};
-//         TextureID texture;
-//         switch (ent->type) {
-//         case EntityType::Player: {
-//             world_rect.size = {2,2};
-//             texture = TextureID_player_png;
-//         } break;
-//         case EntityType::Bullet: {
-//             world_rect.size = {0.5,0.5};
-//             texture = TextureID_bullet_png;
-//         } break;
-//         case EntityType::Box: {
-//             world_rect.size = {1,1};
-//             texture = TextureID_box_png;
-//         } break;
-//
-//         }
-//
-//         RGBA flash_color = {255,255,255,255};
-//         f32 t = 0;
-//         if (ent->flags & EntityFlags_hittable && ent->hit_flash_end_tick > current_tick) {
-//             t = 1;
-//         }
-//
-//         world_rect.position.b2vec = b2Body_GetPosition(ent->body_id);
-//
-//         if (ent->flip_sprite) {
-//             world_rect.size.x *= -1;
-//         }
-//
-//         draw_sprite_world(renderer, camera, world_rect, SpriteProperties{
-//             .texture_id=texture,
-//             .mix_color = flash_color,
-//             .t = t,
-//         });
-//
-//         if (ent->flags & EntityFlags_hittable) {
-//             draw_world_rect(renderer, camera, {.position = world_rect.position - float2{0, -1}, .size={1, 0.1}}, {0.2, 0.2, 0.2, 1.0});
-//             draw_world_rect( renderer, camera, {.position=world_rect.position - float2{0, -1}, .size={ent->health / (float)box_health, 0.1}}, {1, 0.2, 0.1, 1.0});
-//         }
-//     }
-// }
-
-
-
-
-
-
-// void begin_tick_input(input ) {
-//
-//     inpubutton_held_flags = SDL_GetMouseState(&mouse_pos.x, &mouse_pos.y);
-//     mod_state = SDL_GetModState();
-// }
-
-// class MultiplayerScene {
-// public:
-//     Input::Input& m_input;
-//     Font* m_font;
-//
-//     double accumulator = 0.0;
-//     uint32_t frame = {};
-//     double time = {};
-//     int current_tick = 0;
-//
-//     double speed_up_dt = 0.0;
-//
-//
-//     UI ui;
-//
-//     Input::Input m_tick_input;
-//
-//     Camera2D m_camera = default_camera;
-//
-//     GameClient m_client;
-//
-//     MultiplayerScene(Input::Input& input, Font* font) : m_input(input), ui(font), m_font(font) {
-//         m_tick_input.init_keybinds(Input::default_keybindings);
-//     }
-//
-//     void connect() {
-//         m_client.connect(yojimbo::Address(127, 0, 0, 1, 5000));
-//     }
-//
-//     void update(double delta_time) {
-//         using namespace Input;
-//
-//         accumulator += delta_time;
-//         ImGui_ImplSDLRenderer3_NewFrame();
-//         ImGui_ImplSDL3_NewFrame();
-//         ImGui::NewFrame();
-//
-//         accumulate_input_events(m_tick_input, m_input);
-//
-//         while (accumulator >= fixed_dt) {
-//             m_tick_input.begin_frame();
-//             accumulator = accumulator - fixed_dt + speed_up_dt;
-//             frame++;
-//             time += fixed_dt;
-//             // printf("frame:%d %fs\n", frame, time);
-//
-//
-//
-//             if (m_input.key_down(SDL_SCANCODE_R)) {
-//                 accumulator += fixed_dt;
-//             }
-//
-//             if (m_input.key_down(SDL_SCANCODE_E)) {
-//                 accumulator -= fixed_dt;
-//             }
-//
-//             auto player_input = input_state(m_tick_input, m_camera);
-//
-//
-//             // printf("upate\n");
-//
-//             // ImGui_ImplSDLRenderer3_NewFrame();
-//             // ImGui_ImplSDL3_NewFrame();
-//             // ImGui::NewFrame();
-//
-//             int throttle_ticks{};
-//             m_client.fixed_update(fixed_dt, player_input, m_input, &throttle_ticks);
-//
-//             speed_up_dt = throttle_ticks * fixed_dt * speed_up_fraction;
-//
-//             // accumulator += fixed_dt * throttle_ticks;
-//
-//             current_tick++;
-//
-//             m_tick_input.end_frame();
-//         }
-//
-//         m_client.update();
-//
-//     }
-//
-//     void render(Renderer& renderer, SDL_Window* window) {
-//         render_state(renderer, window, m_client.m_state, current_tick, fixed_dt, m_camera);
-//
-//         // renderer::draw_screen_rect(Renderer &renderer, Rect rect, RGBA rgba)
-//
-//         ImGui::Render();
-//         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), &renderer);
-//     }
-// };
 
 bool init(void* memory) {
     ZoneScoped;
@@ -307,6 +149,7 @@ bool init(void* memory) {
     local_scene_init(&state->local_scene, &state->level_arena, &state->input, &state->renderer, fonts_view);
     // double last_render_duration = 0.0;
 
+    state->menu = menu_create(&state->level_arena, &state->input, state->window, &state->renderer, fonts_view);
 
     state->initialized = true;
     return true;
@@ -314,6 +157,134 @@ bool init(void* memory) {
 
 // extern "C" INIT(Init) {
 // }
+
+
+
+
+
+Menu menu_create(Arena* scene_arena, Input::Input* input, SDL_Window* window, Renderer* renderer, const Slice<Font> fonts) {
+    Menu menu = {
+        .input=input,
+        .renderer=renderer,
+    };
+    ui_init(&menu.ui, scene_arena, fonts, renderer);
+
+    SDL_StartTextInput(window);
+
+    menu.text = slice_create<u8>(scene_arena, 512);
+    slice_push(&menu.text, (u8)'d');
+
+    return menu;
+}
+
+bool f;
+
+// Slice<Slice<u8>> str_key(const char* str) {
+//     return cstr_to_string(str)
+//
+// }
+
+// #define 
+// constexpr source_key() {
+//     
+// }
+
+void text_field_input(Input::Input* input, Slice<u8>* text) {
+    string_cat(text, &input->input_text);
+
+    if (input->modifier(SDL_KMOD_CTRL) && input->key_down_repeat(SDL_SCANCODE_BACKSPACE)) {
+        i32 cut_to = -1;
+        bool next_whitespace = false;
+        for (i32 i = text->length - 1; i >= 0; (i--, cut_to = i)) {
+            if (next_whitespace && (*text)[i] == ' ') {
+                break;
+            } else if ((*text)[i] != ' ') {
+                next_whitespace = true;
+            }
+        }
+
+        text->length = cut_to + 1;
+
+    } else if (input->key_down_repeat(SDL_SCANCODE_BACKSPACE)) {
+        if (text->length > 0) {
+            text->length--;
+        }
+    }
+}
+
+void menu_update(Menu* menu, Arena* temp_arena) {
+
+    // if (menu->input->key_down(SDL_SCANCODE_S)) {
+    //     f = !f;
+    // }
+
+    ui_set_ctx(&menu->ui);
+
+    ui_begin(menu->input);
+
+    ArenaTemp scratch = scratch_get(0, 0);
+    defer(scratch_release(scratch));
+
+    UI_Element idk = {
+        .size = {size_px(100), size_px(100)},
+        .background_color = {1,0,1,1},
+    };
+    ui_row(idk){}
+
+
+    ui_row({
+        // .text = ,
+        // .font_size = font_px(32),
+        .size = {size_px(600), size_px(200)},
+        .background_color = {0.1,0.1,0.3,1}
+    }) {
+        if(f) {
+    ui_row({
+        .size = {size_px(300), size_px(300)},
+        .background_color = {0.5,0,0.8},
+    }) {}
+
+        }
+
+        ui_row({
+            .size = {size_grow(), size_grow()},
+            .border = sides_px(2),
+            .border_color = {1,0,0,1},
+        }) {}
+        UI_Key ip_field;
+        ui_row({
+            .out_key = &ip_field,
+            .text = string_to_cstr(scratch.arena, menu->text),
+            .size = {size_px(100), size_px(20)},
+        });
+
+        if (ui_is_active(ip_field)) {
+            text_field_input(menu->input, &menu->text);
+        }
+
+        if (ui_button(ui_row_ret({
+            .text = "send",
+            .background_color = {1,0,0,1},
+        }))) {
+            printf("%s\n", string_to_cstr(scratch.arena, menu->text));
+        }
+
+        ui_row({
+            .size = {size_grow(), size_grow()},
+            .border = sides_px(2),
+            .border_color = {1,0,0,1},
+        }) {}
+        // ui_push_row({
+        //   .border_size = {size_px(2), size_px(2), size_px(2), size_px(2)},
+        //   .border_color = {1, 0, 0, 1},
+        //   })
+
+    }
+
+    ui_end(temp_arena);
+
+    ui_draw(&menu->ui, menu->renderer, temp_arena);
+}
 
 extern "C" UPDATE(update) {
     auto state = (State*)memory;
@@ -324,6 +295,14 @@ extern "C" UPDATE(update) {
         if (!init(memory)) {
             quit = true;
         }
+    }
+
+    // need to restore global variables on dll reload
+    if (is_reloaded) {
+        for (i32 i = 0; i < scratch_count; i++)  {
+            scratch_arenas[i] = &state->scratch_arenas[i];
+        }
+
     }
 
     arena_reset(&state->temp_arena);
@@ -361,16 +340,30 @@ extern "C" UPDATE(update) {
 
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
             state->input.button_down_flags |= SDL_BUTTON_MASK(event.button.button);
+            break;
         case SDL_EVENT_MOUSE_BUTTON_UP:
             if (event.button.down) {
                 break;
             }
             state->input.button_up_flags |= SDL_BUTTON_MASK(event.button.button);
-
+            break;
+        case SDL_EVENT_TEXT_INPUT: {
+            state->input.input_text = cstr_to_string(event.text.text);
+            // u8 y = *event.text.text;
+            // i32 x = strlen(event.text.text);
+            // printf("%s\n", event.text.text);
+        } break;
+        case SDL_EVENT_TEXT_EDITING: {
+            printf("%s\n", event.edit.text);
+        } break;
         default:
             break;
         }
     }
+
+    // if (is_reloaded) {
+    //     printf("%s", "わ");
+    // }
 
 
     // if (state->input.key_down(SDL_SCANCODE_F)) {
@@ -404,10 +397,11 @@ extern "C" UPDATE(update) {
     // }
 
 
+
     // update
     {
         // multi_scene.update(delta_time);
-        local_scene_update(&state->local_scene, &state->temp_arena, delta_time);
+        // local_scene_update(&state->local_scene, &state->temp_arena, delta_time);
         // state->local_scene.update(delta_time);
     }
 
@@ -415,17 +409,19 @@ extern "C" UPDATE(update) {
     {
         auto render_begin_time = std::chrono::high_resolution_clock::now();
         renderer::begin_rendering(&state->renderer, state->window, &state->temp_arena);
-        if (is_reloaded) {
-            create_box(&state->local_scene.state, float2{2, 1});
-            std::cout << "reloaded\n";
 
-            // create_player(&state->local_scene.state);
-
-            // SDL_SetWindowAlwaysOnTop(state->window, true);
-        }
+        menu_update(&state->menu, &state->temp_arena);
+        // if (is_reloaded) {
+        //     create_box(&state->local_scene.state, float2{2, 1});
+        //     std::cout << "reloaded\n";
+        //
+        //     // create_player(&state->local_scene.state);
+        //
+        //     // SDL_SetWindowAlwaysOnTop(state->window, true);
+        // }
 
         // multi_scene.render(renderer, window, textures);
-        local_scene_render(&state->local_scene, &state->renderer, &state->temp_arena, state->window);
+        // local_scene_render(&state->local_scene, &state->renderer, &state->temp_arena, state->window);
 
         // //
         // // auto string = std::format("render: {:.3f}ms", last_render_duration * 1000.0);

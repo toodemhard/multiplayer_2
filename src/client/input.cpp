@@ -9,6 +9,8 @@ void Input::begin_frame() {
 
     button_held_flags = SDL_GetMouseState(&mouse_pos.x, &mouse_pos.y);
     mod_state = SDL_GetModState();
+
+    input_text = {};
 }
 
 void Input::end_frame() {

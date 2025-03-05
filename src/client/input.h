@@ -1,5 +1,6 @@
 #pragma once
 #include "common/base_math.h"
+#include "common/allocator.h"
 
 namespace Input {
 
@@ -36,8 +37,7 @@ constexpr std::array<Keybind, ActionID::count> default_keybindings = {KEYBINDING
 #define AS_STRING(a, b) #a,
 constexpr std::array<const char*, ActionID::count> action_names = {KEYBINDINGS(AS_STRING)};
 
-class Input {
-  public:
+struct Input {
     void begin_frame();
     void end_frame();
 
@@ -59,7 +59,9 @@ class Input {
 
     float2 mouse_pos{};
     float wheel{};
-    std::optional<std::string> input_text;
+
+    Slice<u8> input_text;
+
     std::array<bool, SDL_SCANCODE_COUNT> keyboard_repeat{};
 
     std::array<SDL_Scancode, ActionID::count> keybindings;
