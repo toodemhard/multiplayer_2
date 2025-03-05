@@ -237,7 +237,7 @@ bool init(void* memory) {
     arena_init(&state->level_arena, arena_alloc(&god_allocator, megabytes(5)), megabytes(5));
 
     for (i32 i = 0; i < scratch_count; i++)  {
-        scratch_arenas[i] = arena_suballoc(&god_allocator, megabytes(1));
+        state->scratch_arenas[i] = arena_suballoc(&god_allocator, megabytes(1));
     }
 
 

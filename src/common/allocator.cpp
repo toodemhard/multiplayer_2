@@ -7,7 +7,7 @@ ArenaTemp scratch_get(Arena** conflicts, i32 count) {
 
     for (i32 scratch_idx = 0; scratch_idx < scratch_count; scratch_idx++) {
         bool conflict = false;
-        Arena* arena_ptr = &scratch_arenas[scratch_idx];
+        Arena* arena_ptr = scratch_arenas[scratch_idx];
         for (i32 conflict_idx = 0; conflict_idx < count; conflict_idx++) {
             if (conflicts[conflict_idx] == arena_ptr) {
                 conflict = true;

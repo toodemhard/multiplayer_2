@@ -44,7 +44,6 @@ struct ArenaTemp {
 // void array_length()
 
 Arena arena_suballoc(Arena* arena, u64 size);
-
 Arena arena_create(void* start, u64 size);
 void arena_init(Arena* arena, void* start, u64 size);
 void* arena_alloc(Arena* arena, u64 size);
@@ -57,7 +56,7 @@ ArenaTemp scratch_get(Arena** conflicts, i32 count);
 void scratch_release(ArenaTemp temp);
 
 static constexpr int scratch_count = 2;
-inline thread_local Arena scratch_arenas[scratch_count];
+inline thread_local Arena* scratch_arenas[scratch_count];
 
 template<typename T, u64 N>
 struct Array {
