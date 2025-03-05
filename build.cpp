@@ -60,7 +60,7 @@ struct lib {
 
 const char* lib_path = "../../lib";
 
-#define TRACY_DEFINES "/D TRACY_ENABLE"// /D TRACY_MANUAL_LIFETIME /D TRACY_DELAYED_INIT";
+#define TRACY_DEFINES "/D TRACY_ENABLE /D TRACY_ON_DEMAND"// /D TRACY_MANUAL_LIFETIME /D TRACY_DELAYED_INIT";
 const char* tracy_defines = TRACY_DEFINES;
 
 const char* compile_flags = "-nologo /std:c++20 /EHsc /Zi /MP /MDd " TRACY_DEFINES " /D ENET_DLL";
@@ -445,7 +445,7 @@ int main(int argc, char* argv[]) {
             .rel_include_paths = {"public"},
             .lib_path = "TracyClient.lib",
             .shared_lib_path = "TracyClient.dll",
-            .cmake_args = "-DBUILD_SHARED_LIBS=ON -DTRACY_ENABLE=ON"// -DTRACY_DELAYED_INIT=ON -DTRACY_MANUAL_LIFETIME=ON"
+            .cmake_args = "-DBUILD_SHARED_LIBS=ON -DTRACY_ENABLE=ON -DTRACY_ON_DEMAND=ON"// -DTRACY_DELAYED_INIT=ON -DTRACY_MANUAL_LIFETIME=ON"
         },
         lib {
             .name = "yojimbo",
