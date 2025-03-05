@@ -34,18 +34,6 @@ const float hit_flash_duration = 0.1;
 
 static bool is_reloaded = true;
 
-struct Norm4 {
-    float r, g, b, a;
-};
-
-RGBA norm4_to_rgba(Norm4 norm4) {
-    return {
-        .r = u8(norm4.r * 255),
-        .g = u8(norm4.g * 255),
-        .b = u8(norm4.b * 255),
-        .a = u8(norm4.a * 255),
-    };
-}
 
 
 
@@ -69,7 +57,6 @@ bool init(void* memory) {
 
     std::cout << std::filesystem::current_path().string() << '\n';
 
-    // (State&)memory = State{};
     Arena god_allocator{};
     arena_init(&god_allocator, memory, megabytes(16));
     State* state = (State*)arena_alloc(&god_allocator, sizeof(State));
@@ -81,9 +68,6 @@ bool init(void* memory) {
     for (i32 i = 0; i < scratch_count; i++)  {
         state->scratch_arenas[i] = arena_suballoc(&god_allocator, megabytes(1));
     }
-
-
-    // panic("asasdf {} {}", 234, 65345);
 
     auto flags = SDL_WINDOW_INPUT_FOCUS; // | SDL_WINDOW_ALWAYS_ON_TOP; // | SDL_WINDOW_FULLSCREEN;
 
@@ -121,7 +105,7 @@ bool init(void* memory) {
         // font::load_font(&state->fonts[i], state->renderer, FontID::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
     }
 
-    state->input.init_keybinds(Input::default_keybindings);
+    input_init_keybinds(&state->input, default_keybindings);
 
     float2 player_position{0, 0};
 
@@ -146,7 +130,6 @@ bool init(void* memory) {
 
     Slice<Font> fonts_view = slice_create_view(&state->fonts.data[0], state->fonts.length);
 
-    local_scene_init(&state->local_scene, &state->level_arena, &state->input, &state->renderer, fonts_view);
     // double last_render_duration = 0.0;
 
     state->menu = menu_create(&state->level_arena, &state->input, state->window, &state->renderer, fonts_view);
@@ -155,14 +138,7 @@ bool init(void* memory) {
     return true;
 }
 
-// extern "C" INIT(Init) {
-// }
-
-
-
-
-
-Menu menu_create(Arena* scene_arena, Input::Input* input, SDL_Window* window, Renderer* renderer, const Slice<Font> fonts) {
+Menu menu_create(Arena* scene_arena, Input* input, SDL_Window* window, Renderer* renderer, const Slice<Font> fonts) {
     Menu menu = {
         .input=input,
         .renderer=renderer,
@@ -189,10 +165,10 @@ bool f;
 //     
 // }
 
-void text_field_input(Input::Input* input, Slice<u8>* text) {
+void text_field_input(Input* input, Slice<u8>* text) {
     string_cat(text, &input->input_text);
 
-    if (input->modifier(SDL_KMOD_CTRL) && input->key_down_repeat(SDL_SCANCODE_BACKSPACE)) {
+    if (input_modifier(SDL_KMOD_CTRL) && input_key_down_repeat(SDL_SCANCODE_BACKSPACE)) {
         i32 cut_to = -1;
         bool next_whitespace = false;
         for (i32 i = text->length - 1; i >= 0; (i--, cut_to = i)) {
@@ -205,12 +181,13 @@ void text_field_input(Input::Input* input, Slice<u8>* text) {
 
         text->length = cut_to + 1;
 
-    } else if (input->key_down_repeat(SDL_SCANCODE_BACKSPACE)) {
+    } else if (input_key_down_repeat(SDL_SCANCODE_BACKSPACE)) {
         if (text->length > 0) {
             text->length--;
         }
     }
 }
+
 
 void menu_update(Menu* menu, Arena* temp_arena) {
 
@@ -220,7 +197,7 @@ void menu_update(Menu* menu, Arena* temp_arena) {
 
     ui_set_ctx(&menu->ui);
 
-    ui_begin(menu->input);
+    ui_begin();
 
     ArenaTemp scratch = scratch_get(0, 0);
     defer(scratch_release(scratch));
@@ -286,6 +263,8 @@ void menu_update(Menu* menu, Arena* temp_arena) {
     ui_draw(&menu->ui, menu->renderer, temp_arena);
 }
 
+
+
 extern "C" UPDATE(update) {
     auto state = (State*)memory;
 
@@ -312,7 +291,7 @@ extern "C" UPDATE(update) {
     double delta_time = std::chrono::duration_cast<std::chrono::duration<double>>(this_frame_time - state->last_frame_time).count();
     state->last_frame_time = this_frame_time;
 
-    state->input.begin_frame();
+    input_begin_frame(&state->input);
 
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -361,42 +340,20 @@ extern "C" UPDATE(update) {
         }
     }
 
-    // if (is_reloaded) {
-    //     printf("%s", "わ");
-    // }
+    while (state->events.length > 0) {
+        Event event = ring_buffer_pop_front(&state->events);
+        
+        switch (event.type) {
+        case EventType_StartScene: {
+            Slice<Font> fonts_view = slice_create_view(&state->fonts.data[0], state->fonts.length);
+            local_scene_init(&state->local_scene, &state->level_arena, &state->input, &state->renderer, fonts_view, cstr_to_string("ahlfkjahdsf"));
+        } break;
 
+        }
 
-    // if (state->input.key_down(SDL_SCANCODE_F)) {
-    //     // ArenaTemp temp = scratch_get(0, 0);
-    //     // defer(scratch_release(temp));
-    //
-    //
-    //     Stream stream = {
-    //         .slice = slice_create<u8>(&state->temp_arena, 512),
-    //         .operation = Stream_Write,
-    //     };
-    //
-    //
-    //     TestMessage message = {
-    //          .str = literal("KYS!"),
-    //     };
-    //     serialize_test_message(&stream, NULL, &message);
-    //
-    //     ENetPacket* packet = enet_packet_create(stream.slice.data, stream.current, ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT);
-    //     enet_peer_send(state->server, Channel_Unreliable, packet);
-    // }
+    }
 
-
-
-
-
-    // if (state->input.key_down(SDL_SCANCODE_F) && state->input.modifier(SDL_KMOD_CTRL)) {
-    //     printf("reset");
-    //     state->initialized = false;
-    //
-    // }
-
-
+    input_set_ctx(&state->input);
 
     // update
     {
@@ -434,12 +391,13 @@ extern "C" UPDATE(update) {
         // render_begin_time).count();
     }
 
+    input_set_ctx(&state->input);
     bool reload = false;
-    if (state->input.key_down(SDL_SCANCODE_R) && state->input.modifier(SDL_KMOD_CTRL)) {
+    if (input_key_down(SDL_SCANCODE_R) && input_modifier(SDL_KMOD_CTRL)) {
         reload = true;
     }
 
-    state->input.end_frame();
+    input_end_frame(&state->input);
 
     is_reloaded = false;
 

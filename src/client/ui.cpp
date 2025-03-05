@@ -29,21 +29,17 @@ void ui_init(UI* ui, Arena* arena, Slice<Font> fonts, Renderer* renderer) {
     ui->cache = hashmap_create<UI_Key, u32>(arena, 1024);
 }
 
-void ui_begin(Input::Input* input) {
+void ui_begin() {
     ui_ctx->active_frame = (ui_ctx->active_frame + 1) % 2;
     u32 i = ui_ctx-> active_frame;
     ui_frame_init(&ui_ctx->frame_buffer[i], &ui_ctx->frame_arenas[i]);
     slice_clear(&ui_ctx->parent_stack);
-
-    ui_ctx->cursor_pos = *((float2*)&input->mouse_pos);
 
     Renderer* renderer = ui_ctx->renderer;
     ui_push_row({
         .size = {size_px(renderer->window_width), size_px(renderer->window_height)},
         // .background_color = {0.5,0.5,0.5,1},
     });
-
-    ui_ctx->input = input;
 }
 
 // UI_Key ui_push_leaf(UI_Element element) {
@@ -124,7 +120,7 @@ UI_Element* ui_get(UI_Key index) {
 }
 
 bool ui_button(UI_Key element) {
-    return ui_ctx->input->mouse_down(SDL_BUTTON_LEFT) && ui_hover(element);
+    return input_mouse_down(SDL_BUTTON_LEFT) && ui_hover(element);
 }
 
 bool ui_hover(UI_Key key) {
@@ -140,7 +136,7 @@ bool ui_hover(UI_Key key) {
 
     float2 p0 = *(float2*)&element->computed_position;
     float2 p1 = {p0.x + element->computed_size[Axis2_X], p0.y + element->computed_size[Axis2_Y]};
-    float2 cursor = ui_ctx->cursor_pos;
+    float2 cursor = input_mouse_position();
     bool is_hover = false;
     if (cursor.x >= p0.x && cursor.y >= p0.y && cursor.x <= p1.x && cursor.y <= p1.y) {
         is_hover = true;
@@ -375,10 +371,10 @@ void ui_end(Arena* temp_arena) {
 
         hashmap_set(&ui_ctx->cache, element->key, (u32)i);
 
-        if (ui_ctx->input->mouse_down(SDL_BUTTON_LEFT)) {
+        if (input_mouse_down(SDL_BUTTON_LEFT)) {
             float2 p0 = element->computed_position;
             float2 p1 = {p0.x + element->computed_size[Axis2_X], p0.y + element->computed_size[Axis2_Y]};
-            float2 cursor = ui_ctx->cursor_pos;
+            float2 cursor = input_mouse_position();
             // bool is_hover = false;
             if (cursor.x >= p0.x && cursor.y >= p0.y && cursor.x <= p1.x && cursor.y <= p1.y) {
                 ui_ctx->active_element = element->key;

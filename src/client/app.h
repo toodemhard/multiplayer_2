@@ -9,6 +9,7 @@
 #include "assets.h"
 #include "ui.h"
 #include "scene.h"
+#include "event.h"
 
 
 
@@ -17,7 +18,7 @@
 // void local_scene_render(LocalScene* scene, Renderer* renderer, SDL_Window* window);
 
 struct Menu {
-    Input::Input* input;
+    Input* input;
     Renderer* renderer;
 
     Slice<u8> text;
@@ -28,7 +29,7 @@ struct Menu {
 struct State {
     SDL_Window* window;
     Renderer renderer{};
-    Input::Input input;
+    Input input;
     LocalScene local_scene;
     Menu menu;
 
@@ -44,6 +45,8 @@ struct State {
     ENetPeer* server;
 
     bool initialized;
+
+    RingBuffer<Event, 10> events;
 };
 
-Menu menu_create(Arena* scene_arena, Input::Input* input, SDL_Window* window, Renderer* renderer, const Slice<Font> fonts);
+Menu menu_create(Arena* scene_arena, Input* input, SDL_Window* window, Renderer* renderer, const Slice<Font> fonts);

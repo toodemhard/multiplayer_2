@@ -119,12 +119,9 @@ struct UI {
     Slice<Font> fonts;
     f32 base_font_size;
 
-    float2 cursor_pos;
-
     UI_Key active_element;
 
     Renderer* renderer;
-    Input::Input* input;
 };
 
 struct ElementProps {
@@ -137,7 +134,7 @@ void ui_init(UI* ui, Arena* arena, Slice<Font> fonts, Renderer* renderer);
 void ui_draw(UI* ui_ctx, Renderer* renderer, Arena* temp_arena);
 UI_Key ui_push_row_internal(UI_Element element, const char* file, i32 line);
 UI_Key ui_pop_row();
-void ui_begin(Input::Input* input);
+void ui_begin();
 bool ui_is_active(UI_Key element);
 bool ui_button(UI_Key element);
 // UI_Key ui_push_leaf(UI_Element element);

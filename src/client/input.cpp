@@ -2,76 +2,80 @@
 
 #include "input.h"
 
-namespace Input {
+internal Input* input_ctx;
 
-void Input::begin_frame() {
+void input_begin_frame(Input* input) {
     ZoneScoped;
 
-    button_held_flags = SDL_GetMouseState(&mouse_pos.x, &mouse_pos.y);
-    mod_state = SDL_GetModState();
+    input->button_held_flags = SDL_GetMouseState(&input->mouse_pos.x, &input->mouse_pos.y);
+    input->mod_state = SDL_GetModState();
 
-    input_text = {};
+    input->input_text = {};
 }
 
-void Input::end_frame() {
+void input_end_frame(Input* input) {
     ZoneScoped;
 
-    keyboard_down = {};
-    keyboard_up = {};
-    keyboard_repeat = {};
+    input->keyboard_down = {};
+    input->keyboard_up = {};
+    input->keyboard_repeat = {};
 
-    button_down_flags = {};
-    button_up_flags = {};
+    input->button_down_flags = {};
+    input->button_up_flags = {};
 }
 
-void Input::init_keybinds(std::array<Keybind, ActionID::count> keybinds) {
-    for (auto kb : keybinds) {
-        keybindings[kb.action_id] = kb.scancode;
-    }
+float2 input_mouse_position() {
+    return input_ctx->mouse_pos;
 }
 
-bool Input::action_down(int action_id) {
-    return this->key_down(keybindings[action_id]);
+void input_set_ctx(Input* input) {
+    input_ctx = input;
 }
 
-bool Input::action_held(int action_id) {
-    return this->key_held(keybindings[action_id]);
+void input_init_keybinds(Input* input, Array<Keybind, ActionID::count> keybinds) {
+    memcpy(input->keybindings.data, keybinds.data, ActionID::count);
 }
 
-bool Input::action_up(int action_id) {
-    return this->key_up(keybindings[action_id]);
+bool input_action_down(int action_id) {
+    return input_key_down(input_ctx->keybindings[action_id]);
 }
 
-bool Input::modifier(const SDL_Keymod modifiers) const {
-    return (modifiers & mod_state);
+bool input_action_held(int action_id) {
+    return input_key_held(input_ctx->keybindings[action_id]);
 }
 
-bool Input::mouse_down(SDL_MouseButtonFlags button) const {
-    return (button_down_flags & SDL_BUTTON_MASK(button));
+bool input_action_up(int action_id) {
+    return input_key_up(input_ctx->keybindings[action_id]);
 }
 
-bool Input::mouse_held(SDL_MouseButtonFlags button) const {
-    return (button_held_flags & SDL_BUTTON_MASK(button)) || mouse_down(button);
+bool input_modifier(const SDL_Keymod modifiers) {
+    return (modifiers & input_ctx->mod_state) == modifiers;
 }
 
-bool Input::mouse_up(SDL_MouseButtonFlags button) const {
-    return (button_up_flags & SDL_BUTTON_MASK(button));
+bool input_mouse_down(SDL_MouseButtonFlags button) {
+    return (input_ctx->button_down_flags & SDL_BUTTON_MASK(button));
 }
 
-bool Input::key_down(const SDL_Scancode& scan_code) const {
-    return keyboard_down[scan_code];
+bool input_mouse_held(SDL_MouseButtonFlags button) {
+    return (input_ctx->button_held_flags & SDL_BUTTON_MASK(button)) || input_mouse_down(button);
 }
 
-bool Input::key_held(const SDL_Scancode& scan_code) const {
-    return keyboard_held[scan_code];
+bool input_mouse_up(SDL_MouseButtonFlags button) {
+    return (input_ctx->button_up_flags & SDL_BUTTON_MASK(button));
 }
 
-bool Input::key_up(const SDL_Scancode& scan_code) const {
-    return keyboard_up[scan_code];
+bool input_key_down(const SDL_Scancode& scan_code) {
+    return input_ctx->keyboard_down[scan_code];
 }
 
-bool Input::key_down_repeat(const SDL_Scancode& scan_code) const {
-    return keyboard_repeat[scan_code];
+bool input_key_held(const SDL_Scancode& scan_code) {
+    return input_ctx->keyboard_held[scan_code];
 }
 
+bool input_key_up(const SDL_Scancode& scan_code) {
+    return input_ctx->keyboard_up[scan_code];
+}
+
+bool input_key_down_repeat(const SDL_Scancode& scan_code) {
+    return input_ctx->keyboard_repeat[scan_code];
 }

@@ -33,7 +33,7 @@ static Chunk chunks[4] = {
     },
 };
 
-void end_input_events(Input::Input* tick_inputs) {
+void end_input_events(Input* tick_inputs) {
     tick_inputs->keyboard_up = {};
     tick_inputs->keyboard_down = {};
     tick_inputs->keyboard_repeat = {};
@@ -41,56 +41,55 @@ void end_input_events(Input::Input* tick_inputs) {
     tick_inputs->button_down_flags = {};
 }
 
-void accumulate_input_events(Input::Input& accumulator, Input::Input& new_frame) {
+void accumulate_input_events(Input* accumulator, Input* new_frame) {
     for (int i = 0; i < SDL_SCANCODE_COUNT; i++) {
-        accumulator.keyboard_up[i] |= new_frame.keyboard_up[i];
-        accumulator.keyboard_down[i] |= new_frame.keyboard_down[i];
-        accumulator.keyboard_repeat[i] |= new_frame.keyboard_repeat[i];
+        accumulator->keyboard_up[i] |= new_frame->keyboard_up[i];
+        accumulator->keyboard_down[i] |= new_frame->keyboard_down[i];
+        accumulator->keyboard_repeat[i] |= new_frame->keyboard_repeat[i];
 
-        accumulator.button_up_flags |= new_frame.button_up_flags;
-        accumulator.button_down_flags |= new_frame.button_down_flags;
+        accumulator->button_up_flags |= new_frame->button_up_flags;
+        accumulator->button_down_flags |= new_frame->button_down_flags;
     }
 }
 
-PlayerInput input_state(Input::Input& input, const Camera2D& camera, float2 window_size) {
-    using namespace Input;
+PlayerInput input_state(const Camera2D& camera, float2 window_size) {
     PlayerInput player_input{};
 
-    if (input.action_held(ActionID_move_up)) {
+    if (input_action_held(ActionID_move_up)) {
         player_input.up = true;
     }
-    if (input.action_held(ActionID_move_down)) {
+    if (input_action_held(ActionID_move_down)) {
         player_input.down = true;
     }
-    if (input.action_held(ActionID_move_left)) {
+    if (input_action_held(ActionID_move_left)) {
         player_input.left = true;
     }
-    if (input.action_held(ActionID_move_right)) {
+    if (input_action_held(ActionID_move_right)) {
         player_input.right = true;
     }
 
-    if (input.action_down(ActionID_dash)) {
+    if (input_action_down(ActionID_dash)) {
         player_input.dash = true;
     }
 
 
     for (i32 i = ActionID_hotbar_slot_1; i <= ActionID_hotbar_slot_8; i++) {
-        if (input.action_down(i)) {
+        if (input_action_down(i)) {
             player_input.select_spell[i - ActionID_hotbar_slot_1] = true;
         }
     }
-    if (input.key_down(SDL_SCANCODE_2)) {
+    if (input_key_down(SDL_SCANCODE_2)) {
         player_input.select_spell[1] = true;
     }
-    if (input.key_down(SDL_SCANCODE_3)) {
+    if (input_key_down(SDL_SCANCODE_3)) {
         player_input.select_spell[2] = true;
     }
 
-    if (input.mouse_down(SDL_BUTTON_LEFT)) {
+    if (input_mouse_down(SDL_BUTTON_LEFT)) {
         player_input.fire = true;
     }
 
-    player_input.cursor_world_pos = screen_to_world_pos(camera, input.mouse_pos, window_size.x, window_size.y);
+    player_input.cursor_world_pos = screen_to_world_pos(camera, input_mouse_position(), window_size.x, window_size.y);
 
     return player_input;
 }
@@ -149,7 +148,7 @@ void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void
     renderer::draw_world_polygon(&renderer, *renderer.active_camera, (float2*)vertices, vertexCount, hex_to_rgban(color));
 }
 
-void local_scene_init(LocalScene* scene, Arena* level_arena, Input::Input* input, Renderer* renderer, Slice<Font> fonts) {
+void local_scene_init(LocalScene* scene, Arena* level_arena, Input* input, Renderer* renderer, Slice<Font> fonts, String_8 ip_address) {
     *scene = {};
     scene->input = input;
     scene->renderer = renderer;
@@ -200,6 +199,8 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
 
     s->tick_input.keybindings = s->input->keybindings;
 
+    input_set_ctx(s->input);
+
     ENetEvent net_event;
     while (enet_host_service(s->client, &net_event, 0)) {
         switch (net_event.type) {
@@ -248,11 +249,11 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
 
 
     // spell_move_source {}
-    accumulate_input_events(s->tick_input, *s->input);
+    accumulate_input_events(&s->tick_input, s->input);
 
     ui_set_ctx(&s->ui);
 
-    ui_begin(s->input);
+    ui_begin();
 
     f32 grid_width = 4;
     f32 slot_width = 60;
@@ -278,12 +279,12 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
         });
 
         if (s->inventory_open) {
-            if (ui_hover(id) && s->input->mouse_down(SDL_BUTTON_LEFT) && player->hotbar[i] != SpellType_NULL) {
+            if (ui_hover(id) && input_mouse_down(SDL_BUTTON_LEFT) && player->hotbar[i] != SpellType_NULL) {
                 s->moving_spell = true;
                 s->spell_move_src = i;
             }
 
-            if (s->moving_spell && ui_hover(id) && s->input->mouse_up(SDL_BUTTON_LEFT)) {
+            if (s->moving_spell && ui_hover(id) && input_mouse_up(SDL_BUTTON_LEFT)) {
                 s->spell_move_dst = i;
                 s->move_submit = true;
             }
@@ -317,7 +318,7 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
     //     next_frame = false;
     // }
 
-    if (s->input->key_down(SDL_SCANCODE_TAB)) {
+    if (input_key_down(SDL_SCANCODE_TAB)) {
         s->inventory_open = !s->inventory_open;
 
     }
@@ -365,21 +366,23 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
     ui_end(frame_arena);
 
     while (s->accumulator >= fixed_dt) {
-        s->tick_input.begin_frame();
+        input_begin_frame(&s->tick_input);
+
+        input_set_ctx(&s->tick_input);
 
         s->accumulator = s->accumulator - fixed_dt;
         s->time += fixed_dt;
 
-        if (s->tick_input.key_down(SDL_SCANCODE_R)) {
+        if (input_key_down(SDL_SCANCODE_R)) {
             s->accumulator += fixed_dt;
         }
 
-        if (s->tick_input.key_down(SDL_SCANCODE_E)) {
+        if (input_key_down(SDL_SCANCODE_E)) {
             s->accumulator -= fixed_dt;
         }
 
         ClientID id = 0;
-        PlayerInput input = input_state(s->tick_input, s->camera, {(f32)s->renderer->window_width, (f32)s->renderer->window_height});
+        PlayerInput input = input_state(s->camera, {(f32)s->renderer->window_width, (f32)s->renderer->window_height});
 
         if (s->move_submit) {
             s-> move_submit = false;
@@ -405,7 +408,7 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
         enet_host_flush(s->client);
 
 
-        if (s->tick_input.mouse_up(SDL_BUTTON_LEFT)) {
+        if (input_mouse_up(SDL_BUTTON_LEFT)) {
             s->moving_spell = false;
         }
         // int throttle_ticks{};
@@ -420,17 +423,19 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
 
         s->current_tick++;
 
-        s->tick_input.end_frame();
+        input_end_frame(&s->tick_input);
 
         arena_reset(&tick_arena);
     }
 
-    if (s->input->key_down(SDL_SCANCODE_E) && s->input->modifier(SDL_KMOD_CTRL)) {
+    input_set_ctx(s->input);
+
+    if (input_key_down(SDL_SCANCODE_E) && input_modifier(SDL_KMOD_CTRL)) {
         s->edit_mode = !s->edit_mode;
     }
 
     if (s->edit_mode) {
-        if (s->input->mouse_held(SDL_BUTTON_LEFT)) {
+        if (input_mouse_held(SDL_BUTTON_LEFT)) {
             auto& chunk = chunks[3];
             auto pos = screen_to_world_pos(s->camera, s->input->mouse_pos, s->renderer->window_width, s->renderer->window_height);
             i32 x = (i32) chunk.position.x + (floor(pos.x) / grid_step);
