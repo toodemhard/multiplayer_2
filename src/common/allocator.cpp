@@ -87,7 +87,8 @@ void arena_end_temp_allocs(ArenaTemp temp) {
 const global u64 fnv_offset_basis = 14695981039346656037ULL;
 const global u64 fnv_prime = 1099511628211ULL;
 
-const global f64 max_load_factor = 0.7;
+
+// should switch to xxhash later
 
 // https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
 u64 fnv1a(Slice<u8> key) {
@@ -101,19 +102,32 @@ u64 fnv1a(Slice<u8> key) {
     return hash;
 }
 
-Hashmap hashmap_create(Arena* arena, u64 capacity) {
-    u64 length = capacity / max_load_factor;
-    return Hashmap {
-        .keys = slice_create_fixed<String8>(arena, length),
-        .values = slice_create_fixed<u32>(arena, length),
-    };
-}
 
 String8 literal(const char* str) {
     return {
         .data = (u8*)str,
         .length = strlen(str),
     };
+}
+
+// need utf32 and utf8 later
+
+Slice<u8> cstr_to_string(const char* str) {
+    return {
+        .data = (u8*)str,
+        .length = strlen(str),
+    };
+}
+
+char* string_to_cstr(Arena* arena, const Slice<u8> string) {
+    Slice<u8> cstr = slice_create<u8>(arena, string.length + 1);
+    slice_push_range(&cstr, string.data, string.length);
+    slice_push(&cstr, (u8)'\0');
+    return (char*)cstr.data;
+}
+
+void string_cat(Slice<u8>* dst, const Slice<u8>* src) {
+    slice_push_range(dst, src->data, src->length);
 }
 
 bool string_compare(String8 a, String8 b) {
@@ -134,54 +148,6 @@ Slice<u8> string_to_byte_slice(String8 str) {
     };
 }
 
-bool hashmap_key_exists(const Hashmap* hashmap, String8 key) {
-    u64 idx = fnv1a(string_to_byte_slice(key)) % hashmap->keys.length;
-
-    bool exists = false;
-
-    while (hashmap->keys[idx].data != NULL) {
-        if (string_compare(key, hashmap->keys[idx])) {
-            exists = true;
-            break;
-        }
-
-        idx = (idx + 1) % hashmap->keys.length;
-    }
-
-    return exists;
-}
-
-u32 hashmap_get(const Hashmap* hashmap, String8 key) {
-    u64 idx = fnv1a(string_to_byte_slice(key)) % hashmap->keys.length;
-
-    bool exists = false;
-
-    while (hashmap->keys[idx].data != NULL) {
-        if (string_compare(key, hashmap->keys[idx])) {
-            exists = true;
-            break;
-        }
-
-        idx = (idx + 1) % hashmap->keys.length;
-    }
-
-    ASSERT(exists)
-
-    return hashmap->values[idx];
-}
-
-void hashmap_set(Hashmap* hashmap, String8 key, u32 value) {
-    ASSERT(hashmap->count / (double)hashmap->keys.length < max_load_factor);
-    hashmap->count++;
-    u64 idx = fnv1a(string_to_byte_slice(key)) % hashmap->keys.length;
-
-    while (hashmap->keys[idx].data != NULL) {
-        idx = (idx + 1) % hashmap->keys.length;
-    }
-
-    hashmap->keys[idx] = key;
-    hashmap->values[idx] = value;
-}
 
 
 void bitlist_init(Bitlist* bitlist, Arena* arena, u32 capacity) {

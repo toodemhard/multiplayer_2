@@ -104,7 +104,7 @@ int main() {
                 }
                 if (!found_hole) {
                     slice_push(&clients, {});
-                    client = &slice_back(&clients);
+                    client = &slice_back(clients);
                 }
 
                 *client = {

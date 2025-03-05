@@ -87,6 +87,7 @@ const T& array_get(const Array<T, N>* array, u64 index) {
 }
 
 // currently this is serving fixed arraylist, fixed array, buffer view, just with different functions
+// because using arena it doesnt matter whether its a view or orignal source because lifetime not tied to slice
 // in future it could even be dynamic arraylist
 // maybe should be different types idfk
 // hard to tell which it's supposed to be
@@ -108,6 +109,11 @@ T& slice_get(const Slice<T>* slice, u64 index) {
     ASSERT(index < slice->length)
 
     return slice->data[index];
+}
+
+template<typename T>
+u64 slice_size_bytes(const Slice<T>slice) {
+    return slice.length * sizeof(T);
 }
 
 template<typename T>
@@ -162,9 +168,20 @@ void slice_clear(Slice<T>* slice) {
 }
 
 template<typename T> 
-T& slice_back(Slice<T>* slice) {
-    ASSERT(slice->length > 0);
-    return (*slice)[slice->length - 1];
+T& slice_back(const Slice<T> slice) {
+    ASSERT(slice.length > 0);
+    return slice[slice.length - 1];
+}
+
+template<typename T>
+Slice<u8> slice_data_raw(const Slice<T> slice) {
+    u64 length = sizeof(T) * slice.length;
+    return slice_create_view((u8*)slice.data, length);
+}
+
+template<typename T>
+void slice_push_range(Slice<T>* dst, const Slice<T> src) {
+    slice_push_range(dst, src.data, src.length);
 }
 
 template<typename T>
@@ -196,20 +213,119 @@ inline char* c_str(Arena* arena, String8 string) {
     return (char*)idk.data;
 }
 
+typedef u8 HashmapFlags;
 
+// hashmap remove not implemented yet
+// might not even need
+enum HashmapFlag {
+    HashmapFlag_Occupied = 1 << 0,     // if searching stop
+    HashmapFlag_Killed = 1 << 1,   // if searching for space to set use this, if searching for value continue
+};
+
+template<typename K>
+struct HashmapKey {
+    K key;
+    HashmapFlags flags;
+};
+
+template <typename K, typename V>
 struct Hashmap {
-    Slice<String8> keys;
-    Slice<u32> values;
+    Slice<HashmapKey<K>> keys;
+    Slice<V> values;
 
     u64 count;
 };
 
+// template <typename T, typename V>
+// struct Hashmap<Slice<T>, V> {
+//     Slice<Slice<T>> keys;
+//     Slice<V> values;
+//
+//     u64 count;
+// };
+
+typedef Slice<u8> String_8;
+typedef Slice<u8> StringUtf8;
+typedef Slice<u32> String_32;
+
 String8 literal(const char* str);
 
-Hashmap hashmap_create(Arena* arena, u64 capacity);
-bool hashmap_key_exists(const Hashmap* hashmap, String8 key);
-u32 hashmap_get(const Hashmap* hashmap, String8 key);
-void hashmap_set(Hashmap* hashmap, String8 key, u32 value);
+u64 fnv1a(Slice<u8> key);
+
+Slice<u8> cstr_to_string(const char* str);
+char* string_to_cstr(Arena* arena, const Slice<u8> string);
+void string_cat(Slice<u8>* dst, const Slice<u8>* src);
+
+const internal f64 max_load_factor = 0.7;
+
+template <typename K, typename V>
+Hashmap<K, V> hashmap_create(Arena* arena, u64 capacity) {
+    u64 length = capacity / max_load_factor;
+    return Hashmap {
+        .keys = slice_create_fixed<HashmapKey<K>>(arena, length),
+        .values = slice_create_fixed<V>(arena, length),
+    };
+}
+
+template <typename K, typename V>
+bool hashmap_key_exists(const Hashmap<K, V>* hashmap, K key) {
+    u64 idx = fnv1a(slice_create_view((u8*)&key, sizeof(key))) % hashmap->keys.length;
+
+    bool exists = false;
+
+    while (hashmap->keys[idx].flags & HashmapFlag_Occupied) {
+        if (key == hashmap->keys[idx].key) {
+            exists = true;
+            break;
+        }
+
+        idx = (idx + 1) % hashmap->keys.length;
+    }
+
+    return exists;
+}
+
+template <typename K, typename V>
+V hashmap_get(const Hashmap<K, V>* hashmap, K key) {
+    u64 idx = fnv1a(slice_create_view((u8*)&key, sizeof(key))) % hashmap->keys.length;
+
+    bool exists = false;
+
+    while (hashmap->keys[idx].flags & HashmapFlag_Occupied) {
+        if (key == hashmap->keys[idx].key) {
+            exists = true;
+            break;
+        }
+
+        idx = (idx + 1) % hashmap->keys.length;
+    }
+
+    ASSERT(exists)
+
+    return hashmap->values[idx];
+}
+
+template <typename K, typename V>
+void hashmap_set(Hashmap<K, V>* hashmap, K key, V value) {
+    ASSERT(hashmap->count / (f64)hashmap->keys.length < max_load_factor);
+    u64 idx = fnv1a(slice_create_view((u8*)&key, sizeof(key))) % hashmap->keys.length;
+
+    while (hashmap->keys[idx].key != key && hashmap->keys[idx].flags & HashmapFlag_Occupied) {
+        idx = (idx + 1) % hashmap->keys.length;
+    }
+
+    // this will break after adding remove function pls check kill
+    // if updateing existing key then dont increment obviously
+    if (hashmap->keys[idx].key != key) {
+        hashmap->count++;
+    }
+
+    hashmap->keys[idx] = {
+        .key=key,
+        .flags=HashmapFlag_Occupied,
+    };
+    hashmap->values[idx] = value;
+}
 
 u64 fnv1a(Slice<u8> key);
 
