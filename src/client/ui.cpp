@@ -52,23 +52,37 @@ bool ui_is_active(UI_Key element) {
     return ui_ctx->active_element == element;
 }
 
+UI_Key ui_key(Slice<u8> key) {
+    return fnv1a(key);
+}
+
 UI_Key ui_push_row_internal(UI_Element element, const char* file, i32 line) {
     UI_Frame* ui = &ui_ctx->frame_buffer[ui_ctx->active_frame];
 
     UI_Key index = ui->elements.length;
 
-    u32 key_size = element.source_key.length + sizeof(line) + element.salt_key.length;
+    bool use_src_key = false;
+    if (element.exc_key.length == 0) {
+        use_src_key = true;
+    }
+
+    u32 key_size = element.exc_key.length +  element.salt_key.length;
+    if (use_src_key) {
+        key_size += sizeof(line);
+    }
 
     ArenaTemp scratch = scratch_get(0,0);
     defer(scratch_release(scratch));
     
     Slice<u8> key = slice_create<u8>(scratch.arena, key_size);
 
-    slice_push_range(&key, slice_data_raw(element.source_key));
-    slice_push_range(&key, (u8*)&line, sizeof(line));
+    slice_push_range(&key, slice_data_raw(element.exc_key));
+    if (use_src_key) {
+        slice_push_range(&key, (u8*)&line, sizeof(line));
+    }
     slice_push_range(&key, slice_data_raw(element.salt_key));
 
-    element.key = fnv1a(key);
+    element.computed_key = fnv1a(key);
 
     // if (element.key == ui_ctx->active_element) {
     //     UI_Size border[RectSide_Count] = sides_px(4);
@@ -109,10 +123,10 @@ UI_Key ui_push_row_internal(UI_Element element, const char* file, i32 line) {
     slice_push(&ui_ctx->parent_stack, current);
 
     if (element.out_key != NULL) {
-        *element.out_key = element.key;
+        *element.out_key = element.computed_key;
     }
 
-    return element.key;
+    return element.computed_key;
 }
 
 UI_Element* ui_get(UI_Key index) {
@@ -146,7 +160,7 @@ bool ui_hover(UI_Key key) {
 }
 
 UI_Key ui_pop_row() {
-    UI_Key element = slice_back(ui_ctx->parent_stack)->key;
+    UI_Key element = slice_back(ui_ctx->parent_stack)->computed_key;
     slice_pop(&ui_ctx->parent_stack);
     return element;
 }
@@ -369,7 +383,7 @@ void ui_end(Arena* temp_arena) {
     for (i32 i = 0; i < ui->elements.length; i++) {
         UI_Element* element = &ui->elements[i];
 
-        hashmap_set(&ui_ctx->cache, element->key, (u32)i);
+        hashmap_set(&ui_ctx->cache, element->computed_key, (u32)i);
 
         if (input_mouse_down(SDL_BUTTON_LEFT)) {
             float2 p0 = element->computed_position;
@@ -377,7 +391,7 @@ void ui_end(Arena* temp_arena) {
             float2 cursor = input_mouse_position();
             // bool is_hover = false;
             if (cursor.x >= p0.x && cursor.y >= p0.y && cursor.x <= p1.x && cursor.y <= p1.y) {
-                ui_ctx->active_element = element->key;
+                ui_ctx->active_element = element->computed_key;
             }
         }
     }

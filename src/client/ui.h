@@ -62,10 +62,10 @@ typedef u64 UI_Key;
 struct UI_Element {
     // user config
     UI_Key* out_key;
+    Slice<u8> exc_key; // replaces source key to be able to id key in multiple places
+    Slice<u8> salt_key; // adds to source key
     UI_Flags flags;
     const char* text;
-    Slice<u8> source_key;
-    Slice<u8> salt_key;
     FontID font;
     FontSize font_size;
     ImageID image;
@@ -80,7 +80,7 @@ struct UI_Element {
     float4 font_color;
 
     // computed stuff possibly read only to user
-    UI_Key key;
+    UI_Key computed_key;
     float2 computed_position;
     float2 computed_size;
     f32 computed_padding[RectSide_Count];
@@ -127,6 +127,7 @@ struct UI {
 struct ElementProps {
 };
 
+UI_Key ui_key(Slice<u8> key);
 UI_Element* ui_get(UI_Key index);
 bool ui_hover(UI_Key index);
 void ui_set_ctx(UI* _ui);
