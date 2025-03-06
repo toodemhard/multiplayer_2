@@ -31,9 +31,16 @@ float2 input_mouse_position() {
 void input_set_ctx(Input* input) {
     input_ctx = input;
 }
+Input* input_get_ctx() {
+    return input_ctx;
+}
 
 void input_init_keybinds(Input* input, Array<Keybind, ActionID::count> keybinds) {
-    memcpy(input->keybindings.data, keybinds.data, ActionID::count);
+    for (i32 i = 0; i < keybinds.length; i ++) {
+        Keybind* kb = &keybinds[i];
+        input->keybindings[kb->action_id] = kb->scancode;
+    }
+    // input->keybindings = keybinds;
 }
 
 bool input_action_down(int action_id) {

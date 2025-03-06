@@ -1,16 +1,9 @@
 #pragma once
 
-// #include <SDL3/SDL.h>
-// #include <glm/glm.hpp>
-//
-//
-// #include "SDL3/SDL_gpu.h"
-
 #include "assets.h"
 #include "color.h"
 #include "common/allocator.h"
 #include "common/base_math.h"
-
 
 struct Texture {
     SDL_GPUTexture* texture;
@@ -34,11 +27,6 @@ struct MixColor {
     float t;
 };
 
-// struct TextureRectVert {
-//     float2 position;
-//     float2 
-// }
-
 struct Camera2D {
     float2 position;
     float2 scale;
@@ -59,18 +47,6 @@ struct SpriteVertex {
     RGBA mix_color;
     float t;
 };
-
-// struct Slice {
-//     int start, count;
-// };
-//
-// struct TextureDraw {
-//     Slice verts_slice;
-//     Slice indices_slice;
-//
-//     TextureID texture;
-//     MixColor mix_color;
-// };
 
 struct SpriteProperties {
     TextureID texture_id;
@@ -144,26 +120,23 @@ inline float2 screen_to_world_pos(const Camera2D& cam, float2 screen_pos, int s_
 float2 snap_pos(float2 pos);
 
 
-namespace renderer {
-
 SDL_GPUShader* load_shader( SDL_GPUDevice* device, const char* shaderPath, Uint32 samplerCount, Uint32 uniformBufferCount, Uint32 storageBufferCount, Uint32 storageTextureCount);
 
+void renderer_set_ctx(Renderer* _renderer);
 int init_renderer(Renderer* renderer_out, SDL_Window* window);
-void begin_rendering(Renderer* renderer, SDL_Window* window, Arena* temp_arena);
-void end_rendering(Renderer* renderer);
+void begin_rendering(SDL_Window* window, Arena* temp_arena);
+void end_rendering();
 
 float2 world_to_normalized(Camera2D camera, float2 world_pos);
 Rect world_rect_to_normalized(Camera2D camera, Rect world_rect);
 Rect screen_rect_to_normalized(Rect rect, float2 resolution);
 
-void draw_sprite_world(Renderer* renderer, Camera2D camera, Rect world_rect, const SpriteProperties& properties);
-void draw_sprite_screen(Renderer* renderer, Rect screen_rect, const SpriteProperties& properties);
-void draw_world_lines(Renderer* renderer, Camera2D camera, float2* vertices, int vert_count, float4 color);
-void draw_world_rect(Renderer* renderer, Camera2D camera, Rect rect, float4 rgba);
-void draw_screen_rect(Renderer* renderer, Rect rect, float4 rgba);
+void draw_sprite_world(Camera2D camera, Rect world_rect, const SpriteProperties& properties);
+void draw_sprite_screen(Rect screen_rect, const SpriteProperties& properties);
+void draw_world_lines(Camera2D camera, float2* vertices, int vert_count, float4 color);
+void draw_world_rect(Camera2D camera, Rect rect, float4 rgba);
+void draw_screen_rect(Rect rect, float4 rgba);
 
-Texture load_texture(Renderer* renderer, TextureID texture_id, const Image& image);
+Texture load_texture(TextureID texture_id, const Image& image);
 
-void draw_world_polygon(Renderer* renderer, const Camera2D& camera, float2* verts, int vert_count, float4 color);
-
-} // namespace renderer
+void draw_world_polygon(const Camera2D& camera, float2* verts, int vert_count, float4 color);

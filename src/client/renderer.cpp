@@ -7,6 +7,8 @@
 #include "panic.h"
 #include "common/types.h"
 
+global Renderer* renderer;
+
 i32 round_to_i32(f32 value) {
     return (i32)(value + 0.5f);
 }
@@ -19,7 +21,9 @@ float2 snap_pos(float2 pos) {
     return {truncate_to_i32(pos.x * 16.0f) / 16.0f, truncate_to_i32(pos.y * 16.0f) / 16.0f};
 }
 
-namespace renderer {
+void renderer_set_ctx(Renderer* _renderer) {
+    renderer = _renderer;
+}
 
 int init_renderer(Renderer* renderer, SDL_Window* window) {
     ZoneScoped;
@@ -382,26 +386,26 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
     return 0;
 }
 
-void draw_sprite(Renderer* renderer, Rect normalized_rect, const SpriteProperties& properties);
+void draw_sprite(Rect normalized_rect, const SpriteProperties& properties);
 
 
-void draw_sprite_world(Renderer* renderer, Camera2D camera, Rect world_rect, const SpriteProperties& properties) {
+void draw_sprite_world(Camera2D camera, Rect world_rect, const SpriteProperties& properties) {
     camera.position = snap_pos(camera.position);
     world_rect.position = snap_pos(world_rect.position);
 
     auto normalized_rect = world_rect_to_normalized(camera, world_rect);
-    draw_sprite(renderer, normalized_rect, properties);
+    draw_sprite(normalized_rect, properties);
 }
 
-void draw_sprite_screen(Renderer* renderer, Rect screen_rect, const SpriteProperties& properties) {
+void draw_sprite_screen(Rect screen_rect, const SpriteProperties& properties) {
     auto resolution = float2{(f32)renderer->window_width, (f32)renderer->window_height};
     auto norm_rect = screen_rect_to_normalized(screen_rect, resolution);
 
-    draw_sprite(renderer, norm_rect, properties);
+    draw_sprite(norm_rect, properties);
 }
 
 
-void draw_sprite(Renderer* renderer, Rect normalized_rect, const SpriteProperties& properties) {
+void draw_sprite(Rect normalized_rect, const SpriteProperties& properties) {
 
     auto normalized_texture_rect = Rect{float2{0,0}, {1,1}};
     if (properties.src_rect.has_value()) {
@@ -506,8 +510,7 @@ Rect world_rect_to_normalized(Camera2D camera, Rect world_rect) {
     };
 }
 
-void begin_rendering(Renderer* renderer, SDL_Window* window, Arena* temp_arena) {
-
+void begin_rendering(SDL_Window* window, Arena* temp_arena) {
     slice_init(&renderer->draw_list, temp_arena, 100);
     slice_init(&renderer->vertex_data, temp_arena, megabytes(0.5));
     slice_init(&renderer->index_data, temp_arena, megabytes(0.5));
@@ -555,7 +558,7 @@ void push_to_transfer_buffer(void** transfer_ptr, void* data, u32 size) {
     *transfer_ptr = (uint8_t*)*transfer_ptr + size;
 };
 
-void end_rendering(Renderer* renderer) {
+void end_rendering() {
     ZoneScoped;
 
     if (renderer->null_swapchain) {
@@ -692,7 +695,7 @@ void end_rendering(Renderer* renderer) {
 // other stuff user has to keep it
 // texture id only for renderer managed texture
 // renderer needs to know about textures for bucketing draw calls
-Texture load_texture(Renderer* renderer, TextureID texture_id, const Image& image) {
+Texture load_texture(TextureID texture_id, const Image& image) {
     ZoneScoped;
 
     const int comp = 4;
@@ -781,7 +784,7 @@ RGBA rgban_to_rgba(float4 rgba) {
     };
 }
 
-void draw_world_lines(Renderer* renderer, Camera2D camera, float2* vertices, int vert_count, float4 color) {
+void draw_world_lines(Camera2D camera, float2* vertices, int vert_count, float4 color) {
     camera.position = snap_pos(camera.position);
 
     int start_index = 0;
@@ -827,7 +830,7 @@ void draw_world_lines(Renderer* renderer, Camera2D camera, float2* vertices, int
     }
 }
 
-void draw_world_polygon(Renderer* renderer, const Camera2D& camera, float2* verts, int vert_count, float4 color) {
+void draw_world_polygon(const Camera2D& camera, float2* verts, int vert_count, float4 color) {
     ASSERT(vert_count >= 3)
 
     bool push_new_draw = true;
@@ -872,7 +875,7 @@ void draw_world_polygon(Renderer* renderer, const Camera2D& camera, float2* vert
     }
 }
 
-void draw_rect(Renderer* renderer, Rect normalized_rect, float4 rgba) {
+void draw_rect(Rect normalized_rect, float4 rgba) {
     PositionColorVertex vertices[4] = {
         {{-1.0, -1.0}},
         {{1.0, -1.0}},
@@ -937,13 +940,12 @@ Rect screen_rect_to_normalized(Rect rect, float2 resolution) {
     return normal_rect;
 }
 
-void draw_world_rect(Renderer* renderer, Camera2D camera, Rect rect, float4 rgba) {
-    draw_rect(renderer, world_rect_to_normalized(camera, rect), rgba);
+void draw_world_rect(Camera2D camera, Rect rect, float4 rgba) {
+    draw_rect(world_rect_to_normalized(camera, rect), rgba);
 }
 
-void draw_screen_rect(Renderer* renderer, Rect rect, float4 rgba) {
+void draw_screen_rect(Rect rect, float4 rgba) {
     auto resolution = float2{(f32)renderer->window_width, (f32)renderer->window_height};
-    draw_rect(renderer, screen_rect_to_normalized(rect, resolution), rgba);
+    draw_rect(screen_rect_to_normalized(rect, resolution), rgba);
 }
 
-} // namespace renderer

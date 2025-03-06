@@ -15,7 +15,7 @@ internal void ui_frame_init(UI_Frame* frame, Arena* arena) {
     // frame->hashed_elements = hashmap_create(arena, 1024);
 }
 
-void ui_init(UI* ui, Arena* arena, Slice<Font> fonts, Renderer* renderer) {
+void ui_init(UI* ui, Arena* arena, const Slice<Font> fonts, Renderer* renderer) {
     for (i32 i = 0; i < 2; i++) {
         ui->frame_arenas[i] = arena_suballoc(arena, megabytes(0.5));
         ui_frame_init(&ui->frame_buffer[i], &ui->frame_arenas[i]);
@@ -226,7 +226,7 @@ void ui_end(Arena* temp_arena) {
             current->font_size.value = 16;
         }
 
-        float2 text_size = font::text_dimensions(ui_ctx->fonts[current->font], current->text, current->font_size.value);
+        float2 text_size = text_dimensions(ui_ctx->fonts[current->font], current->text, current->font_size.value);
 
         float2 image_size = {};
 
@@ -405,7 +405,7 @@ float2 float2_add(float2 a, float2 b) {
     return {a.x + b.x, a.y + b.y};
 }
 
-void ui_draw(UI* ui_ctx, Renderer* renderer, Arena* temp_arena) {
+void ui_draw(UI* ui_ctx, Arena* temp_arena) {
     ArenaTemp checkpoint = arena_begin_temp_allocs(temp_arena);
     defer(arena_end_temp_allocs(checkpoint));
 
@@ -433,7 +433,7 @@ void ui_draw(UI* ui_ctx, Renderer* renderer, Arena* temp_arena) {
             child = child->prev_sibling;
         }
         Rect rect = {current->computed_position, current->computed_size};
-        renderer::draw_screen_rect(renderer, rect, current->background_color);
+        draw_screen_rect(rect, current->background_color);
 
         for (i32 i = 0; i < RectSide_Count; i++) {
             i32 horizontal = i / 2;
@@ -451,7 +451,7 @@ void ui_draw(UI* ui_ctx, Renderer* renderer, Arena* temp_arena) {
             if (i == RectSide_Bottom) {
                 border_rect.y += current->computed_size[Axis2_Y] - border_width;
             }
-            renderer::draw_screen_rect(renderer, border_rect, current->border_color);
+            draw_screen_rect(border_rect, current->border_color);
         }
 
         float2 content_size = current->computed_size;
@@ -462,13 +462,13 @@ void ui_draw(UI* ui_ctx, Renderer* renderer, Arena* temp_arena) {
         
 
         if (current->image != ImageID_NULL) {
-            renderer::draw_sprite_screen(renderer, {current->content_position, content_size}, 
+            draw_sprite_screen({current->content_position, content_size}, 
             SpriteProperties{
                 .texture_id = image_id_to_texture_id(current->image)
             });
         }
 
-        font::draw_text(renderer, ui_ctx->fonts[current->font], current->text, current->font_size.value, current->content_position);
+        draw_text(ui_ctx->fonts[current->font], current->text, current->font_size.value, current->content_position);
     }
 
     while (post_stack.length > 0) {

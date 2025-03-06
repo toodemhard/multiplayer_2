@@ -58,6 +58,7 @@ struct Input {
 void input_begin_frame(Input* input);
 void input_end_frame(Input* input);
 void input_set_ctx(Input* input);
+Input* input_get_ctx();
 void input_init_keybinds(Input* input, Array<Keybind, ActionID::count> keybinds);
 float2 input_mouse_position();
 

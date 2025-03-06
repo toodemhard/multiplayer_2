@@ -4,7 +4,6 @@
 
 #define ASSERT(condition) if (!(condition)) { fprintf(stderr, "ASSERT: %s %s:%d\n", #condition, __FILE__, __LINE__); __debugbreak(); }
 
-
 #define internal static
 #define global static
 #define local_persist static
