@@ -49,7 +49,7 @@ bool input_action_up(int action_id) {
 }
 
 bool input_modifier(const SDL_Keymod modifiers) {
-    return (modifiers & input_ctx->mod_state) == modifiers;
+    return modifiers & input_ctx->mod_state;
 }
 
 bool input_mouse_down(SDL_MouseButtonFlags button) {
