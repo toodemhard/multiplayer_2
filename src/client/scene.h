@@ -1,8 +1,6 @@
 #pragma once
 
-#include "input.h"
-#include "renderer.h"
-#include "font.h"
+#include "event.h"
 #include "ui.h"
 #include "common/game.h"
 
@@ -30,11 +28,8 @@ struct Chunk {
 };
 
 struct LocalScene {
-    Input* input;
+    System* sys;
     Input tick_input; // accumulates input events over multiple frames for cases where render freq > tick freq its here for a reason pls dont delete
-    Renderer* renderer;
-
-    Slice<Font> fonts;
 
     UI ui;
 
@@ -70,6 +65,5 @@ struct LocalScene {
     ENetPeer* server;
 };
 
-void local_scene_init(LocalScene* scene, Arena* level_arena, Input* input, Renderer* renderer, Slice<Font> fonts, String_8 ip_address);
+void local_scene_init(LocalScene* scene, Arena* level_arena, System* sys, String_8 ip_address);
 void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time);
-void local_scene_render(LocalScene* s, Renderer* renderer, Arena* frame_arena, SDL_Window* window);

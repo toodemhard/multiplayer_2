@@ -2,10 +2,6 @@
 
 #include "common/game.h"
 #include "common/allocator.h"
-#include "renderer.h"
-#include "color.h"
-#include "font.h"
-#include "input.h"
 #include "assets.h"
 #include "ui.h"
 #include "scene.h"
@@ -17,23 +13,18 @@
 // void local_scene_update(LocalScene* scene, double delta_time);
 // void local_scene_render(LocalScene* scene, Renderer* renderer, SDL_Window* window);
 
+
 struct Menu {
-    Input* input;
-    Renderer* renderer;
-
+    System* sys;
     Slice<u8> text;
-
     UI ui;
 };
 
 struct State {
-    SDL_Window* window;
-    Renderer renderer{};
-    Input input;
+    System sys;
     LocalScene local_scene;
     Menu menu;
 
-    Array<Font, FontID::font_count> fonts;
 
     std::chrono::time_point<std::chrono::steady_clock> last_frame_time;
 
@@ -46,7 +37,8 @@ struct State {
 
     bool initialized;
 
-    RingBuffer<Event, 10> events;
+    SceneType active_scene;
 };
 
-Menu menu_create(Arena* scene_arena, Input* input, SDL_Window* window, Renderer* renderer, const Slice<Font> fonts);
+
+Menu menu_create(Arena* scene_arena, System* sys);

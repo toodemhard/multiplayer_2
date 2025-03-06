@@ -137,7 +137,7 @@ void DrawSolidPolygon(b2Transform transform, const b2Vec2* vertices, int vertexC
         transed_verts[i] = vert;
     }
 
-    renderer::draw_world_polygon(&renderer, *renderer.active_camera, (float2*)transed_verts.data(), vertexCount, hex_to_rgban(color));
+    draw_world_polygon(*renderer.active_camera, (float2*)transed_verts.data(), vertexCount, hex_to_rgban(color));
 }
 
 void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context) {
@@ -145,19 +145,19 @@ void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void
 
     auto asdf = hex_to_rgba(color);
 
-    renderer::draw_world_polygon(&renderer, *renderer.active_camera, (float2*)vertices, vertexCount, hex_to_rgban(color));
+    draw_world_polygon(*renderer.active_camera, (float2*)vertices, vertexCount, hex_to_rgban(color));
 }
 
-void local_scene_init(LocalScene* scene, Arena* level_arena, Input* input, Renderer* renderer, Slice<Font> fonts, String_8 ip_address) {
+void local_scene_render(LocalScene* s, Arena* frame_arena);
+
+void local_scene_init(LocalScene* scene, Arena* level_arena, System* sys, String_8 ip_address) {
     *scene = {};
-    scene->input = input;
-    scene->renderer = renderer;
+    scene->sys = sys;
 
-    scene->fonts = fonts;
 
-    renderer->active_camera = &scene->camera;
+    sys->renderer.active_camera = &scene->camera;
 
-    ui_init(&scene->ui, level_arena, fonts, renderer);
+    ui_init(&scene->ui, level_arena, sys->fonts_view, &sys->renderer);
 
     state_init(&scene->state, level_arena);
 
@@ -165,7 +165,7 @@ void local_scene_init(LocalScene* scene, Arena* level_arena, Input* input, Rende
 
     auto& m_debug_draw = scene->m_debug_draw;
     m_debug_draw = b2DefaultDebugDraw();
-    m_debug_draw.context = renderer;
+    m_debug_draw.context = &sys->renderer;
     m_debug_draw.DrawPolygon = &DrawPolygon;
     m_debug_draw.DrawSolidPolygon = &DrawSolidPolygon;
     m_debug_draw.drawShapes = true;
@@ -192,14 +192,15 @@ void local_scene_init(LocalScene* scene, Arena* level_arena, Input* input, Rende
 void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
     ZoneScoped;
 
+    System* sys = s->sys;
     Arena tick_arena;
     arena_init(&tick_arena, arena_alloc(frame_arena, megabytes(1)), megabytes(1));
 
     s->accumulator += delta_time;
 
-    s->tick_input.keybindings = s->input->keybindings;
+    s->tick_input.keybindings = sys->input.keybindings;
 
-    input_set_ctx(s->input);
+    input_set_ctx(&sys->input);
 
     ENetEvent net_event;
     while (enet_host_service(s->client, &net_event, 0)) {
@@ -249,7 +250,7 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
 
 
     // spell_move_source {}
-    accumulate_input_events(&s->tick_input, s->input);
+    accumulate_input_events(&s->tick_input, &sys->input);
 
     ui_set_ctx(&s->ui);
 
@@ -261,7 +262,7 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
 
     ui_push_row({
         .flags = UI_Flags_Float,
-        // .grow_axis = Axis2_Y,
+        .stack_axis = Axis2_X,
         .position = {position_offset_px(50), position_offset_px(50)},
     });
 
@@ -307,6 +308,8 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
             .size = {{UI_SizeType_ParentFraction, 1}, {UI_SizeType_ParentFraction, 1}},
             // .background_color = {1,0,0,1},
         });
+
+        ui_pop_row();
 
         ui_pop_row();
     }
@@ -382,7 +385,7 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
         }
 
         ClientID id = 0;
-        PlayerInput input = input_state(s->camera, {(f32)s->renderer->window_width, (f32)s->renderer->window_height});
+        PlayerInput input = input_state(s->camera, {(f32)sys->renderer.window_width, (f32)sys->renderer.window_height});
 
         if (s->move_submit) {
             s-> move_submit = false;
@@ -428,7 +431,7 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
         arena_reset(&tick_arena);
     }
 
-    input_set_ctx(s->input);
+    input_set_ctx(&sys->input);
 
     if (input_key_down(SDL_SCANCODE_E) && input_modifier(SDL_KMOD_CTRL)) {
         s->edit_mode = !s->edit_mode;
@@ -437,7 +440,7 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
     if (s->edit_mode) {
         if (input_mouse_held(SDL_BUTTON_LEFT)) {
             auto& chunk = chunks[3];
-            auto pos = screen_to_world_pos(s->camera, s->input->mouse_pos, s->renderer->window_width, s->renderer->window_height);
+            auto pos = screen_to_world_pos(s->camera, sys->input.mouse_pos, sys->renderer.window_width, sys->renderer.window_height);
             i32 x = (i32) chunk.position.x + (floor(pos.x) / grid_step);
             i32 y = (i32)chunk.position.y + (floor(pos.y) / grid_step);
             Tile tile = {
@@ -456,10 +459,11 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
     }
 
     s->frame++;
+
+    local_scene_render(s, frame_arena);
 }
 
-void render_ghosts(Renderer* renderer, Camera2D camera, const Slice<Ghost> ghosts) {
-    using namespace renderer;
+void render_ghosts(Camera2D camera, const Slice<Ghost> ghosts) {
     for (i32 i = 0; i < ghosts.length; i++) {
         const Ghost* ghost = &ghosts[i];
 
@@ -493,22 +497,23 @@ void render_ghosts(Renderer* renderer, Camera2D camera, const Slice<Ghost> ghost
             world_rect.size.x *= -1;
         }
 
-        draw_sprite_world(renderer, camera, world_rect, SpriteProperties{
+        draw_sprite_world(camera, world_rect, SpriteProperties{
             .texture_id=texture,
             .mix_color = flash_color,
             .t = t,
         });
 
         if (ghost->show_health) {
-            draw_world_rect(renderer, camera, {.position = world_rect.position - float2{0, -1}, .size={1, 0.1}}, {0.2, 0.2, 0.2, 1.0});
-            draw_world_rect( renderer, camera, {.position=world_rect.position - float2{0, -1}, .size={ghost->health / (float)box_health, 0.1}}, {1, 0.2, 0.1, 1.0});
+            draw_world_rect(camera, {.position = world_rect.position - float2{0, -1}, .size={1, 0.1}}, {0.2, 0.2, 0.2, 1.0});
+            draw_world_rect(camera, {.position=world_rect.position - float2{0, -1}, .size={ghost->health / (float)box_health, 0.1}}, {1, 0.2, 0.1, 1.0});
         }
     }
 }
 
-void local_scene_render(LocalScene* s, Renderer* renderer, Arena* frame_arena, SDL_Window* window) {
+void local_scene_render(LocalScene* s, Arena* frame_arena) {
+    System* sys = s->sys;
     // printf("%d\n", s->latest_snapshot[0].type);
-    render_ghosts(renderer, s->camera, s->latest_snapshot);
+    render_ghosts(s->camera, s->latest_snapshot);
     for (i32 i = 0; i < 4; i++) {
         auto& chunk = chunks[i];
         for (i32 tile_index = 0; tile_index < chunk_size; tile_index++) {
@@ -516,8 +521,7 @@ void local_scene_render(LocalScene* s, Renderer* renderer, Arena* frame_arena, S
             if (!tile.is_set) {
                 continue;
             }
-            renderer::draw_sprite_world(
-                renderer,
+            draw_sprite_world(
                 s->camera,
                 {.position = chunk.position + float2{tile_index % chunk_width + 0.5f, i32(tile_index / chunk_width) + 0.5f}, .size={1, 1}},
                 {
@@ -529,13 +533,13 @@ void local_scene_render(LocalScene* s, Renderer* renderer, Arena* frame_arena, S
     }
 
     // render_state(renderer, window, &s->state, s->current_tick, fixed_dt, s->camera);
-    render_ghosts(renderer, s->camera, s->latest_snapshot);
-    // renderer::draw_world_rect(renderer, m_camera, {{-3.5, 0}, {1,1}}, color::red);
-    // renderer::draw_world_rect(renderer, m_camera, {{0.5, 1.5}, {0.5,0.5}}, RGBA{255,255,0,255});
+    render_ghosts(s->camera, s->latest_snapshot);
+    // draw_world_rect(renderer, m_camera, {{-3.5, 0}, {1,1}}, color::red);
+    // draw_world_rect(renderer, m_camera, {{0.5, 1.5}, {0.5,0.5}}, RGBA{255,255,0,255});
     // printf("%d\n", alignof(std::max_align_t);
     if (s->moving_spell) {
         Entity* player = entity_list_get(&s->state.entities, s->player_handle);
-        renderer::draw_sprite_screen(renderer, {s->input->mouse_pos - float2{30,30}, {60,60}}, {.texture_id=TextureID_bullet_png});
+        draw_sprite_screen({sys->input.mouse_pos - float2{30,30}, {60,60}}, {.texture_id=TextureID_bullet_png});
     }
 
     if (s->edit_mode) {
@@ -548,17 +552,17 @@ void local_scene_render(LocalScene* s, Renderer* renderer, Arena* frame_arena, S
             i32 start_y_index = (i32) (top_left_point.y / grid_step);
             float2 left_point = float2{top_left_point.x, (start_y_index - y) * grid_step};
             float2 line[] = { left_point, left_point + float2{s->camera.scale.x, 0} };
-            renderer::draw_world_lines(renderer, s->camera, line, 2, grid_color);
+            draw_world_lines(s->camera, line, 2, grid_color);
         }
 
         for (i32 x = 0; x < x_count; x++) {
             i32 start_x_index = (i32) (top_left_point.x / grid_step);
             float2 top_point = float2{(start_x_index + x) * grid_step, top_left_point.y};
             float2 line[] = { top_point, top_point - float2{0, s->camera.scale.y} };
-            renderer::draw_world_lines(renderer, s->camera, line, 2, grid_color);
+            draw_world_lines(s->camera, line, 2, grid_color);
         }
 
-        auto pos = screen_to_world_pos(s->camera, s->input->mouse_pos, renderer->window_width, renderer->window_height);
+        auto pos = screen_to_world_pos(s->camera, sys->input.mouse_pos, sys->renderer.window_width, sys->renderer.window_height);
         
 
         i32 x = (i32) (floor(pos.x) / grid_step);
@@ -571,23 +575,19 @@ void local_scene_render(LocalScene* s, Renderer* renderer, Arena* frame_arena, S
         // }
 
         float2 p2 = float2{x * grid_step, y * grid_step} + (grid_step / 2) * float2_one;
-        renderer::draw_world_rect(renderer, s->camera, Rect{(float2)p2,{1,1}}, {1,0,0,1});
+        draw_world_rect(s->camera, Rect{(float2)p2,{1,1}}, {1,0,0,1});
 
     }
 
-    // renderer::draw_world_sprite(renderer, m_camera, {{0,0}, {1,1}}, {
+    // draw_world_sprite(renderer, m_camera, {{0,0}, {1,1}}, {
     //     .texture_id=TextureID_tilemap_png,
     //     .src_rect=Rect{{16,0}, {16,16}}
     // });
     
-    // renderer::draw_world_lines(renderer, m_camera, kys, 2, {255,255,0,255});
-    renderer::draw_sprite_world(renderer, s->camera, {float2{0,1}, {1,1}}, {
+    // draw_world_lines(renderer, m_camera, kys, 2, {255,255,0,255});
+    draw_sprite_world(s->camera, {float2{0,1}, {1,1}}, {
         .texture_id = TextureID_depth_test_png,
     });
 
-
-
-    using namespace renderer;
-
-    ui_draw(&s->ui, renderer, frame_arena);
+    ui_draw(&s->ui, frame_arena);
 }

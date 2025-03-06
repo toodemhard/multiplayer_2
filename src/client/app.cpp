@@ -39,7 +39,6 @@ static bool is_reloaded = true;
 
 bool init(void* memory) {
     ZoneScoped;
-    using namespace renderer;
     b2WorldDef world_def = b2DefaultWorldDef();
     world_def.gravity = b2Vec2{0.0f, 0.0f};
     auto world_id = b2CreateWorld(&world_def);
@@ -62,6 +61,9 @@ bool init(void* memory) {
     State* state = (State*)arena_alloc(&god_allocator, sizeof(State));
     new (state) State{};
 
+    System* sys = &state->sys;
+
+
     arena_init(&state->temp_arena, arena_alloc(&god_allocator, megabytes(5)), megabytes(5));
     arena_init(&state->level_arena, arena_alloc(&god_allocator, megabytes(5)), megabytes(5));
 
@@ -73,39 +75,41 @@ bool init(void* memory) {
 
     {
         ZoneNamedN(a, "Create Window", true);
-            state->window = SDL_CreateWindow("ye", window_width, window_height, flags);
-        if (state->window == NULL) {
+            sys->window = SDL_CreateWindow("ye", window_width, window_height, flags);
+        if (sys->window == NULL) {
             SDL_Log("CreateWindow failed: %s", SDL_GetError());
         }
     }
 
-    if (init_renderer(&state->renderer, state->window) != 0) {
+    if (init_renderer(&sys->renderer, sys->window) != 0) {
         panic("failed to initialize renderer");
     }
+
+    renderer_set_ctx(&sys->renderer);
     
 
     // Texture textures[ImageID_Count];
     std::future<void> texture_futures[ImageID_Count];
 
-    auto image_to_texture = [](Renderer& renderer, ImageID image_id) {
+    auto image_to_texture = [](Renderer* renderer, ImageID image_id) {
         int width, height, comp;
         unsigned char* image = stbi_load(image_paths[(int)image_id], &width, &height, &comp, STBI_rgb_alpha);
-        renderer::load_texture(&renderer, image_id_to_texture_id(image_id), Image{.w = width, .h = height, .data = image});
+        load_texture(image_id_to_texture_id(image_id), Image{.w = width, .h = height, .data = image});
     };
 
     for (i32 i = ImageID_NULL + 1; i < ImageID_Count; i++) {
-        texture_futures[i] = std::async(std::launch::async, image_to_texture, std::ref(state->renderer), (ImageID)i);
+        texture_futures[i] = std::async(std::launch::async, image_to_texture, &sys->renderer, (ImageID)i);
         // image_to_texture(state->renderer, (ImageID)i);
     }
 
     std::future<void> font_futures[FontID::font_count];
 
     for (i32 i = 0; i < FontID::font_count; i++) {
-        font_futures[i] = std::async(std::launch::async, font::load_font, &state->fonts[i], std::ref(state->renderer), FontID::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
+        font_futures[i] = std::async(std::launch::async, load_font, &sys->fonts[i], std::ref(sys->renderer), FontID::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
         // font::load_font(&state->fonts[i], state->renderer, FontID::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
     }
 
-    input_init_keybinds(&state->input, default_keybindings);
+    input_init_keybinds(&sys->input, default_keybindings);
 
     float2 player_position{0, 0};
 
@@ -128,27 +132,27 @@ bool init(void* memory) {
 
     state->last_frame_time = std::chrono::high_resolution_clock::now();
 
-    Slice<Font> fonts_view = slice_create_view(&state->fonts.data[0], state->fonts.length);
+    sys->fonts_view = slice_create_view(&sys->fonts.data[0], sys->fonts.length);
 
     // double last_render_duration = 0.0;
 
-    state->menu = menu_create(&state->level_arena, &state->input, state->window, &state->renderer, fonts_view);
+    state->menu = menu_create(&state->level_arena, sys);
 
     state->initialized = true;
     return true;
 }
 
-Menu menu_create(Arena* scene_arena, Input* input, SDL_Window* window, Renderer* renderer, const Slice<Font> fonts) {
+Menu menu_create(Arena* scene_arena, System* sys) {
     Menu menu = {
-        .input=input,
-        .renderer=renderer,
+        .sys=sys,
+        // .text = cstr_to_string("127.0.0.1"),
+        .text = slice_create<u8>(scene_arena, 512),
     };
-    ui_init(&menu.ui, scene_arena, fonts, renderer);
+    ui_init(&menu.ui, scene_arena, sys->fonts_view, &sys->renderer);
 
-    SDL_StartTextInput(window);
+    SDL_StartTextInput(sys->window);
 
-    menu.text = slice_create<u8>(scene_arena, 512);
-    slice_push(&menu.text, (u8)'d');
+    slice_push_range(&menu.text, cstr_to_string("127.0.0.1"));
 
     return menu;
 }
@@ -165,8 +169,8 @@ bool f;
 //     
 // }
 
-void text_field_input(Input* input, Slice<u8>* text) {
-    string_cat(text, &input->input_text);
+void text_field_input(Slice<u8>* text) {
+    string_cat(text, &input_get_ctx()->input_text);
 
     if (input_modifier(SDL_KMOD_CTRL) && input_key_down_repeat(SDL_SCANCODE_BACKSPACE)) {
         i32 cut_to = -1;
@@ -194,6 +198,7 @@ void menu_update(Menu* menu, Arena* temp_arena) {
     // if (menu->input->key_down(SDL_SCANCODE_S)) {
     //     f = !f;
     // }
+    System* sys = menu->sys;
 
     ui_set_ctx(&menu->ui);
 
@@ -228,15 +233,21 @@ void menu_update(Menu* menu, Arena* temp_arena) {
             .border = sides_px(2),
             .border_color = {1,0,0,1},
         }) {}
-        UI_Key ip_field;
+        Slice<u8> ip_field_key = cstr_to_string("ip_field");
+        float4 border_color = {0.2,0.2,0.2,1};
+        if (ui_is_active(ui_key(ip_field_key))) {
+            border_color = {0.9,0.9,0.9,1};
+        }
         ui_row({
-            .out_key = &ip_field,
+            .exc_key = ip_field_key,
             .text = string_to_cstr(scratch.arena, menu->text),
             .size = {size_px(100), size_px(20)},
+            .border = sides_px(2),
+            .border_color = border_color,
         });
 
-        if (ui_is_active(ip_field)) {
-            text_field_input(menu->input, &menu->text);
+        if (ui_is_active(ui_key(ip_field_key))) {
+            text_field_input(&menu->text);
         }
 
         if (ui_button(ui_row_ret({
@@ -244,6 +255,14 @@ void menu_update(Menu* menu, Arena* temp_arena) {
             .background_color = {1,0,0,1},
         }))) {
             printf("%s\n", string_to_cstr(scratch.arena, menu->text));
+            ring_buffer_push_back(&sys->events, {
+                .type = EventType_StartScene,
+                .start_scene = {
+                    menu->text,
+                },
+            });
+
+
         }
 
         ui_row({
@@ -260,7 +279,7 @@ void menu_update(Menu* menu, Arena* temp_arena) {
 
     ui_end(temp_arena);
 
-    ui_draw(&menu->ui, menu->renderer, temp_arena);
+    ui_draw(&menu->ui, temp_arena);
 }
 
 
@@ -269,6 +288,8 @@ extern "C" UPDATE(update) {
     auto state = (State*)memory;
 
     bool quit = false;
+
+    System* sys = &state->sys;
 
     if (!state->initialized) {
         if (!init(memory)) {
@@ -291,7 +312,7 @@ extern "C" UPDATE(update) {
     double delta_time = std::chrono::duration_cast<std::chrono::duration<double>>(this_frame_time - state->last_frame_time).count();
     state->last_frame_time = this_frame_time;
 
-    input_begin_frame(&state->input);
+    input_begin_frame(&sys->input);
 
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -303,31 +324,31 @@ extern "C" UPDATE(update) {
         // ImGui_ImplSDL3_ProcessEvent(&event);
         switch (event.type) {
         case SDL_EVENT_MOUSE_WHEEL:
-            state->input.wheel += event.wheel.y;
+            sys->input.wheel += event.wheel.y;
             break;
         case SDL_EVENT_KEY_DOWN:
-            state->input.keyboard_repeat[event.key.scancode] = true;
+            sys->input.keyboard_repeat[event.key.scancode] = true;
 
             if (!event.key.repeat) {
-                state->input.keyboard_down[event.key.scancode] = true;
+                sys->input.keyboard_down[event.key.scancode] = true;
             }
             break;
 
         case SDL_EVENT_KEY_UP:
-            state->input.keyboard_up[event.key.scancode] = true;
+            sys->input.keyboard_up[event.key.scancode] = true;
             break;
 
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
-            state->input.button_down_flags |= SDL_BUTTON_MASK(event.button.button);
+            sys->input.button_down_flags |= SDL_BUTTON_MASK(event.button.button);
             break;
         case SDL_EVENT_MOUSE_BUTTON_UP:
             if (event.button.down) {
                 break;
             }
-            state->input.button_up_flags |= SDL_BUTTON_MASK(event.button.button);
+            sys->input.button_up_flags |= SDL_BUTTON_MASK(event.button.button);
             break;
         case SDL_EVENT_TEXT_INPUT: {
-            state->input.input_text = cstr_to_string(event.text.text);
+            sys->input.input_text = cstr_to_string(event.text.text);
             // u8 y = *event.text.text;
             // i32 x = strlen(event.text.text);
             // printf("%s\n", event.text.text);
@@ -340,20 +361,25 @@ extern "C" UPDATE(update) {
         }
     }
 
-    while (state->events.length > 0) {
-        Event event = ring_buffer_pop_front(&state->events);
+    while (sys->events.length > 0) {
+        Event union_event = ring_buffer_pop_front(&sys->events);
         
-        switch (event.type) {
+        switch (union_event.type) {
         case EventType_StartScene: {
-            Slice<Font> fonts_view = slice_create_view(&state->fonts.data[0], state->fonts.length);
-            local_scene_init(&state->local_scene, &state->level_arena, &state->input, &state->renderer, fonts_view, cstr_to_string("ahlfkjahdsf"));
+            Slice<Font> fonts_view = slice_create_view(&sys->fonts.data[0], sys->fonts.length);
+
+            auto event = union_event.start_scene; // for once auto is useful, anon struct
+            
+            local_scene_init(&state->local_scene, &state->level_arena, sys, event.connect_ip);
+            state->active_scene = SceneType_Game;
         } break;
 
         }
 
     }
 
-    input_set_ctx(&state->input);
+    input_set_ctx(&sys->input);
+    renderer_set_ctx(&sys->renderer);
 
     // update
     {
@@ -365,39 +391,34 @@ extern "C" UPDATE(update) {
     // render
     {
         auto render_begin_time = std::chrono::high_resolution_clock::now();
-        renderer::begin_rendering(&state->renderer, state->window, &state->temp_arena);
+        begin_rendering(sys->window, &state->temp_arena);
 
-        menu_update(&state->menu, &state->temp_arena);
-        // if (is_reloaded) {
-        //     create_box(&state->local_scene.state, float2{2, 1});
-        //     std::cout << "reloaded\n";
-        //
-        //     // create_player(&state->local_scene.state);
-        //
-        //     // SDL_SetWindowAlwaysOnTop(state->window, true);
-        // }
 
-        // multi_scene.render(renderer, window, textures);
-        // local_scene_render(&state->local_scene, &state->renderer, &state->temp_arena, state->window);
+        if (state->active_scene == SceneType_Menu) {
+            menu_update(&state->menu, &state->temp_arena);
+        }
 
+        if (state->active_scene == SceneType_Game) {
+            local_scene_update(&state->local_scene, &state->temp_arena, delta_time);
+        }
         // //
         // // auto string = std::format("render: {:.3f}ms", last_render_duration * 1000.0);
         // // font::draw_text(renderer, font, string.data(), 24, {20, 30});
         // //
 
-        renderer::end_rendering(&state->renderer);
+        end_rendering();
 
         // last_render_duration = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() -
         // render_begin_time).count();
     }
 
-    input_set_ctx(&state->input);
+    input_set_ctx(&sys->input);
     bool reload = false;
     if (input_key_down(SDL_SCANCODE_R) && input_modifier(SDL_KMOD_CTRL)) {
         reload = true;
     }
 
-    input_end_frame(&state->input);
+    input_end_frame(&sys->input);
 
     is_reloaded = false;
 
