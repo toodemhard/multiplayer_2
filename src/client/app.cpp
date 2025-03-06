@@ -170,7 +170,11 @@ bool f;
 // }
 
 void text_field_input(Slice<u8>* text) {
-    string_cat(text, &input_get_ctx()->input_text);
+    string_cat(text, input_get_ctx()->input_text);
+
+    if (input_modifier(SDL_KMOD_CTRL) && input_key_down_repeat(SDL_SCANCODE_V)) {
+        string_cat(text, cstr_to_string(SDL_GetClipboardText()));
+    }
 
     if (input_modifier(SDL_KMOD_CTRL) && input_key_down_repeat(SDL_SCANCODE_BACKSPACE)) {
         i32 cut_to = -1;
