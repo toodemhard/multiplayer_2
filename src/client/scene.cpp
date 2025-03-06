@@ -180,8 +180,11 @@ void local_scene_init(LocalScene* scene, Arena* level_arena, System* sys, String
 
     slice_init(&scene->latest_snapshot, level_arena, 1000);
 
+    ArenaTemp scratch = scratch_get(0,0);
+    defer(scratch_release(scratch));
+
     ENetAddress address;
-    enet_address_set_host(&address, "127.0.0.1");
+    enet_address_set_host(&address, string_to_cstr(scratch.arena, ip_address));
     address.port = 1234;
     scene->server = enet_host_connect(scene->client, &address, 2, 0);
     if (!scene->server) {

@@ -126,8 +126,8 @@ char* string_to_cstr(Arena* arena, const Slice<u8> string) {
     return (char*)cstr.data;
 }
 
-void string_cat(Slice<u8>* dst, const Slice<u8>* src) {
-    slice_push_range(dst, src->data, src->length);
+void string_cat(Slice<u8>* dst, const Slice<u8> src) {
+    slice_push_range(dst, src.data, src.length);
 }
 
 bool string_compare(String8 a, String8 b) {

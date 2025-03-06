@@ -253,7 +253,7 @@ u64 fnv1a(Slice<u8> key);
 
 Slice<u8> cstr_to_string(const char* str);
 char* string_to_cstr(Arena* arena, const Slice<u8> string);
-void string_cat(Slice<u8>* dst, const Slice<u8>* src);
+void string_cat(Slice<u8>* dst, const Slice<u8> src);
 
 const internal f64 max_load_factor = 0.7;
 
