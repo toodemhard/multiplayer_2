@@ -36,6 +36,7 @@ struct UI_Size {
 enum UI_PositionType { 
     UI_PositionType_AutoOffset,
     UI_PositionType_Absolute,
+    UI_PositionType_Anchor,
 };
 
 struct UI_Position {
@@ -117,7 +118,7 @@ struct UI {
 
     Slice<UI_Element*> parent_stack;
     Slice<Font> fonts;
-    f32 base_font_size;
+    f32 base_size;
 
     UI_Key active_element;
 
@@ -140,6 +141,7 @@ bool ui_is_active(UI_Key element);
 bool ui_button(UI_Key element);
 // UI_Key ui_push_leaf(UI_Element element);
 void ui_end(Arena* temp_arena);
+UI_Element* ui_prev_element();
 
 constexpr UI_Position position_offset_px(f32 value) {
     return {UI_PositionType_AutoOffset, value};
@@ -163,6 +165,26 @@ constexpr FontSize font_px(f32 value) {
         value,
     };
 }
+
+constexpr UI_Position anchor(f32 value) {
+    return UI_Position{UI_PositionType_Anchor, value};
+}
+
+// relative units
+f32 ru(f32 value);
+
+inline UI_Size size_ru(f32 value) {
+    return size_px(ru(value));
+}
+
+inline FontSize font_ru(f32 value) {
+    return FontSize{FontSizeType_Pixels, ru(value)};
+}
+
+
+#define size2_px(v0, v1) {size_px(v0), size_px(v1)}
+
+#define pos_anchor2(v0, v1) {anchor(v0), anchor(v1)}
 
 #define sides_px(v) {size_px(v), size_px(v), size_px(v), size_px(v)}
 

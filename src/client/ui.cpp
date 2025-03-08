@@ -9,6 +9,10 @@ void ui_set_ctx(UI* _ui) {
     ui_ctx = _ui;
 }
 
+f32 ru(f32 value) {
+    return ui_ctx->base_size * value;
+}
+
 internal void ui_frame_init(UI_Frame* frame, Arena* arena) {
     arena_reset(arena);
     frame->elements = slice_create<UI_Element>(arena, 1024);
@@ -24,7 +28,7 @@ void ui_init(UI* ui, Arena* arena, const Slice<Font> fonts, Renderer* renderer) 
 
     slice_init(&ui->parent_stack, arena, 1024);
     ui->fonts = fonts;
-    ui->base_font_size = 16;
+    ui->base_size = 16;
 
     ui->cache = hashmap_create<UI_Key, u32>(arena, 1024);
 }
@@ -37,6 +41,7 @@ void ui_begin() {
 
     Renderer* renderer = ui_ctx->renderer;
     ui_push_row({
+        .font_size = font_px(ui_ctx->base_size),
         .size = {size_px(renderer->window_width), size_px(renderer->window_height)},
         // .background_color = {0.5,0.5,0.5,1},
     });
@@ -54,6 +59,11 @@ bool ui_is_active(UI_Key element) {
 
 UI_Key ui_key(Slice<u8> key) {
     return fnv1a(key);
+}
+
+UI_Element* ui_prev_element() {
+    UI_Frame* ui = &ui_ctx->frame_buffer[ui_ctx->active_frame];
+    return &slice_back(ui->elements);
 }
 
 UI_Key ui_push_row_internal(UI_Element element, const char* file, i32 line) {
@@ -214,6 +224,9 @@ void ui_end(Arena* temp_arena) {
                     current->computed_size[i] = parent->computed_size[i] * size->value;
                 }
             }
+            if (current->font_size.type == FontSizeType_Default) {
+                current->font_size.value = parent->font_size.value;
+            }
         }
     }
 
@@ -222,9 +235,6 @@ void ui_end(Arena* temp_arena) {
         slice_pop(&post_stack);
 
         // postorder
-        if (current->font_size.type == FontSizeType_Default) {
-            current->font_size.value = 16;
-        }
 
         float2 text_size = text_dimensions(ui_ctx->fonts[current->font], current->text, current->font_size.value);
 
@@ -372,6 +382,12 @@ void ui_end(Arena* temp_arena) {
 
                 }
                 current->computed_position[i] += current->position[i].value;
+            }
+
+            UI_Position position = current->position[i];
+
+            if (position.type == UI_PositionType_Anchor) {
+                current->computed_position[i] = parent->computed_position[i] + (parent->computed_size[i] - current->computed_size[i]) * position.value;
             }
 
             current->content_position[i] = current->computed_position[i];
