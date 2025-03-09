@@ -27,7 +27,7 @@ struct Chunk {
     Tile tiles[chunk_width * chunk_width];
 };
 
-struct LocalScene {
+struct Scene {
     System* sys;
     Input tick_input; // accumulates input events over multiple frames for cases where render freq > tick freq its here for a reason pls dont delete
 
@@ -41,7 +41,6 @@ struct LocalScene {
     bool online_mode;
 
     bool edit_mode;
-
 
     double accumulator = 0.0;
     u64 frame = {};
@@ -58,12 +57,15 @@ struct LocalScene {
     u16 spell_move_dst;
     bool move_submit;
 
+    bool paused;
+    Entity player;
 
     Arena* level_arena;
+    Arena tick_arena;
 
     ENetHost* client;
     ENetPeer* server;
 };
 
-void local_scene_init(LocalScene* scene, Arena* level_arena, System* sys, String_8 ip_address);
-void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time);
+void scene_init(Scene* scene, Arena* level_arena, System* sys, bool online, String_8 ip_address);
+void scene_update(Scene* s, Arena* frame_arena, double delta_time);

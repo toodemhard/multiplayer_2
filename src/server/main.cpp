@@ -11,7 +11,7 @@ struct State {
     f64 accumulator = 0.0;
     u64 frame = {};
     f64 time = {};
-    int current_tick = 0;
+    u64 current_tick = 0;
 
     EntityHandle player_handle;
 
@@ -153,32 +153,23 @@ int main() {
                         ring_buffer_push_back(&client->input_buffer, input);
                     }
                 }
-
-                /* Clean up the packet now that we're done using it. */
                 enet_packet_destroy (event.packet);
-
-                // Stream stream = {
-                //     .slice = slice_create<u8>(&temp_arena, 512),
-                //     .operation = Stream_Write,
-                // };
-                //
-                //
-                // TestMessage message = {
-                //      .str = literal("KYS!"),
-                // };
-                // serialize_test_message(&stream, NULL, &message);
-
-                // ENetPacket* packet = enet_packet_create(stream.slice.data, stream.current, ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT);
-                // enet_peer_send(state->server, Channel_Unreliable, packet);
-
-
                 break;
             }
 
             case ENET_EVENT_TYPE_DISCONNECT: {
-                printf ("client id: %llu disconnected.\n", ((Client*)event.peer->data)->id);
+                Client* client = (Client*)event.peer->data;
+                printf ("client id: %llu disconnected.\n", client->id);
 
-                /* Reset the peer's client information. */
+                i32 to_remove = -1;
+                for (i32 i = 0; i < clients.length; i++) {
+                    if (clients[i].id == client->id) {
+                        to_remove = i;
+                        break;
+                    }
+                }
+
+                slice_remove_range(&clients, to_remove, 1);
 
                 event.peer -> data = NULL;
             } break;
@@ -200,7 +191,7 @@ int main() {
             for (i32 i = 0; i < clients.length; i++) {
                 slice_push(&inputs.ids, clients[i].id);
                 PlayerInput input = {};
-                printf("%d\n", clients[i].input_buffer.length);
+                // printf("%d\n", clients[i].input_buffer.length);
                 if (clients[i].input_buffer.length > 0) {
                      input = ring_buffer_pop_front(&clients[i].input_buffer);
                 }
@@ -209,43 +200,30 @@ int main() {
 
             state_update(&s->state, &tick_arena, inputs, s->current_tick, tick_rate);
 
-            // float2 player_pos = {};
-            // if (entity_is_valid(&s->state.entities, s->player_handle)) {
-            //     player_pos = float2{.b2vec=b2Body_GetPosition(entity_list_get(&s->state.entities, s->player_handle)->body_id)};
-            // }
-
-            
-
 
 
             Slice<Entity>* ents = &s->state.entities;
-            Slice<Ghost> ghosts = slice_create<Ghost>(&tick_arena, s->state.entities.length);
-
-            for (i32 i = 0; i < ents->length; i++) {
-                Entity* ent = &(*ents)[i];
-                if (ent->is_active) {
-                    slice_push(&ghosts, Ghost{
-                        .type = ent->type,
-                        .position = {.b2vec=b2Body_GetPosition(ent->body_id)},
-                        .health = (u16)ent->health,
-                        .show_health = (bool)(ent->flags & EntityFlags_hittable),
-                        .hit_flash = ent->hit_flash_end_tick > s->current_tick,
-                        .flip_sprite = ent->flip_sprite,
-                    });
-                }
-            }
+            Slice<Entity*> players = slice_create<Entity*>(&tick_arena, 32);
+            Slice<Ghost> ghosts = entities_to_snapshot(&tick_arena, s->state.entities, s->current_tick, &players);
 
             Stream stream = {
                 .slice = slice_create<u8>(&tick_arena, kilobytes(100)),
                 .operation = Stream_Write,
             };
 
-
-
             for (i32 i = 0; i < clients.length; i++) {
                 Client* client = &clients[i];
                 u8 input_buffer_size = (u8)client->input_buffer.length;
-                serialize_snapshot(&stream, &input_buffer_size, &ghosts);
+
+                Entity* player = NULL;
+                for (i32 p_idx = 0; p_idx < players.length; p_idx++) {
+                    if (players[p_idx]->client_id == client->id) {
+                        player = players[p_idx];
+                        break;
+                    }
+                }
+
+                serialize_snapshot(&stream, &input_buffer_size, &ghosts, player);
                 ENetPacket* packet = enet_packet_create((void*)stream.slice.data, stream.slice.length, ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT);
                 enet_peer_send(client->peer, Channel_Unreliable, packet);
                 enet_host_flush(server);

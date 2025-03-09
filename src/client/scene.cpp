@@ -12,11 +12,11 @@ static Chunk chunks[4] = {
     Chunk{
         .position = {0, chunk_width},
         .tiles = {Tile{
-            .is_set = true,
-                .texture = TextureID_tilemap_png,
-                .x=32,
-                .w = 16,
-                .h = 16,
+            // .is_set = true,
+            .texture = TextureID_tilemap_png,
+            .x=32,
+            .w = 16,
+            .h = 16,
         }}
     },
     Chunk{
@@ -148,22 +148,24 @@ void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void
     draw_world_polygon(*renderer.active_camera, (float2*)vertices, vertexCount, hex_to_rgban(color));
 }
 
-void local_scene_render(LocalScene* s, Arena* frame_arena);
+void scene_render(Scene* s, Arena* frame_arena);
 
-void local_scene_init(LocalScene* scene, Arena* level_arena, System* sys, String_8 ip_address) {
-    *scene = {};
-    scene->sys = sys;
+void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String_8 ip_address) {
+    *s = {};
+    s->sys = sys;
+    s->online_mode = online;
 
+    sys->renderer.active_camera = &s->camera;
 
-    sys->renderer.active_camera = &scene->camera;
+    arena_init(&s->tick_arena, arena_alloc(level_arena, megabytes(1)), megabytes(1));
 
-    ui_init(&scene->ui, level_arena, sys->fonts_view, &sys->renderer);
+    ui_init(&s->ui, level_arena, sys->fonts_view, &sys->renderer);
 
-    state_init(&scene->state, level_arena);
+    state_init(&s->state, level_arena);
 
-    scene->player_handle = create_player(&scene->state, 0);
+    s->player_handle = create_player(&s->state, 0);
 
-    auto& m_debug_draw = scene->m_debug_draw;
+    auto& m_debug_draw = s->m_debug_draw;
     m_debug_draw = b2DefaultDebugDraw();
     m_debug_draw.context = &sys->renderer;
     m_debug_draw.DrawPolygon = &DrawPolygon;
@@ -172,32 +174,33 @@ void local_scene_init(LocalScene* scene, Arena* level_arena, System* sys, String
 
     // UI ui;
     // ui_init(&ui, level_arena);
-
-    scene->client = enet_host_create(NULL, 1, 2, 0, 0);
-    if (scene->client == NULL) {
-        fprintf (stderr, "An error occurred while trying to create an ENet client host.\n");
-    }
-
-    slice_init(&scene->latest_snapshot, level_arena, 1000);
-
     ArenaTemp scratch = scratch_get(0,0);
     defer(scratch_release(scratch));
 
-    ENetAddress address;
-    enet_address_set_host(&address, string_to_cstr(scratch.arena, ip_address));
-    address.port = 1234;
-    scene->server = enet_host_connect(scene->client, &address, 2, 0);
-    if (!scene->server) {
-        fprintf(stderr, "no peer");
+    if (online) {
+        s->client = enet_host_create(NULL, 1, 2, 0, 0);
+        if (s->client == NULL) {
+            fprintf (stderr, "An error occurred while trying to create an ENet client host.\n");
+        }
+
+        ENetAddress address;
+        enet_address_set_host(&address, string_to_cstr(scratch.arena, ip_address));
+        address.port = 1234;
+        s->server = enet_host_connect(s->client, &address, 2, 0);
+        if (!s->server) {
+            fprintf(stderr, "no peer");
+        }
     }
+
+    slice_init(&s->latest_snapshot, level_arena, 1000);
+
+
 }
 
-void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
+void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
     ZoneScoped;
 
     System* sys = s->sys;
-    Arena tick_arena;
-    arena_init(&tick_arena, arena_alloc(frame_arena, megabytes(1)), megabytes(1));
 
     s->accumulator += delta_time;
 
@@ -205,50 +208,56 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
 
     input_set_ctx(&sys->input);
 
-    ENetEvent net_event;
-    while (enet_host_service(s->client, &net_event, 0)) {
-        switch (net_event.type) {
-        case ENET_EVENT_TYPE_CONNECT:
-            printf ("A new client connected from %x:%u.\n", 
-                net_event.peer -> address.host,
-                net_event.peer -> address.port
-            );
+    if (s->online_mode) {
+        ENetEvent net_event;
+        while (enet_host_service(s->client, &net_event, 0)) {
+            switch (net_event.type) {
+            case ENET_EVENT_TYPE_CONNECT:
+                printf ("A new client connected from %x:%u.\n", 
+                    net_event.peer -> address.host,
+                    net_event.peer -> address.port
+                );
 
-            /* Store any relevant client information here. */
-            net_event.peer -> data = (void*)"Client information";
+                /* Store any relevant client information here. */
+                net_event.peer -> data = (void*)"Client information";
 
-            break;
-        case ENET_EVENT_TYPE_RECEIVE: {
-            // printf ("A packet of length %zu containing %s was received from %s on channel %u.\n",
-            //     net_event.packet->dataLength,
-            //     net_event.packet->data,
-            //     (u8*)net_event.peer->data,
-            //     net_event.channelID
-            // );
+                break;
+            case ENET_EVENT_TYPE_RECEIVE: {
+                // printf ("A packet of length %zu containing %s was received from %s on channel %u.\n",
+                //     net_event.packet->dataLength,
+                //     net_event.packet->data,
+                //     (u8*)net_event.peer->data,
+                //     net_event.channelID
+                // );
 
-            Stream stream = {
-                .slice = slice_create_view(net_event.packet->data, net_event.packet->dataLength),
-                .operation = Stream_Read,
-            };
-            MessageType message_type;   // = *(MessageType*)net_event.packet->data;
-            serialize_var(&stream, &message_type);
-            stream_pos_reset(&stream);
+                Stream stream = {
+                    .slice = slice_create_view(net_event.packet->data, net_event.packet->dataLength),
+                    .operation = Stream_Read,
+                };
+                MessageType message_type;   // = *(MessageType*)net_event.packet->data;
+                serialize_var(&stream, &message_type);
+                stream_pos_reset(&stream);
 
-            if (message_type == MessageType_Snapshot) {
-                printf("asdl %f\n", delta_time);
-                // serialize_slice(&stream, &s->latest_snapshot);
-                u8 input_buffer_size;
-                serialize_snapshot(&stream, &input_buffer_size, &s->latest_snapshot);
+                if (message_type == MessageType_Snapshot) {
+                    printf("asdl %f\n", delta_time);
+                    // serialize_slice(&stream, &s->latest_snapshot);
+                    u8 input_buffer_size;
+                    serialize_snapshot(&stream, &input_buffer_size, &s->latest_snapshot, &s->player);
 
-                s->accumulator += (target_input_buffer_size - input_buffer_size) / (f64)tick_rate * 0.01;
+                    s->accumulator += (target_input_buffer_size - input_buffer_size) / (f64)tick_rate * 0.01;
+                }
+
+                enet_packet_destroy (net_event.packet);
+            } break;
             }
-
-            enet_packet_destroy (net_event.packet);
-        } break;
         }
+    } else {
+
     }
 
-    Entity* player = entity_list_get(&s->state.entities, s->player_handle);
+    // Entity* player = entity_list_get(&s->state.entities, s->player_handle);
+    // Entity zero = {};
+    // Entity* player = &zero;
 
 
 
@@ -272,10 +281,11 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
     for (i32 i = 0; i < 8; i++) {
         ImageID image = {};
         float4 color = {1,1,1,1};
-        if (player->selected_spell == i) {
+        if (s->player.selected_spell == i) {
             color = {1,0.8,0,1};
         }
         UI_Key id = ui_push_row({
+            .salt_key = var_to_byte_slice(&i),
             .size = {size_px(slot_width), size_px(slot_width)},
             .border = sides_px(grid_width),
             // .background_color = {1,1,1,1},
@@ -283,7 +293,7 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
         });
 
         if (s->inventory_open) {
-            if (ui_hover(id) && input_mouse_down(SDL_BUTTON_LEFT) && player->hotbar[i] != SpellType_NULL) {
+            if (ui_hover(id) && input_mouse_down(SDL_BUTTON_LEFT) && s->player.hotbar[i] != SpellType_NULL) {
                 s->moving_spell = true;
                 s->spell_move_src = i;
             }
@@ -294,7 +304,7 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
             }
         }
 
-        if (player->hotbar[i] != SpellType_NULL) {
+        if (s->player.hotbar[i] != SpellType_NULL) {
             image = ImageID_bullet_png;
 
             // if(i == 0) {
@@ -327,6 +337,10 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
     if (input_key_down(SDL_SCANCODE_TAB)) {
         s->inventory_open = !s->inventory_open;
 
+    }
+
+    if (input_key_down(SDL_SCANCODE_ESCAPE)) {
+        s->paused = !s->paused;
     }
 
 
@@ -362,6 +376,32 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
         ui_pop_row();
     }
 
+    if (s->paused) {
+        ui_row({
+            .font_size = font_ru(2),
+            .size = {{UI_SizeType_ParentFraction, 1}, {UI_SizeType_ParentFraction, 1}},
+            .background_color = {0,0,0,0.5},
+        }) {
+            ui_row({
+                .position = pos_anchor2(0.5 , 0.5),
+            }) {
+                if (ui_button(ui_row_ret({
+                    .text = "Quit"
+                }))) {
+                    // printf("fakjdhf\n");
+                    if (s->online_mode) {
+                        enet_peer_disconnect(s->server, 0);
+                        enet_host_flush(s->client);
+                        // enet_host_service(s->server) {
+                        //
+                        // }
+                    }
+                    ring_buffer_push_back(&sys->events, {.type = EventType_QuitScene});
+                }
+            }
+        }
+    }
+
     // printf("%d", s->server->roundTripTime);
     // ui_push_row({
     //
@@ -372,9 +412,17 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
     ui_end(frame_arena);
 
     while (s->accumulator >= fixed_dt) {
+        arena_reset(&s->tick_arena);
         input_begin_frame(&s->tick_input);
 
         input_set_ctx(&s->tick_input);
+
+        if (!s->online_mode) {
+            Slice<Entity*> players = slice_create<Entity*>(&s->tick_arena, 1);
+            s->latest_snapshot = entities_to_snapshot(&s->tick_arena, s->state.entities, s->current_tick, &players);
+            s->player = *players[0];
+        }
+
 
         s->accumulator = s->accumulator - fixed_dt;
         s->time += fixed_dt;
@@ -403,21 +451,23 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
         };
 
         Stream stream = {
-            .slice = slice_create<u8>(&tick_arena, sizeof(PlayerInput)),
+            .slice = slice_create<u8>(&s->tick_arena, sizeof(PlayerInput)),
             .operation = Stream_Write,
         };
 
-        serialize_input_message(&stream, &input);
+        if (s->online_mode) {
+            serialize_input_message(&stream, &input);
 
-        ENetPacket* packet = enet_packet_create(stream.slice.data, stream.slice.length, ENET_PACKET_FLAG_RELIABLE);
-        enet_peer_send(s->server, Channel_Reliable, packet);
-        enet_host_flush(s->client);
+            ENetPacket* packet = enet_packet_create(stream.slice.data, stream.slice.length, ENET_PACKET_FLAG_RELIABLE);
+            enet_peer_send(s->server, Channel_Reliable, packet);
+            enet_host_flush(s->client);
+        }
 
 
         if (input_mouse_up(SDL_BUTTON_LEFT)) {
             s->moving_spell = false;
         }
-        // int throttle_ticks{};
+       // int throttle_ticks{};
         // state_update(&s->state, &tick_arena, inputs, s->current_tick, tick_rate);
 
 
@@ -425,13 +475,13 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
         // if (entity_is_valid(&s->state.entities, s->player_handle)) {
         //     player_pos = float2{.b2vec=b2Body_GetPosition(entity_list_get(&s->state.entities, s->player_handle)->body_id)};
         // }
-        // s->camera.position = player_pos;
+        s->camera.position = s->player.position;
 
         s->current_tick++;
 
         input_end_frame(&s->tick_input);
 
-        arena_reset(&tick_arena);
+        state_update(&s->state, &s->tick_arena, inputs, s->current_tick, tick_rate);
     }
 
     input_set_ctx(&sys->input);
@@ -463,7 +513,7 @@ void local_scene_update(LocalScene* s, Arena* frame_arena, double delta_time) {
 
     s->frame++;
 
-    local_scene_render(s, frame_arena);
+    scene_render(s, frame_arena);
 }
 
 void render_ghosts(Camera2D camera, const Slice<Ghost> ghosts) {
@@ -513,7 +563,7 @@ void render_ghosts(Camera2D camera, const Slice<Ghost> ghosts) {
     }
 }
 
-void local_scene_render(LocalScene* s, Arena* frame_arena) {
+void scene_render(Scene* s, Arena* frame_arena) {
     System* sys = s->sys;
     // printf("%d\n", s->latest_snapshot[0].type);
     render_ghosts(s->camera, s->latest_snapshot);
@@ -581,16 +631,6 @@ void local_scene_render(LocalScene* s, Arena* frame_arena) {
         draw_world_rect(s->camera, Rect{(float2)p2,{1,1}}, {1,0,0,1});
 
     }
-
-    // draw_world_sprite(renderer, m_camera, {{0,0}, {1,1}}, {
-    //     .texture_id=TextureID_tilemap_png,
-    //     .src_rect=Rect{{16,0}, {16,16}}
-    // });
-    
-    // draw_world_lines(renderer, m_camera, kys, 2, {255,255,0,255});
-    draw_sprite_world(s->camera, {float2{0,1}, {1,1}}, {
-        .texture_id = TextureID_depth_test_png,
-    });
 
     ui_draw(&s->ui, frame_arena);
 }

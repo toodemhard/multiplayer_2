@@ -90,6 +90,7 @@ struct Ghost {
 
 struct Entity {
     //automatically set by create_ent()
+    float2 position;
     bool is_active;
     u32 generation;
 
@@ -99,7 +100,6 @@ struct Entity {
     b2BodyId body_id;
 
     Array<SpellType, 10> hotbar;
-
     ClientID client_id;
     PlayerState player_state;
     float2 dash_direction;
@@ -140,7 +140,6 @@ struct Box {
 struct GameState {
     Slice<Entity> entities;
 
-
     b2WorldId world_id;
     b2BodyId ground_id;
 };
@@ -161,3 +160,5 @@ EntityHandle create_player(GameState* state, ClientID client_id);
 Entity* entity_list_get(const Slice<Entity>* entity_list, EntityHandle handle);
 
 bool entity_is_valid(const Slice<Entity>* entity_list, EntityHandle handle);
+
+Slice<Ghost> entities_to_snapshot(Arena* tick_arena, const Slice<Entity> ents, u64 current_tick, Slice<Entity*>* players);

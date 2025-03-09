@@ -22,14 +22,16 @@ struct Menu {
 
 struct State {
     System sys;
-    LocalScene local_scene;
+    Scene local_scene;
     Menu menu;
 
 
     std::chrono::time_point<std::chrono::steady_clock> last_frame_time;
 
     Arena temp_arena;
+    Arena persistent_arena;
     Arena level_arena;
+    Arena menu_arena;
     Arena scratch_arenas[scratch_count];
 
     ENetHost* client;

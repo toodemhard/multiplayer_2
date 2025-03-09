@@ -13,12 +13,14 @@ enum SceneType {
 enum EventType {
     EventType_NULL,
     EventType_StartScene,
+    EventType_QuitScene,
 };
 
 struct Event {
     EventType type;
     union {
     struct {
+        bool online;
         Slice<u8> connect_ip;
     } start_scene;
     };

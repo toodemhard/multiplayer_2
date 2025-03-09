@@ -15,11 +15,21 @@ void stream_pos_reset(Stream* stream) {
     stream->bit_index = 0;
 }
 
-void serialize_snapshot(Stream* stream, u8* input_buffer_size, Slice<Ghost>* ghosts) {
+void serialize_player(Stream* s, Entity* player) {
+    serialize_var(s, &player->position);
+    serialize_var(s, &player->hotbar);
+    serialize_var(s, &player->selected_spell);
+}
+
+void serialize_snapshot(Stream* stream, u8* input_buffer_size, Slice<Ghost>* ghosts, Entity* player) {
     MessageType message_type = MessageType_Snapshot;
     serialize_var(stream, &message_type);
     serialize_var(stream, input_buffer_size);
     serialize_slice(stream, ghosts);
+
+    if (player != NULL) {
+        serialize_player(stream, player);
+    }
 }
 
 void serialize_input_message(Stream* stream, PlayerInput* input) {

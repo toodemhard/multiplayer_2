@@ -66,6 +66,7 @@ bool init(void* memory) {
 
     arena_init(&state->temp_arena, arena_alloc(&god_allocator, megabytes(5)), megabytes(5));
     arena_init(&state->level_arena, arena_alloc(&god_allocator, megabytes(5)), megabytes(5));
+    state->menu_arena = arena_suballoc(&god_allocator, megabytes(2));
 
     for (i32 i = 0; i < scratch_count; i++)  {
         state->scratch_arenas[i] = arena_suballoc(&god_allocator, megabytes(1));
@@ -105,7 +106,7 @@ bool init(void* memory) {
     std::future<void> font_futures[FontID::font_count];
 
     for (i32 i = 0; i < FontID::font_count; i++) {
-        font_futures[i] = std::async(std::launch::async, load_font, &sys->fonts[i], std::ref(sys->renderer), FontID::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
+        font_futures[i] = std::async(std::launch::async, font_load, &sys->fonts[i], std::ref(sys->renderer), FontID::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
         // font::load_font(&state->fonts[i], state->renderer, FontID::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
     }
 
@@ -136,7 +137,7 @@ bool init(void* memory) {
 
     // double last_render_duration = 0.0;
 
-    state->menu = menu_create(&state->level_arena, sys);
+    state->menu = menu_create(&state->menu_arena, sys);
 
     state->initialized = true;
     return true;
@@ -196,7 +197,6 @@ void text_field_input(Slice<u8>* text) {
     }
 }
 
-
 void menu_update(Menu* menu, Arena* temp_arena) {
 
     // if (menu->input->key_down(SDL_SCANCODE_S)) {
@@ -211,74 +211,66 @@ void menu_update(Menu* menu, Arena* temp_arena) {
     ArenaTemp scratch = scratch_get(0, 0);
     defer(scratch_release(scratch));
 
-    UI_Element idk = {
-        .size = {size_px(100), size_px(100)},
-        .background_color = {1,0,1,1},
-    };
-    ui_row(idk){}
-
 
     ui_row({
-        // .text = ,
-        // .font_size = font_px(32),
-        .size = {size_px(600), size_px(200)},
-        .background_color = {0.1,0.1,0.3,1}
+        .font_size = font_px(32),
+        .stack_axis = Axis2_Y,
+        .position = pos_anchor2(0.5, 0.5),
+        // .background_color = {0.1,0.1,0.3,1}
     }) {
-        if(f) {
-    ui_row({
-        .size = {size_px(300), size_px(300)},
-        .background_color = {0.5,0,0.8},
-    }) {}
-
-        }
-
-        ui_row({
-            .size = {size_grow(), size_grow()},
-            .border = sides_px(2),
-            .border_color = {1,0,0,1},
-        }) {}
-        Slice<u8> ip_field_key = cstr_to_string("ip_field");
-        float4 border_color = {0.2,0.2,0.2,1};
-        if (ui_is_active(ui_key(ip_field_key))) {
-            border_color = {0.9,0.9,0.9,1};
-        }
-        ui_row({
-            .exc_key = ip_field_key,
-            .text = string_to_cstr(scratch.arena, menu->text),
-            .size = {size_px(100), size_px(20)},
-            .border = sides_px(2),
-            .border_color = border_color,
-        });
-
-        if (ui_is_active(ui_key(ip_field_key))) {
-            text_field_input(&menu->text);
-        }
+        UI_Key local_button;
 
         if (ui_button(ui_row_ret({
-            .text = "send",
-            .background_color = {1,0,0,1},
+            .out_key = &local_button,
+            .text = "Local",
         }))) {
-            printf("%s\n", string_to_cstr(scratch.arena, menu->text));
-            ring_buffer_push_back(&sys->events, {
+            ring_buffer_push_back(&sys->events, Event{
                 .type = EventType_StartScene,
                 .start_scene = {
-                    menu->text,
+                    .online = false,
                 },
             });
-
-
         }
 
-        ui_row({
-            .size = {size_grow(), size_grow()},
-            .border = sides_px(2),
-            .border_color = {1,0,0,1},
-        }) {}
-        // ui_push_row({
-        //   .border_size = {size_px(2), size_px(2), size_px(2), size_px(2)},
-        //   .border_color = {1, 0, 0, 1},
-        //   })
 
+
+
+
+        ui_row({}) {
+            ui_row({.text = "Server IP: "});
+            UI_Key ip_field;
+            float4 border_color = {0.4,0.4,0.4,1};
+            ui_row({
+                .out_key = &ip_field,
+                .text = string_to_cstr(scratch.arena, menu->text),
+                .size = {size_ru(16)},
+                .border = sides_px(2),
+                .border_color = border_color,
+            });
+            if (ui_is_active(ip_field)) {
+                ui_prev_element()->border_color = {0.9,0.9,0.9,1};
+                text_field_input(&menu->text);
+            }
+
+
+            // if (ui_is_active(ui_key(ip_field_key))) {
+            // }
+
+            if (ui_button(ui_row_ret({
+                .text = "Connect",
+                .background_color = {1,0,0,1},
+            }))) {
+                printf("%s\n", string_to_cstr(scratch.arena, menu->text));
+                ring_buffer_push_back(&sys->events, Event{
+                    .type = EventType_StartScene,
+                    .start_scene = {
+                        .online = true,
+                        .connect_ip = menu->text,
+                    },
+                });
+            }
+
+        }
     }
 
     ui_end(temp_arena);
@@ -370,12 +362,18 @@ extern "C" UPDATE(update) {
         
         switch (union_event.type) {
         case EventType_StartScene: {
+            arena_reset(&state->level_arena);
             Slice<Font> fonts_view = slice_create_view(&sys->fonts.data[0], sys->fonts.length);
 
             auto event = union_event.start_scene; // for once auto is useful, anon struct
             
-            local_scene_init(&state->local_scene, &state->level_arena, sys, event.connect_ip);
+            scene_init(&state->local_scene, &state->level_arena, sys, event.online, event.connect_ip);
             state->active_scene = SceneType_Game;
+        } break;
+        case EventType_QuitScene: {
+            state->active_scene = SceneType_Menu;
+            arena_reset(&state->menu_arena);
+            state->menu = menu_create(&state->menu_arena, sys);
         } break;
 
         }
@@ -403,7 +401,7 @@ extern "C" UPDATE(update) {
         }
 
         if (state->active_scene == SceneType_Game) {
-            local_scene_update(&state->local_scene, &state->temp_arena, delta_time);
+            scene_update(&state->local_scene, &state->temp_arena, delta_time);
         }
         // //
         // // auto string = std::format("render: {:.3f}ms", last_render_duration * 1000.0);

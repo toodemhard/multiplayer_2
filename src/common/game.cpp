@@ -144,14 +144,6 @@ void state_init(GameState* state, Arena* arena) {
     world_def.gravity = b2Vec2{0.0f, 0.0f};
     state->world_id = b2CreateWorld(&world_def);
 
-    auto ground_body_def = b2DefaultBodyDef();
-    ground_body_def.type = b2_staticBody;
-    state->ground_id = b2CreateBody(state->world_id, &ground_body_def);
-
-    auto ground_box = b2MakeBox(2.0, 0.5);
-    auto ground_shape_def = b2DefaultShapeDef();
-    b2CreatePolygonShape(state->ground_id, &ground_shape_def, &ground_box);
-
     b2World_Step(state->world_id, 0.1, 4);
 
     {
@@ -378,4 +370,29 @@ EntityHandle create_player(GameState* state, ClientID client_id) {
     b2CreatePolygonShape(body_id, &shape_def, &polygon);
 
     return handle;
+}
+
+Slice<Ghost> entities_to_snapshot(Arena* tick_arena, const Slice<Entity> ents, u64 current_tick, Slice<Entity*>* players) {
+    Slice<Ghost> ghosts = slice_create<Ghost>(tick_arena, ents.length);
+
+    for (i32 i = 0; i < ents.length; i++) {
+        Entity* ent = &(ents[i]);
+        if (ent->is_active) {
+            slice_push(&ghosts, Ghost{
+                .type = ent->type,
+                .position = {.b2vec=b2Body_GetPosition(ent->body_id)},
+                .health = (u16)ent->health,
+                .show_health = (bool)(ent->flags & EntityFlags_hittable),
+                .hit_flash = ent->hit_flash_end_tick > current_tick,
+                .flip_sprite = ent->flip_sprite,
+            });
+
+            if (ent->type == EntityType::Player) {
+                ent->position.b2vec = b2Body_GetPosition(ent->body_id);
+                slice_push(players, ent);
+            }
+        }
+    }
+
+    return ghosts;
 }
