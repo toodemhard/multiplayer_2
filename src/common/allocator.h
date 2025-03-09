@@ -156,6 +156,14 @@ void slice_push(Slice<T>* slice, T element) {
 }
 
 template<typename T> 
+void slice_remove_range(Slice<T>* slice, u64 i, u64 count) {
+    ASSERT(i >= 0);
+    ASSERT(i + count <= slice->length);
+    memcpy(&slice[i], &slice[i + count], slice->length - (i + count));
+    slice->length -= count;
+}
+
+template<typename T> 
 void slice_pop(Slice<T>* slice) {
     ASSERT(slice->length > 0);
     slice->length -= 1;
@@ -171,6 +179,8 @@ T& slice_back(const Slice<T> slice) {
     ASSERT(slice.length > 0);
     return slice[slice.length - 1];
 }
+
+#define var_to_byte_slice(var) slice_create_view((u8*)var, sizeof(*var))
 
 template<typename T>
 Slice<u8> slice_data_raw(const Slice<T> slice) {
