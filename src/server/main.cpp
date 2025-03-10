@@ -29,15 +29,12 @@ struct State {
     Arena* level_arena;
 };
 
-
 struct Client {
     bool active;
     ClientID id;
     RingBuffer<PlayerInput, 10> input_buffer;
     ENetPeer* peer;
 };
-
-
 
 int main() {
     if (SDL_Init(0)) {
@@ -133,12 +130,15 @@ int main() {
                 if (type == MessageType_Test) {
                     TestMessage message = {};
                     serialize_test_message(&stream, &temp_arena, &message);
-                    printf ("A packet of length %u containing %s was received from %s on channel %u.\n",
-                        event.packet -> dataLength,
-                        c_str(&temp_arena, message.str),
-                        event.peer -> data,
-                        event.channelID
-                    );
+                    ENetPacket* packet = enet_packet_create(event.packet->data, event.packet->dataLength, ENET_PACKET_FLAG_RELIABLE);
+                    enet_peer_send(clients[1].peer, Channel_Reliable, packet);
+                    enet_host_flush(server);
+                    // printf ("A packet of length %u containing %s was received from %s on channel %u.\n",
+                    //     event.packet -> dataLength,
+                    //     c_str(&temp_arena, message.str),
+                    //     event.peer -> data,
+                    //     event.channelID
+                    // );
 
                 }
 
@@ -223,12 +223,12 @@ int main() {
                     }
                 }
 
+                stream_clear(&stream);
                 serialize_snapshot(&stream, &input_buffer_size, &ghosts, player);
                 ENetPacket* packet = enet_packet_create((void*)stream.slice.data, stream.slice.length, ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT);
                 enet_peer_send(client->peer, Channel_Unreliable, packet);
                 enet_host_flush(server);
 
-                stream_pos_reset(&stream);
             }
 
             // printf("tick: %d", s->current_tick);

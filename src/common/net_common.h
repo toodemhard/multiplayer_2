@@ -46,10 +46,11 @@ struct Stream {
 
 Stream stream_create(Slice<u8> slice, StreamOperation operation);
 
+void stream_clear(Stream* stream);
 void stream_pos_reset(Stream* stream);
 
 struct TestMessage {
-    String8 str;
+    Slice<u8> str;
 };
 
 struct Snapshot {
@@ -73,7 +74,7 @@ void serialize_slice(Stream* stream, Slice<T>* slice) {
 void serialize_bool(Stream* stream, bool* value);
 void serialize_int(Stream* stream, i32* num);
 void serialize_bytes(Stream* stream, u8* bytes, u64 size);
-void serialize_string(Stream* stream, Arena* read_arena, String8* string);
+// void serialize_string(Stream* stream, Arena* read_arena, String8* string);
 void serialize_test_message(Stream* stream, Arena* read_arena, TestMessage* message);
 
 void serialize_input_message(Stream* stream, PlayerInput* input);

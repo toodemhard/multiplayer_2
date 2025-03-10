@@ -10,6 +10,12 @@ Stream stream_create(Slice<u8> slice, StreamOperation operation) {
     };
 }
 
+void stream_clear(Stream* stream) {
+    slice_clear(&stream->slice);
+    stream->current = 0;
+    stream->bit_index = 0;
+}
+
 void stream_pos_reset(Stream* stream) {
     stream->current = 0;
     stream->bit_index = 0;
@@ -27,7 +33,15 @@ void serialize_snapshot(Stream* stream, u8* input_buffer_size, Slice<Ghost>* gho
     serialize_var(stream, input_buffer_size);
     serialize_slice(stream, ghosts);
 
+    bool player_alive = false;
+
     if (player != NULL) {
+        player_alive = true;
+    }
+
+    serialize_bool(stream, &player_alive);
+
+    if (player_alive) {
         serialize_player(stream, player);
     }
 }
@@ -85,7 +99,7 @@ void serialize_bytes(Stream* stream, u8* bytes, u64 size) {
     stream->current += size;
 }
 
-void serialize_string(Stream* stream, Arena* read_arena, String8* string) {
+void serialize_string(Stream* stream, Arena* read_arena, Slice<u8>* string) {
     serialize_bytes(stream, (u8*)&string->length, sizeof(string->length));
         
     u64 string_size = string->length * sizeof(*string->data);
