@@ -244,6 +244,7 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
                     u8 input_buffer_size;
                     serialize_snapshot(&stream, &input_buffer_size, &s->latest_snapshot, &s->player);
 
+                    s->camera.position = s->player.position;
                     s->accumulator += (target_input_buffer_size - input_buffer_size) / (f64)tick_rate * 0.01;
                 }
 
@@ -511,7 +512,6 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
         //     player_pos = float2{.b2vec=b2Body_GetPosition(entity_list_get(&s->state.entities, s->player_handle)->body_id)};
         // }
 
-        s->camera.position = s->player.position;
 
         s->current_tick++;
 
