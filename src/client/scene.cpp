@@ -239,12 +239,22 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
                 stream_pos_reset(&stream);
 
                 if (message_type == MessageType_Snapshot) {
-                    printf("asdl %f\n", delta_time);
+                    // printf("asdl %f\n", delta_time);
                     // serialize_slice(&stream, &s->latest_snapshot);
                     u8 input_buffer_size;
                     serialize_snapshot(&stream, &input_buffer_size, &s->latest_snapshot, &s->player);
 
                     s->accumulator += (target_input_buffer_size - input_buffer_size) / (f64)tick_rate * 0.01;
+                }
+
+                ArenaTemp scratch = scratch_get(0,0);
+                defer(scratch_release(scratch));
+
+                if (message_type == MessageType_Test) {
+                    TestMessage message = {};
+                    serialize_test_message(&stream, scratch.arena, &message);
+
+                    printf("%s", string_to_cstr(scratch.arena, message.str));
                 }
 
                 enet_packet_destroy (net_event.packet);
@@ -342,6 +352,16 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
     if (input_key_down(SDL_SCANCODE_ESCAPE)) {
         s->paused = !s->paused;
     }
+
+    Slice<u8> string = slice_create_fixed<u8>(frame_arena, 256);
+    snprintf((char*)string.data, slice_size_bytes(string), "%f, %f", s->player.position.x, s->player.position.y);
+    // printf("%s", string.data);
+    ui_row({
+        .text=(char*)string.data,
+        .position=pos_anchor2(1,1),
+        .padding=sides_px(ru(1)),
+        .background_color={1,0,0,1},
+    });
 
 
 
@@ -450,10 +470,25 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
             .inputs = slice_create_view(&input, 1),
         };
 
+        if (input_key_down(SDL_SCANCODE_F)) {
+            Stream stream = {
+                .slice = slice_create<u8>(&s->tick_arena, kilobytes(2)),
+                .operation = Stream_Write,
+            };
+            TestMessage msg = {
+                .str = cstr_to_string("KYS!!!"),
+            };
+            serialize_test_message(&stream, NULL, &msg);
+            ENetPacket* packet = enet_packet_create(stream.slice.data, stream.slice.length, ENET_PACKET_FLAG_RELIABLE);
+            enet_peer_send(s->server, Channel_Reliable, packet);
+            enet_host_flush(s->client);
+        }
+
         Stream stream = {
             .slice = slice_create<u8>(&s->tick_arena, sizeof(PlayerInput)),
             .operation = Stream_Write,
         };
+
 
         if (s->online_mode) {
             serialize_input_message(&stream, &input);
@@ -475,6 +510,7 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
         // if (entity_is_valid(&s->state.entities, s->player_handle)) {
         //     player_pos = float2{.b2vec=b2Body_GetPosition(entity_list_get(&s->state.entities, s->player_handle)->body_id)};
         // }
+
         s->camera.position = s->player.position;
 
         s->current_tick++;

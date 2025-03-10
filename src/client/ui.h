@@ -181,7 +181,7 @@ inline FontSize font_ru(f32 value) {
     return FontSize{FontSizeType_Pixels, ru(value)};
 }
 
-
+#define size2_ru(v0, v1) {size_ru(v0), size_ru(v1)}
 #define size2_px(v0, v1) {size_px(v0), size_px(v1)}
 
 #define pos_anchor2(v0, v1) {anchor(v0), anchor(v1)}
