@@ -265,6 +265,21 @@ Slice<u8> cstr_to_string(const char* str);
 char* string_to_cstr(Arena* arena, const Slice<u8> string);
 void string_cat(Slice<u8>* dst, const Slice<u8> src);
 
+inline Slice<u8> string_format(Arena* arena, const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    va_list args_2;
+    va_copy(args_2, args);
+
+    i32 length = vsnprintf(NULL, 0, fmt, args) + 1;
+    va_end(args);
+    Slice<u8> string = slice_create_fixed<u8>(arena, length);
+    vsnprintf((char* const)string.data, length, fmt, args_2);
+    va_end(args_2);
+
+    return string;
+}
+
 const internal f64 max_load_factor = 0.7;
 
 template <typename K, typename V>
