@@ -190,6 +190,8 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String_8
         if (!s->server) {
             fprintf(stderr, "no peer");
         }
+
+        // enet_peer_ping_interval(s->server, 10);
     }
 
     slice_init(&s->latest_snapshot, level_arena, 1000);
@@ -243,9 +245,12 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
                     // serialize_slice(&stream, &s->latest_snapshot);
                     u8 input_buffer_size;
                     serialize_snapshot(&stream, &input_buffer_size, &s->latest_snapshot, &s->player);
+                    s->last_input_buffer_size = input_buffer_size;
 
                     s->camera.position = s->player.position;
-                    s->accumulator += (target_input_buffer_size - input_buffer_size) / (f64)tick_rate * 0.01;
+                    f64 acc_diff = (target_input_buffer_size - input_buffer_size) / (f64)tick_rate * 0.05;
+                    // printf("%f\n", acc_diff);
+                    s->accumulator += acc_diff;
                 }
 
                 ArenaTemp scratch = scratch_get(0,0);
@@ -354,15 +359,48 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
         s->paused = !s->paused;
     }
 
-    Slice<u8> string = slice_create_fixed<u8>(frame_arena, 256);
-    snprintf((char*)string.data, slice_size_bytes(string), "%f, %f", s->player.position.x, s->player.position.y);
+
+    Slice<u8> string = string_format(frame_arena, "inptbuff: %d", s->last_input_buffer_size);
+    // snprintf((char*)string.data, slice_size_bytes(string), );
+    // snprintf((char*)string.data, slice_size_bytes(string), "inptbuff: %d", s->last_input_buffer_size);
     // printf("%s", string.data);
-    ui_row({
-        .text=(char*)string.data,
-        .position=pos_anchor2(1,1),
-        .padding=sides_px(ru(1)),
-        .background_color={1,0,0,1},
-    });
+
+    s->acc_2 += delta_time;
+
+    const f64 bw_poll = 1;
+
+    if (s->acc_2 >= bw_poll) {
+        s->acc_2  -= bw_poll;
+
+        s->down_bandwidth = (s->client->totalReceivedData - s->last_total_received_data) / bw_poll;
+        s->last_total_received_data = s->client->totalReceivedData;
+
+        s->up_bandwidth = (s->client->totalSentData - s->last_total_sent_data) / bw_poll;
+        s->last_total_sent_data = s->client->totalSentData;
+    }
+
+    if (s->online_mode) {
+        ui_row({
+            .stack_axis = Axis2_Y,
+            .position=pos_anchor2(1,1),
+            .padding=sides_px(ru(1)),
+        }) {
+            ui_row({
+                .text=(char*)string.data,
+            });
+            ui_row({
+                .text=(char*)string_format(frame_arena, "ping: %dms", (int)s->server->lastRoundTripTime).data,
+                // .background_color={1,0,0,1},
+            });
+            ui_row({
+                .text=(char*)string_format(frame_arena, "up: %.2fKB/s", s->up_bandwidth / 1024.0).data,
+            });
+            ui_row({
+                .text=(char*)string_format(frame_arena, "down: %.2fKB/s", s->down_bandwidth / 1024.0).data,
+            });
+            // printf("%d\n", s->client->incomingBandwidth);
+        }
+    }
 
 
 
@@ -442,6 +480,7 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
             Slice<Entity*> players = slice_create<Entity*>(&s->tick_arena, 1);
             s->latest_snapshot = entities_to_snapshot(&s->tick_arena, s->state.entities, s->current_tick, &players);
             s->player = *players[0];
+            s->camera.position = s->player.position;
         }
 
 
@@ -492,6 +531,7 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
 
 
         if (s->online_mode) {
+            // enet_peer_ping(s->server);
             serialize_input_message(&stream, &input);
 
             ENetPacket* packet = enet_packet_create(stream.slice.data, stream.slice.length, ENET_PACKET_FLAG_RELIABLE);

@@ -36,7 +36,16 @@ struct Scene {
     Camera2D camera = default_camera;
 
     GameState state{};
+
+    u8 last_input_buffer_size;
     Slice<Ghost> latest_snapshot;
+
+    u32 last_total_sent_data;
+    u32 last_total_received_data;
+    u32 up_bandwidth; // bytes/second
+    u32 down_bandwidth;
+
+    double acc_2;
 
     bool online_mode;
 

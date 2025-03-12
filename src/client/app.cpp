@@ -218,10 +218,8 @@ void menu_update(Menu* menu, Arena* temp_arena) {
         .position = pos_anchor2(0.5, 0.5),
         // .background_color = {0.1,0.1,0.3,1}
     }) {
-        UI_Key local_button;
 
         if (ui_button(ui_row_ret({
-            .out_key = &local_button,
             .text = "Local",
         }))) {
             ring_buffer_push_back(&sys->events, Event{
