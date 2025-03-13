@@ -327,6 +327,8 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
             //     image = ImageID_pot_jpg;
             // }
         }
+
+
         
         if (s->moving_spell && s->spell_move_src == i) {
             image = {};
@@ -365,21 +367,22 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
     // snprintf((char*)string.data, slice_size_bytes(string), "inptbuff: %d", s->last_input_buffer_size);
     // printf("%s", string.data);
 
-    s->acc_2 += delta_time;
-
-    const f64 bw_poll = 1;
-
-    if (s->acc_2 >= bw_poll) {
-        s->acc_2  -= bw_poll;
-
-        s->down_bandwidth = (s->client->totalReceivedData - s->last_total_received_data) / bw_poll;
-        s->last_total_received_data = s->client->totalReceivedData;
-
-        s->up_bandwidth = (s->client->totalSentData - s->last_total_sent_data) / bw_poll;
-        s->last_total_sent_data = s->client->totalSentData;
-    }
 
     if (s->online_mode) {
+        s->acc_2 += delta_time;
+
+        const f64 bw_poll = 1;
+
+        if (s->acc_2 >= bw_poll) {
+            s->acc_2  -= bw_poll;
+
+            s->down_bandwidth = (s->client->totalReceivedData - s->last_total_received_data) / bw_poll;
+            s->last_total_received_data = s->client->totalReceivedData;
+
+            s->up_bandwidth = (s->client->totalSentData - s->last_total_sent_data) / bw_poll;
+            s->last_total_sent_data = s->client->totalSentData;
+        }
+
         ui_row({
             .stack_axis = Axis2_Y,
             .position=pos_anchor2(1,1),
@@ -476,14 +479,6 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
 
         input_set_ctx(&s->tick_input);
 
-        if (!s->online_mode) {
-            Slice<Entity*> players = slice_create<Entity*>(&s->tick_arena, 1);
-            s->latest_snapshot = entities_to_snapshot(&s->tick_arena, s->state.entities, s->current_tick, &players);
-            s->player = *players[0];
-            s->camera.position = s->player.position;
-        }
-
-
         s->accumulator = s->accumulator - fixed_dt;
         s->time += fixed_dt;
 
@@ -543,7 +538,7 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
         if (input_mouse_up(SDL_BUTTON_LEFT)) {
             s->moving_spell = false;
         }
-       // int throttle_ticks{};
+        // int throttle_ticks{};
         // state_update(&s->state, &tick_arena, inputs, s->current_tick, tick_rate);
 
 
@@ -551,13 +546,18 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
         // if (entity_is_valid(&s->state.entities, s->player_handle)) {
         //     player_pos = float2{.b2vec=b2Body_GetPosition(entity_list_get(&s->state.entities, s->player_handle)->body_id)};
         // }
+        state_update(&s->state, &s->tick_arena, inputs, s->current_tick, tick_rate);
 
-
-        s->current_tick++;
+        if (!s->online_mode) {
+            Slice<Entity*> players = slice_create<Entity*>(&s->tick_arena, 1);
+            s->latest_snapshot = entities_to_snapshot(&s->tick_arena, s->state.entities, s->current_tick, &players);
+            s->player = *players[0];
+            s->camera.position = s->player.position;
+        }
 
         input_end_frame(&s->tick_input);
+        s->current_tick++;
 
-        state_update(&s->state, &s->tick_arena, inputs, s->current_tick, tick_rate);
     }
 
     input_set_ctx(&sys->input);
