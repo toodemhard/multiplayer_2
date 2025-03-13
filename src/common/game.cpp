@@ -318,7 +318,7 @@ void state_update(GameState* state, Arena* temp_arena, Inputs inputs, u32 curren
                     selected_spell = ent->hotbar[ent->selected_spell];
                 }
 
-                if (selected_spell == SpellType_Bolt) {
+                if (selected_spell == SpellType_Fireball) {
                     create_bullet(state, handle, player_pos, direction, current_tick, tick_rate);
                 }
 
@@ -354,7 +354,7 @@ EntityHandle create_player(GameState* state, ClientID client_id) {
         .type = EntityType::Player,
         .flags = EntityFlags_hittable,
         .body_id = body_id,
-        .hotbar = {SpellType_Bolt, SpellType_SpreadBolt},
+        .hotbar = {SpellType_Fireball, SpellType_SpreadBolt},
         .client_id = client_id,
         // .hotbar = {SpellType_Bolt, SpellType_SpreadBolt},
         .health = 100,

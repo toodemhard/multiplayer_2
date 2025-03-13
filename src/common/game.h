@@ -33,8 +33,10 @@ enum class PlayerState {
 
 enum SpellType {
     SpellType_NULL,
-    SpellType_Bolt,
+    SpellType_Fireball,
     SpellType_SpreadBolt,
+    SpellType_IceWall,
+    SpellType_SniperRifle,
 };
 
 enum class EntityType {

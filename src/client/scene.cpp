@@ -320,8 +320,24 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
             }
         }
 
-        if (s->player.hotbar[i] != SpellType_NULL) {
-            image = ImageID_bullet_png;
+        SpellType spell = s->player.hotbar[i];
+        Rect src = {0,0,16,16};
+        if (spell != SpellType_NULL) {
+            image = ImageID_spell_icons_png;
+
+            if (spell == SpellType_Fireball) {
+                src.position = {16,0};
+            }
+            if (spell == SpellType_SniperRifle) {
+                src.position = {32,0};
+            }
+            if (spell == SpellType_SpreadBolt) {
+                src.position = {48,0};
+            }
+            if (spell == SpellType_IceWall) {
+                src.position = {0,0};
+            }
+
 
             // if(i == 0) {
             //     image = ImageID_pot_jpg;
@@ -331,11 +347,17 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
 
         
         if (s->moving_spell && s->spell_move_src == i) {
+
+            draw_sprite_screen({sys->input.mouse_pos - float2{30,30}, {60,60}}, {
+                .texture_id=image_id_to_texture_id(image),
+                .src_rect = src,
+            });
             image = {};
         }
 
         ui_push_row({
             .image = image,
+            .image_src = src,
             .size = {{UI_SizeType_ParentFraction, 1}, {UI_SizeType_ParentFraction, 1}},
             // .background_color = {1,0,0,1},
         });
@@ -666,10 +688,6 @@ void scene_render(Scene* s, Arena* frame_arena) {
     // draw_world_rect(renderer, m_camera, {{-3.5, 0}, {1,1}}, color::red);
     // draw_world_rect(renderer, m_camera, {{0.5, 1.5}, {0.5,0.5}}, RGBA{255,255,0,255});
     // printf("%d\n", alignof(std::max_align_t);
-    if (s->moving_spell) {
-        Entity* player = entity_list_get(&s->state.entities, s->player_handle);
-        draw_sprite_screen({sys->input.mouse_pos - float2{30,30}, {60,60}}, {.texture_id=TextureID_bullet_png});
-    }
 
     if (s->edit_mode) {
         i32 y_count = s->camera.scale.y / grid_step + 1;

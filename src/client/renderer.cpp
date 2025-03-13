@@ -408,9 +408,9 @@ void draw_sprite_screen(Rect screen_rect, const SpriteProperties& properties) {
 void draw_sprite(Rect normalized_rect, const SpriteProperties& properties) {
 
     auto normalized_texture_rect = Rect{float2{0,0}, {1,1}};
-    if (properties.src_rect.has_value()) {
+    Rect src_rect = properties.src_rect;
+    if (!(src_rect.w == 0 && src_rect.h == 0)) {
         auto& texture = renderer->textures[(int)properties.texture_id];
-        auto& src_rect = properties.src_rect.value();
         normalized_texture_rect = {
             .position = src_rect.position / float2{(f32)texture.w, (f32)texture.h},
             .size = src_rect.size / float2{(f32)texture.w, (f32)texture.h},

@@ -70,8 +70,9 @@ struct UI_Element {
     FontID font;
     FontSize font_size;
     ImageID image;
-    Axis2 stack_axis;
+    Rect image_src;
 
+    Axis2 stack_axis;
     UI_Position position[Axis2_Count];
     UI_Size size[Axis2_Count];
     UI_Size border[RectSide_Count];

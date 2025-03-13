@@ -76,7 +76,7 @@ UI_Key ui_push_row_internal(UI_Element element, const char* file, i32 line) {
         use_src_key = true;
     }
 
-    u32 key_size = element.exc_key.length +  element.salt_key.length;
+    u32 key_size = element.exc_key.length + element.salt_key.length;
     if (use_src_key) {
         key_size += sizeof(line);
     }
@@ -93,6 +93,11 @@ UI_Key ui_push_row_internal(UI_Element element, const char* file, i32 line) {
     slice_push_range(&key, slice_data_raw(element.salt_key));
 
     element.computed_key = fnv1a(key);
+
+    // if (element.image_src.w == 0 && element.image_src.h == 0) {
+    //     element.image_src 
+    //
+    // }
 
     // if (element.key == ui_ctx->active_element) {
     //     UI_Size border[RectSide_Count] = sides_px(4);
@@ -475,12 +480,12 @@ void ui_draw(UI* ui_ctx, Arena* temp_arena) {
             i32 axis = i / Axis2_Count;
             content_size[axis] -= current->computed_border[i] + current->computed_padding[i];
         }
-        
 
         if (current->image != ImageID_NULL) {
             draw_sprite_screen({current->content_position, content_size}, 
             SpriteProperties{
-                .texture_id = image_id_to_texture_id(current->image)
+                .texture_id = image_id_to_texture_id(current->image),
+                .src_rect = current->image_src,
             });
         }
 

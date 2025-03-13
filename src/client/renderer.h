@@ -50,7 +50,7 @@ struct SpriteVertex {
 
 struct SpriteProperties {
     TextureID texture_id;
-    std::optional<Rect> src_rect;
+    Rect src_rect;
     RGBA mult_color=color::white;
     RGBA mix_color;
     float t;

@@ -8,4 +8,5 @@
     _(depth_test_png, "images/depth_test.png")\
     _(player_png, "images/player.png")\
     _(pot_jpg, "images/pot.jpg")\
+    _(spell_icons_png, "images/spell_icons.png")\
     _(tilemap_png, "images/tilemap.png")\
