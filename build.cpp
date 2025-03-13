@@ -20,14 +20,18 @@ enum class files_type {
 
 struct source_file {
     files_type type;
-    std::filesystem::path glob_dir;
-    std::filesystem::path file_path;
+    std::filesystem::path value;
 };
+
+source_file src_single(std::filesystem::path value) {
+    return {files_type::single, value};
+}
 
 enum class target_type {
     executable,
     static_lib,
     shared_lib,
+    precompiled_header,
 };
 
 struct target {
@@ -37,8 +41,12 @@ struct target {
     std::vector<source_file> files;
     std::vector<std::string> libs;
     std::vector<std::filesystem::path> include_dirs;
-
     std::string linker_flags;
+
+    //assuming pch.h, pch.cpp producees pch.pch: pch_name is pch
+    std::string pch_name;
+
+    std::string crt;
 };
 
 struct lib {
@@ -64,8 +72,6 @@ const char* lib_path = "../../lib";
 #define TRACY_DEFINES ""
 const char* tracy_defines = TRACY_DEFINES;
 
-const char* compile_flags = "-nologo /std:c++20 /EHsc /Zi /MP /MDd " TRACY_DEFINES " /D ENET_DLL";
-const char* pch_flags = R"(/Yu"pch.h" /Fp"pch.pch")";
 
 
 std::filesystem::path project_root;
@@ -249,7 +255,7 @@ std::string command_output(const char* command) {
 }
 // _popen(const char *Command, const char *Mode)
 
-void build_target(target target, lib libs[], int lib_count, std::string& commands_json) {
+void build_target(target target, lib libs[], int lib_count, std::string compiler_flags, std::string& commands_json) {
     timer total(target.name);
 
     std::unordered_map<std::string, int> lib_index;
@@ -285,10 +291,21 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
 
     for (auto& src : target.files) {
         if (src.type == files_type::glob) {
-            glob_files(&source_files, &header_files, project_root / src.glob_dir);
+            glob_files(&source_files, &header_files, project_root / src.value);
+        }
+
+        if (src.type == files_type::single) {
+            auto file_path = project_root / src.value;
+            const auto& extension = file_path.extension();
+            if (extension == ".cpp" || extension == ".c") {
+                source_files.push_back(file_path.lexically_normal());
+            }
+            if (extension == ".h" || extension == ".hpp") {
+                header_files.push_back(file_path.lexically_normal());
+            }
         }
     }
-    commands_json += generate_compile_commands(project_root / "b2", std::format("{} {}", compile_flags, idk), includes, source_files);
+    commands_json += generate_compile_commands(project_root / "b2", std::format("{} {}", compiler_flags, idk), includes, source_files);
 
     std::unordered_map<std::string, std::filesystem::file_time_type> obj_write_times;
     std::filesystem::file_time_type last_compile;
@@ -336,7 +353,16 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
 
     if (compile) {
         timer timer("compile");
-        auto command = std::format("cl /diagnostics:color {} {} {} {} /Fo{}", compile_flags, pch_flags, includes, source_args, out_dir);
+        std::string use_pch_arg = "";
+        if (target.pch_name != "") {
+            use_pch_arg = std::format(R"(/Yu"{0}.h" /Fp"{0}.pch)", target.pch_name);
+        }
+        std::string command = std::format("cl /diagnostics:color {} {} {} {} /Fo{}", compiler_flags, use_pch_arg, includes, source_args, out_dir);
+        if (target.type == target_type::precompiled_header) {
+            std::string pch_arg = "";
+            pch_arg = std::format("/Yc{}.h", target.name);
+            command = std::format("cl /diagnostics:color {} {} {} {} /Fo{}", compiler_flags, pch_arg, includes, source_args, out_dir);
+        }
         system(command.data());
         printf("%s\n", command.data());
     }
@@ -356,13 +382,14 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
         } break;
     }
 
-    if (!std::filesystem::exists(out_file) || compile == true) {
-        link = true;
+    if (out_file != "") {
+        if (!std::filesystem::exists(out_file) || compile == true) {
+            link = true;
+        } else if (std::filesystem::last_write_time(out_file) < last_compile) {
+            link = true;
+        }
     }
 
-    if (std::filesystem::last_write_time(out_file) < last_compile) {
-        link = true;
-    }
 
 
     if (!link) {
@@ -396,13 +423,13 @@ void build_target(target target, lib libs[], int lib_count, std::string& command
         const char* linker_flags = "/DEBUG /INCREMENTAL:NO";
         switch (target.type) {
         case target_type::executable: {
-            commands += std::format("link {} {} {} pch.obj {} msvcrtd.lib /OUT:{}.exe", linker_flags, target.linker_flags, obj_args, lib_files, target.name);
+            commands += std::format("link {} {} {} pch.obj {} {} /OUT:{}.exe", linker_flags, target.linker_flags, obj_args, lib_files, target.crt, target.name);
         } break;
         case target_type::shared_lib: {
             auto now = std::chrono::system_clock::now().time_since_epoch().count();
 
 
-            commands += std::format("link {} /DLL {} pch.obj {} msvcrtd.lib /PDB:{}_game.pdb /OUT:{}.dll /EXPORT:update", linker_flags, obj_args,  lib_files, now, target.name);
+            commands += std::format("link {} /DLL {} pch.obj {} {} /PDB:{}_game.pdb /OUT:{}.dll /EXPORT:update", linker_flags, obj_args, target.crt, lib_files, now, target.name);
         } break;
         }
 
@@ -422,6 +449,21 @@ int main(int argc, char* argv[]) {
     project_root = (std::filesystem::current_path() / "..").lexically_normal();
 
     compiler_path = std::format("\\\"{}\\\"", escape_json(command_output("which clang-cl")));
+
+
+    bool release = false;
+
+
+    for (int i = 0; i < argc; i++) {
+        if (strcmp(argv[i], "-release") == 0) {
+            release = true;
+            printf("aaaaa\n");
+        }
+    }
+
+
+
+
 
     // system(R"(for %%f in (*_game.pdb) do del %%f)");
 
@@ -492,16 +534,31 @@ int main(int argc, char* argv[]) {
 
     target targets[] = {
         target{
+            .type = target_type::precompiled_header,
+            .name = "pch",
+            .files = {
+                src_single("src/pch.cpp"),
+                src_single("src/pch.h"),
+            },
+            .libs = {
+                "box2d",
+                "SDL",
+                "tracy",
+                "enet",
+            },
+            .include_dirs = include_dirs,
+        },
+        target{
             .type = target_type::shared_lib,
             .name = "game",
             .files = {
                 source_file { 
                     .type = files_type::glob,
-                    .glob_dir = "src/client",
+                    .value = "src/client",
                 },
                 source_file { 
                     .type = files_type::glob,
-                    .glob_dir = "src/common",
+                    .value = "src/common",
                 },
             },
             .libs = {
@@ -518,7 +575,7 @@ int main(int argc, char* argv[]) {
             .files = {
                 source_file { 
                     .type = files_type::glob,
-                    .glob_dir = "src/platform",
+                    .value = "src/platform",
                 },
             },
             .libs = {
@@ -535,11 +592,11 @@ int main(int argc, char* argv[]) {
             .files = {
                 source_file { 
                     .type = files_type::glob,
-                    .glob_dir = "src/server",
+                    .value = "src/server",
                 },
                 source_file { 
                     .type = files_type::glob,
-                    .glob_dir = "src/common",
+                    .value = "src/common",
                 },
             },
             .libs = {
@@ -552,35 +609,17 @@ int main(int argc, char* argv[]) {
         },
     };
 
-    // system("cd .. && py scripts/compile_shaders.py");
-    // system("cd .. && py scripts/define_assets.py");
+    std::string crt = "msvcrtd.lib";
+    std::string add_flags = "/Zi /MD";
 
-    // auto shell = _popen("cmd", "w");
-    //
-    // if (!shell) {
-    //     printf("cant open shell\n");
-    //     return 1;
-    // }
-    //
-    //
-    // {
-    //     timer timer("random cmd");
-    //     fprintf(shell, "echo cd\n");
-    //     // system("echo cd");
-    //     _pclose(shell);
-    //
-    //     timer.end_timer();
-    // }
+    if (release) {
+        add_flags = "/MT";
+        crt = "libcmt.lib";
+    } 
 
-    // auto start = std::chrono::high_resolution_clock::now();
-    // auto end = std::chrono::high_resolution_clock::now();
-    //
-    // std::cout << std::format("{}\n", std::chrono::duration<double, std::milli>(end - start));
-    // std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::string compiler_flags = std::format("-nologo /std:c++20 /EHsc /MP {} " TRACY_DEFINES " /D ENET_DLL", add_flags);
+    const char* pch_flags = R"(/Yu"pch.h" /Fp"pch.pch")";
 
-
-
-    
     {
         timer timer("build libs");
         build_libs(libs, lib_count);
@@ -594,14 +633,16 @@ int main(int argc, char* argv[]) {
             includes += std::format("/I {} ", (project_root / "lib" / lib.name / include_path).lexically_normal().string());
         }
     }
-    commands_json += generate_compile_commands(project_root / "b2", std::format("{} {}", compile_flags, R"(/Yc\"pch.h\")"), includes, {project_root / "src/pch.cpp"});
 
+    commands_json += generate_compile_commands(project_root / "b2", std::format("{} {}", compiler_flags, R"(/Yc\"pch.h\")"), includes, {project_root / "src/pch.cpp"});
 
+    std::filesystem::create_directory("targets");
 
     {
         timer timer("build targets");
         for (auto& target : targets) {
-            build_target(target, libs, lib_count, commands_json);
+            target.crt = crt;
+            build_target(target, libs, lib_count, compiler_flags, commands_json);
         }
     }
 
