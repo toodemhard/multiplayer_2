@@ -355,7 +355,7 @@ void build_target(target target, lib libs[], int lib_count, std::string compiler
         timer timer("compile");
         std::string use_pch_arg = "";
         if (target.pch_name != "") {
-            use_pch_arg = std::format(R"(/Yu"{0}.h" /Fp"{0}.pch)", target.pch_name);
+            use_pch_arg = std::format(R"(/Yu"{0}.h" /Fp"{0}.pch")", target.pch_name);
         }
         std::string command = std::format("cl /diagnostics:color {} {} {} {} /Fo{}", compiler_flags, use_pch_arg, includes, source_args, out_dir);
         if (target.type == target_type::precompiled_header) {
@@ -393,7 +393,7 @@ void build_target(target target, lib libs[], int lib_count, std::string compiler
 
 
     if (!link) {
-        printf("%s skip linking", target.name);
+        printf("%s skip linking\n", target.name);
     }
 
     if (link) {
@@ -419,17 +419,23 @@ void build_target(target target, lib libs[], int lib_count, std::string compiler
             system("del *_game.pdb *_game.rdi");
         }
 
+        std::string pch_obj = "";
+        if (target.pch_name != "") {
+            pch_obj = std::format("targets/{0}/{0}.obj", target.pch_name);
+        }
+
+
         std::string commands = "";
         const char* linker_flags = "/DEBUG /INCREMENTAL:NO";
         switch (target.type) {
         case target_type::executable: {
-            commands += std::format("link {} {} {} pch.obj {} {} /OUT:{}.exe", linker_flags, target.linker_flags, obj_args, lib_files, target.crt, target.name);
+            commands += std::format("link {} {} {} {} {} {} /OUT:{}.exe", linker_flags, target.linker_flags, pch_obj, obj_args, lib_files, target.crt, target.name);
         } break;
         case target_type::shared_lib: {
             auto now = std::chrono::system_clock::now().time_since_epoch().count();
 
 
-            commands += std::format("link {} /DLL {} pch.obj {} {} /PDB:{}_game.pdb /OUT:{}.dll /EXPORT:update", linker_flags, obj_args, target.crt, lib_files, now, target.name);
+            commands += std::format("link {} /DLL {} {} {} {} /PDB:{}_game.pdb /OUT:{}.dll /EXPORT:update", linker_flags, obj_args, pch_obj, target.crt, lib_files, now, target.name);
         } break;
         }
 
@@ -568,6 +574,7 @@ int main(int argc, char* argv[]) {
                 "enet",
             },
             .include_dirs = include_dirs,
+            .pch_name = "pch",
         },
         target{
             .type = target_type::executable,
@@ -585,6 +592,7 @@ int main(int argc, char* argv[]) {
                 "enet",
             },
             .include_dirs = include_dirs,
+            .pch_name = "pch",
         },
         target{
             .type = target_type::executable,
@@ -606,11 +614,12 @@ int main(int argc, char* argv[]) {
                 "SDL",
             },
             .include_dirs = include_dirs,
+            .pch_name = "pch",
         },
     };
 
     std::string crt = "msvcrtd.lib";
-    std::string add_flags = "/Zi /MD";
+    std::string add_flags = "/Zi /MDd";
 
     if (release) {
         add_flags = "/MT";
