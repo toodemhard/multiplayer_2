@@ -86,6 +86,11 @@ bool init(void* memory) {
         panic("failed to initialize renderer");
     }
 
+    if (enet_initialize() < 0) {
+        printf("enet failed to init\n");
+    }
+
+
     renderer_set_ctx(&sys->renderer);
     
 
