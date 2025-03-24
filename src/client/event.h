@@ -1,9 +1,4 @@
 #pragma once
-#include "common/allocator.h"
-
-#include "renderer.h"
-#include "font.h"
-#include "input.h"
 
 enum SceneType {
     SceneType_Menu,

@@ -1,33 +1,14 @@
-#include "pch.h"
-
-#include "tracy/Tracy.hpp"
-
-#include "assets.h"
-#include "panic.h"
-#include "font.h"
-
-#define STB_RECT_PACK_IMPLEMENTATION
-#include "stb_rect_pack.h"
-#define STB_TRUETYPE_IMPLEMENTATION
-#include "stb_truetype.h"
-
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
-
-#include "renderer.h"
-
-std::vector<char> read_file(const char* file_path) {
-    std::ifstream file{file_path, std::ios::binary | std::ios::ate};
+Slice<u8> read_file(Arena* arena, const char* file_path) {
+    FILE* file = fopen(file_path, "rb");
     if (!file) {
-        panic("{} not found", file_path);
+        fprintf(stderr, "%s not found\n", file_path);
     }
-
-    auto size = file.tellg();
-    std::vector<char> data(size, '\0');
-    file.seekg(0);
-    file.read(data.data(), size);
+    fseek(file, 0, SEEK_END);
+    u64 size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    
+    Slice<u8> data = slice_create_fixed<u8>(arena, size);
+    fread(data.data, sizeof(u8), size, file);
 
     return data;
 }
@@ -54,22 +35,27 @@ struct FontAtlasConfig {
 // TextFontAtlas text_font_atlas;
 // IconFontAtlas icon_font_atlas;
 
-void font_load(Font* font_output, Renderer& renderer, FontID font_id, int w, int h, int font_size) {
-
-    *font_output = Font{.char_data = std::vector<stbtt_packedchar>(num_chars), .w = w, .h = h, .baked_font_size = font_size};
+void font_load(Arena* arena, Font* font_output, Renderer* renderer, FontID font_id, int w, int h, int font_size) {
+    *font_output = Font{
+        .char_data = slice_create_fixed<stbtt_packedchar>(arena, num_chars),
+        .w = w,
+        .h = h,
+        .baked_font_size = font_size
+    };
 
     auto bitmap_length = w * h;
-    auto bitmap = std::vector<unsigned char>(bitmap_length);
 
-    auto ttf_buffer = read_file(font_paths[(int)font_id]);
+    ArenaTemp scratch = scratch_get(0,0);
+    auto bitmap = slice_create_fixed<u8>(scratch.arena, bitmap_length);
+
+    auto ttf_buffer = read_file(scratch.arena, font_paths[(int)font_id]);
     stbtt_pack_context spc;
-    stbtt_PackBegin(&spc, bitmap.data(), w, h, 0, 1, nullptr);
-    stbtt_PackFontRange(&spc, (unsigned char*)ttf_buffer.data(), 0, font_size, char_start, num_chars, font_output->char_data.data());
-
+    stbtt_PackBegin(&spc, bitmap.data, w, h, 0, 1, nullptr);
+    stbtt_PackFontRange(&spc, ttf_buffer.data, 0, font_size, char_start, num_chars, font_output->char_data.data);
     stbtt_PackEnd(&spc);
 
     int image_size = bitmap_length * 4;
-    auto image = std::vector<unsigned char>(image_size);
+    auto image = slice_create_fixed<u8>(scratch.arena, image_size);
     for (int i = 0; i < bitmap_length; i++) {
         image[i * 4] = 255;
         image[i * 4 + 1] = 255;
@@ -83,7 +69,7 @@ void font_load(Font* font_output, Renderer& renderer, FontID font_id, int w, int
         Image{
             .w = w,
             .h = h,
-            .data = image.data(),
+            .data = image.data,
         }
     );
     font_output->texture_atlas = texture_id;

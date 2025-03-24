@@ -1,10 +1,4 @@
 #pragma once
-#include "common/allocator.h"
-#include "common/game.h"
-// #include "game.h"
-// #include "serialize.h"
-
-// constexpr uint8_t default_private_key[yojimbo::KeyBytes] = {0};
 
 constexpr int input_buffer_capacity = 16;
 constexpr int target_input_buffer_size = 3;

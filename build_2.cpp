@@ -473,19 +473,36 @@ void build_target(Target target, Lib libs[], int lib_count, std::string compiler
         commands_json += add_compile_command(compiler_flags,include_ext, h.string() + ".cpp", h.string());
     }
 
-    for (auto& src : source_files) {
-        std::string name = src.filename().stem().string();
+
+    if (target.type != target_type::precompiled_header) {
+        std::filesystem::path main_filepath = project_root / target.main;
+        std::string main_name = main_filepath.filename().stem().string();
+        if (!obj_write_times.contains(main_name)) {
+            compile = true;
+        }
+
+        for (auto& src : source_files) {
+            if (obj_write_times[main_name] < std::filesystem::last_write_time(src)) {
+                compile = true;
+            }
+
+            if (compile) {
+                break;
+            }
+        }
+    }
+
+    if (target.main != "") {
+        std::filesystem::path main_filepath = project_root / target.main;
+        std::string name = main_filepath.filename().stem().string();
 
         if (!obj_write_times.contains(name)) {
             compile = true;
-        } else if (obj_write_times[name] < std::filesystem::last_write_time(src)) {
+        } else if (obj_write_times[name] < std::filesystem::last_write_time(main_filepath)) {
             compile = true;
         }
-
-        if (compile) {
-            break;
-        }
     }
+
 
     for (auto& h : header_files) {
         if (std::filesystem::last_write_time(h) > last_compile) {
@@ -524,11 +541,11 @@ void build_target(Target target, Lib libs[], int lib_count, std::string compiler
                 use_pch_arg = std::format("-include-pch {}", (build_dir / (target.pch_name + ".pch")).string() );
             }
 
-            // command += std::format("cd targets/{} && ", target.name);
+            command += std::format("cd targets/{} && ", target.name);
             command += std::format("clang {} {} {} -c {}", compiler_flags, use_pch_arg, includes, (project_root / target.main).string());
 
-            printf("%s\n", command.data());
             system(command.data());
+            printf("%s\n", command.data());
         }
     }
 
@@ -587,10 +604,10 @@ void build_target(Target target, Lib libs[], int lib_count, std::string compiler
         //     pch_obj = std::format("targets/{0}/{0}.obj", target.pch_name);
         // }
 
-        std::string obj_args = "";
-        for (auto& src : source_files) {
-            obj_args += " " + out_dir + src.stem().string() + ".o";
-        }
+        std::string obj_args = out_dir + std::filesystem::path(target.main).stem().string() + ".o";
+        // for (auto& src : source_files) {
+        //     obj_args += " " + out_dir + src.stem().string() + ".o";
+        // }
 
         std::string commands = "";
         const char* linker_flags = "/DEBUG /INCREMENTAL:NO";
@@ -622,8 +639,8 @@ int main(int argc, char* argv[]) {
         scratch_arenas[i] = &arenas[i];
     }
 
-    thread_pool_init(&pool, &arena, 8);
-    defer(thread_pool_shutdown(&pool));
+    // thread_pool_init(&pool, &arena, 8);
+    // defer(thread_pool_shutdown(&pool));
 
     // u32 task_count = 16;
     // Slice<Future*> futures = slice_create_fixed<Future*>(&arena, task_count);
@@ -648,9 +665,13 @@ int main(int argc, char* argv[]) {
     timer total_time("total");
     // g_timer_scope_depth--;
 
-    build_dir = std::filesystem::current_path();
-    project_root = (std::filesystem::current_path() / "..").lexically_normal();
-    compiler_path = std::format("\\\"{}\\\"", escape_json(command_output("which clang")));
+    {
+        timer timer("get paths");
+
+        build_dir = std::filesystem::current_path();
+        project_root = (std::filesystem::current_path() / "..").lexically_normal();
+        compiler_path = std::format("\\\"{}\\\"", escape_json(command_output("which clang")));
+    }
 
 
     bool release = false;
@@ -764,12 +785,13 @@ int main(int argc, char* argv[]) {
         Target{
             .type = target_type::executable,
             .name = "platform",
-            .main = "main.cpp",
+            .main = "src/platform/main.cpp",
             .files = {
                 source_file { 
                     .type = files_type::glob,
                     .value = "src/platform",
                 },
+                src_single("src/pch.h"),
             },
             .libs = {
                 "tracy",
@@ -823,17 +845,17 @@ int main(int argc, char* argv[]) {
     }
     std::string commands_json;
 
-    std::string includes;
-    for (int i = 0; i < lib_count; i++) {
-        auto& lib = libs[i];
-        for (auto& include_path : lib.rel_include_paths) {
-            includes += std::format("-I {} ", (project_root / "lib" / lib.name / include_path).lexically_normal().string());
-        }
-    }
+    // std::string includes;
+    // for (int i = 0; i < lib_count; i++) {
+    //     auto& lib = libs[i];
+    //     for (auto& include_path : lib.rel_include_paths) {
+    //         includes += std::format("-I {} ", (project_root / "lib" / lib.name / include_path).lexically_normal().string());
+    //     }
+    // }
 
-    std::filesystem::create_directory("targets");
     {
         timer timer("build targets");
+        std::filesystem::create_directory("targets");
         for (auto& target : targets) {
             target.crt = crt;
             build_target(target, libs, lib_count, compiler_flags, commands_json);

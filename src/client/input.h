@@ -1,6 +1,4 @@
 #pragma once
-#include "common/base_math.h"
-#include "common/allocator.h"
 
 #define KEYBINDINGS(_)                                                                                                                     \
     _(move_up, SDL_SCANCODE_W)                                                                                                             \

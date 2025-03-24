@@ -1,6 +1,3 @@
-#include "pch.h"
-#include "common/base_math.h"
-
 f32 f32_max(f32 a, f32 b) {
     if (b > a) {
         return b;

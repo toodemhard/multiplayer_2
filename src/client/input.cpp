@@ -1,7 +1,3 @@
-#include "pch.h"
-
-#include "input.h"
-
 internal Input* input_ctx;
 
 void input_begin_frame(Input* input) {

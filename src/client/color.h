@@ -1,7 +1,5 @@
 #pragma once
 
-#include "common/types.h"
-
 struct RGBA {
     u8 r, g, b, a;
 };

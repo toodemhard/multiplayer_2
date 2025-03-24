@@ -1,6 +1,6 @@
 @echo off
 
-pushd b2
+pushd b3
 
 .\build.exe
 

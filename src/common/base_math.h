@@ -1,5 +1,4 @@
 #pragma once
-#include "types.h"
 
 union float4 {
     struct {

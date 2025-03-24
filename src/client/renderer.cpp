@@ -1,13 +1,9 @@
-#include "pch.h"
-
-#include "renderer.h"
-#include "assets.h"
-#include "codegen/shaders.h"
-#include "color.h"
-#include "panic.h"
-#include "common/types.h"
-
 global Renderer* renderer;
+
+float2 texture_dimensions(TextureID texture_id) {
+    Texture* tex = &renderer->textures[texture_id];
+    return {(f32)tex->w, (f32)tex->h};
+}
 
 i32 round_to_i32(f32 value) {
     return (i32)(value + 0.5f);
@@ -166,9 +162,8 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
 
         // create_info.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
         renderer->solid_mesh_pipeline = SDL_CreateGPUGraphicsPipeline(device, &pipeline_create_info);
-        if (renderer->solid_mesh_pipeline == NULL) {
-            panic("{}", SDL_GetError());
-        }
+
+        ASSERT(renderer->solid_mesh_pipeline != NULL);
 
         SDL_ReleaseGPUShader(device, vertex_shader);
         SDL_ReleaseGPUShader(device, fragment_shader);
@@ -390,6 +385,7 @@ void draw_sprite(Rect normalized_rect, const SpriteProperties& properties);
 
 
 void draw_sprite_world(Camera2D camera, Rect world_rect, const SpriteProperties& properties) {
+    ASSERT(properties.texture_id != TextureID_NULL);
     camera.position = snap_pos(camera.position);
     world_rect.position = snap_pos(world_rect.position);
 

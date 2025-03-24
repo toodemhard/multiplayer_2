@@ -1,10 +1,5 @@
 #pragma once
 
-#include "assets.h"
-#include "color.h"
-#include "common/allocator.h"
-#include "common/base_math.h"
-
 struct Texture {
     SDL_GPUTexture* texture;
     SDL_GPUSampler* sampler;
@@ -118,6 +113,8 @@ inline float2 screen_to_world_pos(const Camera2D& cam, float2 screen_pos, int s_
 }
 
 float2 snap_pos(float2 pos);
+
+float2 texture_dimensions(TextureID texture_id);
 
 
 SDL_GPUShader* load_shader( SDL_GPUDevice* device, const char* shaderPath, Uint32 samplerCount, Uint32 uniformBufferCount, Uint32 storageBufferCount, Uint32 storageTextureCount);

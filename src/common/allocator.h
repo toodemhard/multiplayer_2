@@ -1,12 +1,12 @@
 #pragma once
 
-#include "types.h"
-
 #define ASSERT(condition) if (!(condition)) { fprintf(stderr, "ASSERT: %s %s:%d\n", #condition, __FILE__, __LINE__); __debugbreak(); }
 
 #define internal static
 #define global static
 #define local_persist static
+
+void panic(const char* msg);
 
 template <typename F>
 struct privDefer {
@@ -40,7 +40,6 @@ struct ArenaTemp {
     u64 reset_pos;
 };
 
-// void array_length()
 
 Arena arena_suballoc(Arena* arena, u64 size);
 Arena arena_create(void* start, u64 size);
@@ -55,7 +54,7 @@ ArenaTemp scratch_get(Arena** conflicts, i32 count);
 void scratch_release(ArenaTemp temp);
 
 static constexpr int scratch_count = 2;
-inline thread_local Arena* scratch_arenas[scratch_count];
+extern Arena* scratch_arenas[scratch_count];
 
 template<typename T, u64 N>
 struct Array {
@@ -175,9 +174,9 @@ void slice_clear(Slice<T>* slice) {
 }
 
 template<typename T> 
-T& slice_back(const Slice<T> slice) {
+T* slice_back(const Slice<T> slice) {
     ASSERT(slice.length > 0);
-    return slice[slice.length - 1];
+    return &slice[slice.length - 1];
 }
 
 #define var_to_byte_slice(var) slice_create_view((u8*)var, sizeof(*var))

@@ -1,6 +1,4 @@
 #pragma once
-#include "codegen/image_table.h"
-#include "codegen/font_table.h"
 
 #define ASSET_PATH(a, b) b,
 #define ASSET_NAME(a, b) a,
@@ -28,7 +26,7 @@ enum FontID {
 
 #define TEXTURE_ID(a,b) TextureID_##a,
 enum TextureID : int {
-    TextureID_Invalid,
+    TextureID_NULL,
     IMAGE_TABLE(TEXTURE_ID)
     FONT_TABLE(TEXTURE_ID)
     TextureID_Count,

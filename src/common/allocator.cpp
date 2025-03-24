@@ -1,5 +1,9 @@
-#include "pch.h"
-#include "allocator.h"
+Arena* scratch_arenas[scratch_count];
+
+void panic(const char* msg) {
+    fprintf(stderr, "%s\n", msg);
+    exit(1);
+}
 
 ArenaTemp scratch_get(Arena** conflicts, i32 count) {
     Arena* ret_arena;
@@ -147,8 +151,6 @@ Slice<u8> string_to_byte_slice(String8 str) {
         str.length
     };
 }
-
-
 
 void bitlist_init(Bitlist* bitlist, Arena* arena, u32 capacity) {
     slice_init(bitlist, arena, capacity / 8 + 1);

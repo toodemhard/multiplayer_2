@@ -1,9 +1,5 @@
 #pragma once
 
-#include "event.h"
-#include "ui.h"
-#include "common/game.h"
-
 const inline Camera2D default_camera = {
     {0, 0},
     float2{1 * 4.0f/3.0f, 1} * 12.0f,

@@ -1,25 +1,34 @@
-#include "pch.h"
-
-#include "panic.h"
-#include "renderer.h"
+#define STB_RECT_PACK_IMPLEMENTATION
+#include "stb_rect_pack.h"
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.h"
+#define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
-#include "scene.h"
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 
-#include "app.h"
+
+#include "assets/inc.h"
+
+#include "common/inc.h"
+#include "common/inc.cpp"
+
+#include "color.h"
 #include "exports.h"
+#include "input.h"
+#include "renderer.h"
+#include "font.h"
+#include "event.h"
+#include "ui.h"
+#include "scene.h"
+#include "app.h"
 
-#include "common/net_common.h"
-#include "common/game.h"
+#include "font.cpp"
+#include "input.cpp"
+#include "renderer.cpp"
+#include "scene.cpp"
+#include "ui.cpp"
 
-// #if defined(TRACY_ENABLE)
-//     #pragma message("MY_MACRO is defined")
-// #endif
-
-
-// const int asdfhkj = 13413432;
-// constexpr int tick_rate = 128;
-
-// constexpr double fixed_dt = 1.0 / tick_rate;
 constexpr double speed_up_fraction = 0.05;
 
 constexpr int window_width = 1024;
@@ -30,12 +39,9 @@ constexpr int idle_count = 2;
 constexpr int idle_period_ticks = idle_period * tick_rate;
 constexpr int idle_cycle_period_ticks = idle_period * idle_count * tick_rate;
 
-const float hit_flash_duration = 0.1;
+// constexpr float hit_flash_duration = 0.1;
 
 static bool is_reloaded = true;
-
-
-
 
 bool init(void* memory) {
     ZoneScoped;
@@ -57,7 +63,7 @@ bool init(void* memory) {
     std::cout << std::filesystem::current_path().string() << '\n';
 
     Arena god_allocator{};
-    arena_init(&god_allocator, memory, megabytes(16));
+    arena_init(&god_allocator, memory, memory_size);
     State* state = (State*)arena_alloc(&god_allocator, sizeof(State));
     new (state) State{};
 
@@ -66,10 +72,14 @@ bool init(void* memory) {
 
     arena_init(&state->temp_arena, arena_alloc(&god_allocator, megabytes(5)), megabytes(5));
     arena_init(&state->level_arena, arena_alloc(&god_allocator, megabytes(5)), megabytes(5));
+    state->persistent_arena = arena_suballoc(&god_allocator, megabytes(1));
     state->menu_arena = arena_suballoc(&god_allocator, megabytes(2));
 
     for (i32 i = 0; i < scratch_count; i++)  {
-        state->scratch_arenas[i] = arena_suballoc(&god_allocator, megabytes(1));
+        state->scratch_arenas[i] = arena_suballoc(&god_allocator, megabytes(2));
+    }
+    for (i32 i = 0; i < scratch_count; i++)  {
+        scratch_arenas[i] = &state->scratch_arenas[i];
     }
 
     auto flags = SDL_WINDOW_INPUT_FOCUS; // | SDL_WINDOW_ALWAYS_ON_TOP; // | SDL_WINDOW_FULLSCREEN;
@@ -111,7 +121,7 @@ bool init(void* memory) {
     std::future<void> font_futures[FontID::font_count];
 
     for (i32 i = 0; i < FontID::font_count; i++) {
-        font_futures[i] = std::async(std::launch::async, font_load, &sys->fonts[i], std::ref(sys->renderer), FontID::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
+        font_load(&state->persistent_arena, &sys->fonts[i], &sys->renderer, FontID::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
         // font::load_font(&state->fonts[i], state->renderer, FontID::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
     }
 
@@ -132,9 +142,9 @@ bool init(void* memory) {
         texture_futures[i].wait();
     }
 
-    for (i32 i = 0; i < FontID::font_count; i++) {
-        font_futures[i].wait();
-    }
+    // for (i32 i = 0; i < FontID::font_count; i++) {
+    //     font_futures[i].wait();
+    // }
 
     state->last_frame_time = std::chrono::high_resolution_clock::now();
 
@@ -174,6 +184,8 @@ bool f;
 // constexpr source_key() {
 //     
 // }
+
+
 
 void text_field_input(Slice<u8>* text) {
     string_cat(text, input_get_ctx()->input_text);
@@ -235,10 +247,6 @@ void menu_update(Menu* menu, Arena* temp_arena) {
             });
         }
 
-
-
-
-
         ui_row({}) {
             ui_row({.text = "Server IP: "});
             UI_Key ip_field;
@@ -282,7 +290,6 @@ void menu_update(Menu* menu, Arena* temp_arena) {
 }
 
 
-
 extern "C" UPDATE(update) {
     auto state = (State*)memory;
 
@@ -301,11 +308,9 @@ extern "C" UPDATE(update) {
         for (i32 i = 0; i < scratch_count; i++)  {
             scratch_arenas[i] = &state->scratch_arenas[i];
         }
-
     }
 
     arena_reset(&state->temp_arena);
-
 
     auto this_frame_time = std::chrono::high_resolution_clock::now();
     double delta_time = std::chrono::duration_cast<std::chrono::duration<double>>(this_frame_time - state->last_frame_time).count();

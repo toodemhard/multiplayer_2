@@ -1,10 +1,5 @@
 ﻿#pragma once
 
-#include "input.h"
-
-#include "renderer.h"
-#include "font.h"
-
 enum UI_SizeType {
     UI_SizeType_Fit,
     UI_SizeType_Pixels,

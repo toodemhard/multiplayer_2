@@ -1,7 +1,3 @@
-#include "pch.h"
-
-#include "game.h"
-
 // durations in seconds 
 // multiply by tick rate to get duration in ticks
 
@@ -9,6 +5,18 @@ const static float bullet_speed = 10.0f;
 const static float bullet_expire_duration = 2;
 const static int substep_count = 4;
 const static float hit_flash_duration = 0.1;
+
+enum Dir8 {
+    Dir8_Up,
+    Dir8_UpRight,
+    Dir8_Right,
+    Dir8_DownRight,
+    Dir8_Down,
+    Dir8_DownLeft,
+    Dir8_Left,
+    Dir8_UpLeft,
+};
+
 
 bool entity_handle_equals(EntityHandle a, EntityHandle b) {
     return a.index == b.index && a.generation == b.generation;
@@ -83,7 +91,8 @@ void create_box(GameState* state, float2 position) {
     auto body_id = b2CreateBody(state->world_id, &body_def);
 
     Entity box = {
-        .type = EntityType::Box,
+        .sprite = TextureID_box_png,
+        .type = EntityType_Box,
         .flags = EntityFlags_hittable,
         .body_id = body_id,
         .health = box_health,
@@ -97,6 +106,46 @@ void create_box(GameState* state, float2 position) {
     b2CreatePolygonShape(body_id, &shape_def, &polygon);
 }
 
+void create_wall(GameState* state, float2 position, Dir8 direction) {
+    auto body_def = b2DefaultBodyDef();
+    body_def.type = b2_staticBody;
+    body_def.position = position.b2vec;
+    body_def.fixedRotation = true;
+
+    auto body_id = b2CreateBody(state->world_id, &body_def);
+
+    Rect src = {0,0,32,32};
+    bool flip_sprite = false;
+    if (direction == Dir8_Up || direction == Dir8_Down) {
+        src.position = {0,32};
+    }
+    if (direction == Dir8_UpLeft || direction == Dir8_UpRight || direction == Dir8_DownRight || direction == Dir8_DownLeft) {
+        src.position = {32,0};
+    }
+    if (direction == Dir8_UpLeft || direction == Dir8_DownRight) {
+        flip_sprite = true;
+    }
+
+    Entity wall = {
+        .sprite = TextureID_ice_wall_png,
+        .sprite_src = src,
+        .flip_sprite = true,
+        .flags = EntityFlags_hittable,
+        .body_id = body_id,
+        .health = 50,
+    };
+
+    EntityHandle handle = entity_list_add(&state->entities, wall);
+
+    auto shape_def = b2DefaultShapeDef();
+    shape_def.isSensor = true;
+    shape_def.friction = 0;
+    shape_def.userData = &(state->entities[handle.index]);
+    auto polygon = b2MakeBox(0.25, 0.25);
+
+    auto shape_id = b2CreatePolygonShape(body_id, &shape_def, &polygon);
+}
+
 void create_bullet(GameState* state, EntityHandle owner, float2 position, float2 direction, u32 current_tick, i32 tick_rate) {
     auto body_def = b2DefaultBodyDef();
     body_def.type = b2_dynamicBody;
@@ -105,10 +154,10 @@ void create_bullet(GameState* state, EntityHandle owner, float2 position, float2
     body_def.fixedRotation = true;
 
     auto body_id = b2CreateBody(state->world_id, &body_def);
-    auto polygon = b2MakeBox(0.25, 0.25);
 
     Entity bullet = {
-        .type = EntityType::Bullet,
+        .sprite = TextureID_bullet_png,
+        .type = EntityType_Bullet,
         .flags = EntityFlags_attack | EntityFlags_expires,
         .body_id = body_id,
         .expire_tick = current_tick + (u32)(bullet_expire_duration * tick_rate),
@@ -121,6 +170,7 @@ void create_bullet(GameState* state, EntityHandle owner, float2 position, float2
     shape_def.isSensor = true;
     shape_def.friction = 0;
     shape_def.userData = &(state->entities[handle.index]);
+    auto polygon = b2MakeBox(0.25, 0.25);
 
     auto shape_id = b2CreatePolygonShape(body_id, &shape_def, &polygon);
 }
@@ -227,7 +277,7 @@ void state_update(GameState* state, Arena* temp_arena, Inputs inputs, u32 curren
             slice_push(&delete_list, i);
         }
 
-        if (ent->type == EntityType::Player) {
+        if (ent->type == EntityType_Player) {
             const PlayerInput* input = NULL;
             for (u32 input_idx = 0; input_idx < inputs.ids.length; input_idx++){
                 if (inputs.ids[input_idx] == ent->client_id) {
@@ -333,8 +383,21 @@ void state_update(GameState* state, Arena* temp_arena, Inputs inputs, u32 curren
                         f32 dir_offset = lerp(range_start, range_end, (f32)i / (projectile_count - 1));
                         create_bullet(state, handle, player_pos, rotate(direction, dir_offset), current_tick, tick_rate);
                     }
-
                 }
+
+                if (selected_spell == SpellType_IceWall) {
+                    f32 d = 1 - fmod(atan2f(direction.y, direction.x) / (2*pi) + 0.5 + 0.1875, 1);
+                    // printf("%f %f\n", direction.x, direction.y);
+                    printf("%f\n", d);
+                    // i32 idk = (1 - fmod(d + 0.5, 1)) * 8;
+                    Dir8 dir = (Dir8) (d * 8);
+                    printf("%d\n", dir);
+                    // i32 x = (pi - d - 1/8.0 * pi) / (2*pi) * 8;
+                    // printf("%x\n", x);
+                    create_wall(state, player_pos + direction * 2, dir);
+                }
+
+                // if (selected)
             }
         }
     }
@@ -351,10 +414,11 @@ EntityHandle create_player(GameState* state, ClientID client_id) {
     auto body_id = b2CreateBody(state->world_id, &body_def);
     
     Entity player = {
-        .type = EntityType::Player,
+        .sprite = TextureID_player_png,
+        .type = EntityType_Player,
         .flags = EntityFlags_hittable,
         .body_id = body_id,
-        .hotbar = {SpellType_Fireball, SpellType_SpreadBolt},
+        .hotbar = {SpellType_Fireball, SpellType_SpreadBolt, SpellType_IceWall, SpellType_SniperRifle},
         .client_id = client_id,
         // .hotbar = {SpellType_Bolt, SpellType_SpreadBolt},
         .health = 100,
@@ -379,15 +443,17 @@ Slice<Ghost> entities_to_snapshot(Arena* tick_arena, const Slice<Entity> ents, u
         Entity* ent = &(ents[i]);
         if (ent->is_active) {
             slice_push(&ghosts, Ghost{
-                .type = ent->type,
+                // .type = ent->type,
+                .sprite = ent->sprite,
+                .sprite_src = ent->sprite_src,
+                .flip_sprite = ent->flip_sprite,
                 .position = {.b2vec=b2Body_GetPosition(ent->body_id)},
                 .health = (u16)ent->health,
                 .show_health = (bool)(ent->flags & EntityFlags_hittable),
                 .hit_flash = ent->hit_flash_end_tick > current_tick,
-                .flip_sprite = ent->flip_sprite,
             });
 
-            if (ent->type == EntityType::Player) {
+            if (ent->type == EntityType_Player) {
                 ent->position.b2vec = b2Body_GetPosition(ent->body_id);
                 slice_push(players, ent);
             }

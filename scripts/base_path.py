@@ -1,3 +1,3 @@
 from pathlib import Path
 
-base_path = Path("src/client/codegen/")
+base_path = Path("src/assets/codegen/")

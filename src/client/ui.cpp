@@ -1,8 +1,3 @@
-#include "pch.h"
-
-#include "ui.h"
-
-
 global UI* ui_ctx;
 
 void ui_set_ctx(UI* _ui) {
@@ -63,7 +58,7 @@ UI_Key ui_key(Slice<u8> key) {
 
 UI_Element* ui_prev_element() {
     UI_Frame* ui = &ui_ctx->frame_buffer[ui_ctx->active_frame];
-    return &slice_back(ui->elements);
+    return slice_back(ui->elements);
 }
 
 UI_Key ui_push_row_internal(UI_Element element, const char* file, i32 line) {
@@ -107,7 +102,7 @@ UI_Key ui_push_row_internal(UI_Element element, const char* file, i32 line) {
     //
 
     slice_push(&ui->elements, element);
-    UI_Element* current = &slice_back(ui->elements);
+    UI_Element* current = slice_back(ui->elements);
 
     for (i32 i = 0; i < Axis2_Count; i++) {
         UI_Size* size = &current->size[i];
@@ -118,7 +113,7 @@ UI_Key ui_push_row_internal(UI_Element element, const char* file, i32 line) {
 
     if (ui_ctx->parent_stack.length > 0) {
 
-        UI_Element* parent = slice_back(ui_ctx->parent_stack);
+        UI_Element* parent = *slice_back(ui_ctx->parent_stack);
         if (parent->last_child) {
             UI_Element* last = parent->last_child;
 
@@ -175,7 +170,7 @@ bool ui_hover(UI_Key key) {
 }
 
 UI_Key ui_pop_row() {
-    UI_Key element = slice_back(ui_ctx->parent_stack)->computed_key;
+    UI_Key element = (*slice_back(ui_ctx->parent_stack))->computed_key;
     slice_pop(&ui_ctx->parent_stack);
     return element;
 }
@@ -208,7 +203,7 @@ void ui_end(Arena* temp_arena) {
 
     // postorder dfs with 2 stacks idfk
     while (pre_stack.length > 0) {
-        UI_Element* current = slice_back(pre_stack);
+        UI_Element* current = *slice_back(pre_stack);
         slice_push(&post_stack, current);
         slice_pop(&pre_stack);
 
@@ -236,7 +231,7 @@ void ui_end(Arena* temp_arena) {
     }
 
     while (post_stack.length > 0) {
-        UI_Element* current = slice_back(post_stack);
+        UI_Element* current = *slice_back(post_stack);
         slice_pop(&post_stack);
 
         // postorder
@@ -308,7 +303,7 @@ void ui_end(Arena* temp_arena) {
     // preorder for grow
     // could be static init actually cuz should only grow if parent fixed size
     while (pre_stack.length > 0) {
-        UI_Element* current = slice_back(pre_stack);
+        UI_Element* current = *slice_back(pre_stack);
         slice_pop(&pre_stack);
 
         // grow child elements which have grow sizing property
@@ -362,7 +357,7 @@ void ui_end(Arena* temp_arena) {
 
     // preorder for pos
     while (pre_stack.length > 0) {
-        UI_Element* current = slice_back(pre_stack);
+        UI_Element* current = *slice_back(pre_stack);
         slice_pop(&pre_stack);
 
         UI_Element* child = current->last_child;
@@ -442,7 +437,7 @@ void ui_draw(UI* ui_ctx, Arena* temp_arena) {
 
     // postorder dfs with 2 stacks idfk
     while (pre_stack.length > 0) {
-        UI_Element* current = slice_back(pre_stack);
+        UI_Element* current = *slice_back(pre_stack);
         slice_push(&post_stack, current);
         slice_pop(&pre_stack);
 
@@ -493,7 +488,7 @@ void ui_draw(UI* ui_ctx, Arena* temp_arena) {
     }
 
     while (post_stack.length > 0) {
-        UI_Element* current = slice_back(post_stack);
+        UI_Element* current = *slice_back(post_stack);
         slice_pop(&post_stack);
     }
 }

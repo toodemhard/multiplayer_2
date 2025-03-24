@@ -1,8 +1,3 @@
-#include "pch.h"
-
-#include "scene.h"
-#include "common/net_common.h"
-
 const static float grid_step = 1;
 
 static Chunk chunks[4] = {
@@ -304,7 +299,7 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
             .salt_key = var_to_byte_slice(&i),
             .size = {size_px(slot_width), size_px(slot_width)},
             .border = sides_px(grid_width),
-            // .background_color = {1,1,1,1},
+            .background_color = {1,1,1,0.25},
             .border_color = color,
         });
 
@@ -445,8 +440,8 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
                 ui_push_row({
                     .size = {size_px(slot_width), size_px(slot_width)},
                     .border = sides_px(grid_width),
-                    // .background_color = {1,1,1,1},
                     .border_color = color,
+                    // .background_color = {1,1,1,1},
                 });
                 ui_row({
                     .image = image,
@@ -618,23 +613,27 @@ void render_ghosts(Camera2D camera, const Slice<Ghost> ghosts) {
     for (i32 i = 0; i < ghosts.length; i++) {
         const Ghost* ghost = &ghosts[i];
 
-        Rect world_rect = {};
-        TextureID texture;
-        switch (ghost->type) {
-        case EntityType::Player: {
-            world_rect.size = {2,2};
-            texture = TextureID_player_png;
-        } break;
-        case EntityType::Bullet: {
-            world_rect.size = {0.5,0.5};
-            texture = TextureID_bullet_png;
-        } break;
-        case EntityType::Box: {
-            world_rect.size = {1,1};
-            texture = TextureID_box_png;
-        } break;
-
-        }
+        Rect world_rect = {
+            .position = ghost->position,
+            .size = texture_dimensions(ghost->sprite) / 16.0,
+        };
+        // TextureID texture;
+        // texture = ghost->sprite;
+        // switch (ghost->type) {
+        // case EntityType::Player: {
+        //     world_rect.size = {2,2};
+        //     texture = TextureID_player_png;
+        // } break;
+        // case EntityType::Bullet: {adf
+        //     world_rect.size = {0.5,0.5};
+        //     texture = TextureID_bullet_png;
+        // } break;
+        // case EntityType::Box: {
+        //     world_rect.size = {1,1};
+        //     texture = TextureID_box_png;
+        // } break;
+        //
+        // }
 
         RGBA flash_color = {255,255,255,255};
         f32 t = 0;
@@ -642,14 +641,14 @@ void render_ghosts(Camera2D camera, const Slice<Ghost> ghosts) {
             t = 1;
         }
 
-        world_rect.position = ghost->position;
 
         if (ghost->flip_sprite) {
             world_rect.size.x *= -1;
         }
 
         draw_sprite_world(camera, world_rect, SpriteProperties{
-            .texture_id=texture,
+            .texture_id = ghost->sprite,
+            .src_rect = ghost->sprite_src,
             .mix_color = flash_color,
             .t = t,
         });
@@ -664,6 +663,15 @@ void render_ghosts(Camera2D camera, const Slice<Ghost> ghosts) {
 void scene_render(Scene* s, Arena* frame_arena) {
     System* sys = s->sys;
     // printf("%d\n", s->latest_snapshot[0].type);
+    draw_sprite_world(
+        s->camera,
+        Rect{float2{0,0}, float2{1,1}},
+        {
+            .texture_id = TextureID_ice_wall_png,
+
+        }
+        
+    );
     render_ghosts(s->camera, s->latest_snapshot);
     for (i32 i = 0; i < 4; i++) {
         auto& chunk = chunks[i];
@@ -683,8 +691,11 @@ void scene_render(Scene* s, Arena* frame_arena) {
         }
     }
 
+    if (!s->online_mode) {
+        b2World_Draw(s->state.world_id, &s->m_debug_draw);
+    }
     // render_state(renderer, window, &s->state, s->current_tick, fixed_dt, s->camera);
-    render_ghosts(s->camera, s->latest_snapshot);
+    // render_ghosts(s->camera, s->latest_snapshot);
     // draw_world_rect(renderer, m_camera, {{-3.5, 0}, {1,1}}, color::red);
     // draw_world_rect(renderer, m_camera, {{0.5, 1.5}, {0.5,0.5}}, RGBA{255,255,0,255});
     // printf("%d\n", alignof(std::max_align_t);

@@ -1,7 +1,4 @@
 #pragma once
-#include "allocator.h"
-#include "common/base_math.h"
-#include "types.h"
 
 enum class PlayerAnimationState {
     Idle,
@@ -39,11 +36,12 @@ enum SpellType {
     SpellType_SniperRifle,
 };
 
-enum class EntityType {
-    Player,
-    Bullet,
-    Box,
-    Dummy,
+enum EntityType {
+    EntityType_NULL,
+    EntityType_Player,
+    EntityType_Bullet,
+    EntityType_Box,
+    EntityType_Dummy,
 };
 
 
@@ -82,12 +80,14 @@ constexpr i32 inventory_rows = 4;
 
 // visual copy on client idk wtf to call it
 struct Ghost {
-    EntityType type;
+    TextureID sprite;
+    Rect sprite_src;
+    bool flip_sprite;
+
     float2 position;
     u16 health;
     bool show_health;
     bool hit_flash;
-    bool flip_sprite;
 };
 
 struct Entity {
@@ -95,6 +95,10 @@ struct Entity {
     float2 position;
     bool is_active;
     u32 generation;
+
+    TextureID sprite;
+    Rect sprite_src;
+    bool flip_sprite;
 
     EntityType type;
     EntityFlags flags;
@@ -108,7 +112,6 @@ struct Entity {
     u32 dash_end_tick;
     u16 selected_spell;
 
-    bool flip_sprite;
 
     // hittable
     i32 health;

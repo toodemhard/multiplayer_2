@@ -1,16 +1,3 @@
-#include "pch.h"
-
-#include "common/allocator.h"
-#include "client/exports.h"
-
-#include <windows.h>
-
-// #if defined(TRACY_DELAYED_INIT) && defined(TRACY_MANUAL_LIFETIME)
-//     #pragma message("aaaaaaaaaaaaa")
-// #endif
-
-// #include "client/TracyProfiler.hpp"
-
 struct DLL {
     SDL_SharedObject* object;
     
@@ -30,7 +17,7 @@ void load_dll(DLL* dll) {
 
     dll->object = SDL_LoadObject("./temp_game.dll");
     if (!dll->object) {
-        std::cout << SDL_GetError();
+        fprintf(stderr, "%s\n", SDL_GetError());
     }
 
     dll->update = (update_func*)SDL_LoadFunction(dll->object, "update");
@@ -44,15 +31,11 @@ void run(){
     ASSERT(SDL_LoadObject("box2dd.dll") != NULL)
     ASSERT(SDL_LoadObject("enet.dll") != NULL)
 
-
-
-
     // auto object = SDL_LoadObject("./game.dll");
     DLL dll{};
     load_dll(&dll);
 
 
-    u64 memory_size = megabytes(16);
     void* memory = malloc(memory_size);
     memset(memory, 0, memory_size);
 
