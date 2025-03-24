@@ -108,19 +108,19 @@ void create_box(GameState* state, float2 position) {
 
 void create_wall(GameState* state, float2 position, Dir8 direction) {
     auto body_def = b2DefaultBodyDef();
-    body_def.type = b2_staticBody;
+    // body_def.type = b2_staticBody;
     body_def.position = position.b2vec;
-    body_def.fixedRotation = true;
+    // body_def.fixedRotation = true;
 
     auto body_id = b2CreateBody(state->world_id, &body_def);
 
-    Rect src = {0,0,32,32};
+    Rect src = {0,0,64,64};
     bool flip_sprite = false;
     if (direction == Dir8_Up || direction == Dir8_Down) {
-        src.position = {0,32};
+        src.position = {0,64};
     }
     if (direction == Dir8_UpLeft || direction == Dir8_UpRight || direction == Dir8_DownRight || direction == Dir8_DownLeft) {
-        src.position = {32,0};
+        src.position = {64,0};
     }
     if (direction == Dir8_UpLeft || direction == Dir8_DownRight) {
         flip_sprite = true;
@@ -129,7 +129,7 @@ void create_wall(GameState* state, float2 position, Dir8 direction) {
     Entity wall = {
         .sprite = TextureID_ice_wall_png,
         .sprite_src = src,
-        .flip_sprite = true,
+        .flip_sprite = flip_sprite,
         .flags = EntityFlags_hittable,
         .body_id = body_id,
         .health = 50,
@@ -138,9 +138,9 @@ void create_wall(GameState* state, float2 position, Dir8 direction) {
     EntityHandle handle = entity_list_add(&state->entities, wall);
 
     auto shape_def = b2DefaultShapeDef();
-    shape_def.isSensor = true;
-    shape_def.friction = 0;
-    shape_def.userData = &(state->entities[handle.index]);
+    // shape_def.isSensor = true;
+    // shape_def.friction = 0;
+    // shape_def.userData = &(state->entities[handle.index]);
     auto polygon = b2MakeBox(0.25, 0.25);
 
     auto shape_id = b2CreatePolygonShape(body_id, &shape_def, &polygon);
@@ -193,6 +193,13 @@ void state_init(GameState* state, Arena* arena) {
     b2WorldDef world_def = b2DefaultWorldDef();
     world_def.gravity = b2Vec2{0.0f, 0.0f};
     state->world_id = b2CreateWorld(&world_def);
+
+    b2BodyDef groundBodyDef = b2DefaultBodyDef();
+    groundBodyDef.position = (b2Vec2){0.0f, -10.0f};
+    b2BodyId groundId = b2CreateBody(state->world_id, &groundBodyDef);
+    b2Polygon groundBox = b2MakeBox(50.0f, 10.0f);
+    b2ShapeDef groundShapeDef = b2DefaultShapeDef();
+    b2CreatePolygonShape(groundId, &groundShapeDef, &groundBox);
 
     b2World_Step(state->world_id, 0.1, 4);
 

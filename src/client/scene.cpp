@@ -609,6 +609,10 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
     scene_render(s, frame_arena);
 }
 
+bool float2_cmp(float2 a, float2 b) {
+    return a.x == b.x && a.y == b.y;
+}
+
 void render_ghosts(Camera2D camera, const Slice<Ghost> ghosts) {
     for (i32 i = 0; i < ghosts.length; i++) {
         const Ghost* ghost = &ghosts[i];
@@ -617,6 +621,10 @@ void render_ghosts(Camera2D camera, const Slice<Ghost> ghosts) {
             .position = ghost->position,
             .size = texture_dimensions(ghost->sprite) / 16.0,
         };
+
+        if (!float2_cmp(ghost->sprite_src.size, float2{0,0})) {
+            world_rect.size = ghost->sprite_src.size / 16.0;
+        }
         // TextureID texture;
         // texture = ghost->sprite;
         // switch (ghost->type) {
