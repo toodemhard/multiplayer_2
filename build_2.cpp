@@ -344,12 +344,12 @@ std::string escape_quotes(const std::string& str) {
     return result;
 }
 
-std::string add_compile_command(std::string flags, std::string includes, std::string src_file) {
+std::string add_compile_command(std::string flags, std::string includes, std::string compile_file, std::string file) {
     includes = escape_json(includes);
 
     std::string commands_json = "";
 
-    std::string command = std::format("{} {} {} {}", compiler_path.string(), flags, includes, escape_json(src_file));
+    std::string command = std::format("{} {} {} {}", compiler_path.string(), flags, includes, escape_json(compile_file));
 
     commands_json += std::format(R"(
 {{
@@ -357,7 +357,7 @@ std::string add_compile_command(std::string flags, std::string includes, std::st
     "command": "{}",
     "file": "{}",
     "output": ""
-}},)", escape_json(build_dir.string()), command, escape_json(src_file));
+}},)", escape_json(build_dir.string()), command, escape_json(file));
 
     return commands_json;
 }
@@ -462,7 +462,15 @@ void build_target(Target target, Lib libs[], int lib_count, std::string compiler
         }
         include_ext += includes;
 
-        commands_json += add_compile_command(compiler_flags,include_ext, src.string());
+        commands_json += add_compile_command(compiler_flags,include_ext, src.string(), src.string());
+    }
+    for (auto& h : header_files) {
+        std::string include_ext = "";
+        include_ext += std::format(" -include {} ", (project_root / "src" / (target.pch_name + ".h") ).string());
+        include_ext += std::format(" -include {} ", (project_root / target.main).string());
+        include_ext += includes;
+
+        commands_json += add_compile_command(compiler_flags,include_ext, h.string() + ".cpp", h.string());
     }
 
     for (auto& src : source_files) {
