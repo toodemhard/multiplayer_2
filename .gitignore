@@ -4,6 +4,9 @@ scripts/__pycache__/
 build/
 .vs/
 b2/
+b3/
+debug/
+dist2/
 dist/
 b_rel/
 .vscode/
