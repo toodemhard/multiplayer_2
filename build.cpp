@@ -34,12 +34,12 @@ enum class target_type {
     precompiled_header,
 };
 
-struct target {
+struct Target {
     target_type type;
 
     const char* name;
     std::vector<source_file> files;
-    std::vector<std::string> libs;
+    std::vector<std::string> libs;  // for linking
     std::vector<std::filesystem::path> include_dirs;
     std::string linker_flags;
 
@@ -49,7 +49,7 @@ struct target {
     std::string crt;
 };
 
-struct lib {
+struct Lib {
     const char* name;
     buildsystem buildsystem;
     // .lib file path relative to lib build dir
@@ -130,7 +130,7 @@ const char* static_string(std::string string) {
     return strings[string_count - 1].data();
 }
 
-void build_libs(lib* libs, int lib_count) {
+void build_libs(Lib* libs, int lib_count) {
     for (int i = 0; i < lib_count; i++) {
         auto& lib = libs[i];
 
@@ -255,7 +255,7 @@ std::string command_output(const char* command) {
 }
 // _popen(const char *Command, const char *Mode)
 
-void build_target(target target, lib libs[], int lib_count, std::string compiler_flags, std::string& commands_json) {
+void build_target(Target target, Lib libs[], int lib_count, std::string compiler_flags, std::string& commands_json) {
     timer total(target.name);
 
     std::unordered_map<std::string, int> lib_index;
@@ -478,21 +478,21 @@ int main(int argc, char* argv[]) {
     // glob_files(&src_files, project_root / "src/common");
     // glob_files(&src_files, project_root / "src/client");
 
-    lib libs[] = {
-        lib {
+    Lib libs[] = {
+        Lib {
             .name = "box2d",
             .rel_include_paths = {"include"},
             .lib_path = "src/box2dd.lib",
             .shared_lib_path = "src/box2dd.dll",
             .cmake_args = R"(-DBUILD_SHARED_LIBS=ON)"
         },
-        lib {
+        Lib {
             .name = "SDL",
             .rel_include_paths = {"include"},
             .lib_path = "SDL3.lib",
             .shared_lib_path = "SDL3.dll"
         },
-        lib {
+        Lib {
             .name = "tracy",
             .buildsystem = buildsystem::cmake,
             .rel_include_paths = {"public"},
@@ -500,7 +500,7 @@ int main(int argc, char* argv[]) {
             .shared_lib_path = "TracyClient.dll",
             .cmake_args = "-DBUILD_SHARED_LIBS=ON -DTRACY_ENABLE=OFF -DTRACY_ON_DEMAND=OFF"// -DTRACY_DELAYED_INIT=ON -DTRACY_MANUAL_LIFETIME=ON"
         },
-        lib {
+        Lib {
             .name = "yojimbo",
             .buildsystem = buildsystem::premake,
             .rel_include_paths = {"include", "serialize"},
@@ -513,7 +513,7 @@ int main(int argc, char* argv[]) {
                 "yojimbo.lib",
             }
         },
-        lib {
+        Lib {
             .name = "enet",
             .rel_include_paths = {"include"},
             .lib_path = "enet.lib",
@@ -521,7 +521,7 @@ int main(int argc, char* argv[]) {
             .cmake_args = "-DBUILD_SHARED_LIBS=ON"
         },
     };
-    int lib_count = sizeof(libs) / sizeof(lib);
+    int lib_count = sizeof(libs) / sizeof(Lib);
 
     std::vector<std::filesystem::path> include_dirs = {
         "src/",
@@ -538,8 +538,8 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    target targets[] = {
-        target{
+    Target targets[] = {
+        Target{
             .type = target_type::precompiled_header,
             .name = "pch",
             .files = {
@@ -554,7 +554,7 @@ int main(int argc, char* argv[]) {
             },
             .include_dirs = include_dirs,
         },
-        target{
+        Target{
             .type = target_type::shared_lib,
             .name = "game",
             .files = {
@@ -576,7 +576,7 @@ int main(int argc, char* argv[]) {
             .include_dirs = include_dirs,
             .pch_name = "pch",
         },
-        target{
+        Target{
             .type = target_type::executable,
             .name = "platform",
             .files = {
@@ -594,7 +594,7 @@ int main(int argc, char* argv[]) {
             .include_dirs = include_dirs,
             .pch_name = "pch",
         },
-        target{
+        Target{
             .type = target_type::executable,
             .name = "server",
             .files = {
@@ -626,7 +626,9 @@ int main(int argc, char* argv[]) {
         crt = "libcmt.lib";
     } 
 
-    std::string compiler_flags = std::format("-nologo /std:c++20 /EHsc /MP {} " TRACY_DEFINES " /D ENET_DLL", add_flags);
+    std::string compiler = "asdf";
+
+    std::string compiler_flags = std::format("/std:c++20 /EHsc /MP {} " TRACY_DEFINES " /D ENET_DLL", add_flags);
     const char* pch_flags = R"(/Yu"pch.h" /Fp"pch.pch")";
 
     {

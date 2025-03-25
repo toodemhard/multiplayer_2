@@ -426,7 +426,6 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
     }
 
 
-
     if (s->inventory_open) {
         ui_push_row({
             .flags = UI_Flags_Float,

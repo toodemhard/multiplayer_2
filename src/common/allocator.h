@@ -244,6 +244,7 @@ struct Hashmap {
 // typedef Slice<u8> StringUtf8;
 // typedef Slice<u32> String_32;
 
+typedef struct String8 String8;
 struct String8 {
     u8* data;
     u64 length;

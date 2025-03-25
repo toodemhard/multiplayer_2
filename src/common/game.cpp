@@ -195,7 +195,7 @@ void state_init(GameState* state, Arena* arena) {
     state->world_id = b2CreateWorld(&world_def);
 
     b2BodyDef groundBodyDef = b2DefaultBodyDef();
-    groundBodyDef.position = (b2Vec2){0.0f, -10.0f};
+    groundBodyDef.position = b2Vec2{0.0f, -10.0f};
     b2BodyId groundId = b2CreateBody(state->world_id, &groundBodyDef);
     b2Polygon groundBox = b2MakeBox(50.0f, 10.0f);
     b2ShapeDef groundShapeDef = b2DefaultShapeDef();
