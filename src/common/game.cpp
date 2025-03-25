@@ -218,8 +218,8 @@ const float bullet_damage = 10;
 
 float2 rotate(float2 vector, f32 angle) {
     float2x2 rotation_matrix = {
-        cos(angle), -sin(angle),
-        sin(angle), cos(angle)
+        (f32)cos(angle), (f32)-sin(angle),
+        (f32)sin(angle), (f32)cos(angle)
     };
 
     return rotation_matrix * vector;

@@ -52,7 +52,7 @@ void arena_init(Arena* arena, void* start, u64 size) {
 }
 
 void* arena_alloc(Arena* arena, u64 size) {
-    return arena_alloc_align(arena, size, alignof(std::max_align_t));
+    return arena_alloc_align(arena, size, alignof(void*));
 }
 
 void* arena_alloc_align(Arena* arena, u64 size, u64 alignment) {
@@ -107,7 +107,7 @@ u64 fnv1a(Slice<u8> key) {
 }
 
 
-String8 literal(const char* str) {
+String8 string8_literal(const char* str) {
     return {
         .data = (u8*)str,
         .length = strlen(str),

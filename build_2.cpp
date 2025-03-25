@@ -151,6 +151,10 @@ struct source_file {
     std::filesystem::path value;
 };
 
+source_file src_glob(std::filesystem::path value) {
+    return {files_type::glob, value};
+}
+
 source_file src_single(std::filesystem::path value) {
     return {files_type::single, value};
 }
@@ -772,6 +776,7 @@ int main(int argc, char* argv[]) {
                     .type = files_type::glob,
                     .value = "src/common",
                 },
+                src_glob("src/os"),
             },
             .libs = {
                 "box2d",
@@ -837,7 +842,7 @@ int main(int argc, char* argv[]) {
         crt = "libcmt.lib";
     } 
 
-    std::string compiler_flags = std::format("-std=c++20 -ftime-trace {} " TRACY_DEFINES " -D ENET_DLL", add_flags);
+    std::string compiler_flags = std::format("-std=c++20 -w -O0 -fno-exceptions -fno-rtti -Wno-deprecated-declarations -ftime-trace {} " TRACY_DEFINES " -D ENET_DLL", add_flags);
 
     {
         timer timer("build libs");

@@ -69,8 +69,8 @@ struct DrawItem {
 };
 
 struct Renderer {
-    const int window_width = 1024;
-    const int window_height = 768;
+    i32 window_width = 1024;
+    i32 window_height = 768;
 
     Camera2D* active_camera;
 

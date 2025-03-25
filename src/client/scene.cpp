@@ -114,7 +114,10 @@ void DrawSolidPolygon(b2Transform transform, const b2Vec2* vertices, int vertexC
 
     auto asdf = hex_to_rgba(color);
 
-    std::vector<b2Vec2> transed_verts(vertexCount);
+    ArenaTemp scratch = scratch_get(0,0);
+    defer(scratch_release(scratch));
+
+    Slice<b2Vec2> transed_verts = slice_create_fixed<b2Vec2>(scratch.arena, vertexCount);
 
     for (int i = 0; i < vertexCount; i++) {
         auto vert = vertices[i];
@@ -132,7 +135,7 @@ void DrawSolidPolygon(b2Transform transform, const b2Vec2* vertices, int vertexC
         transed_verts[i] = vert;
     }
 
-    draw_world_polygon(*renderer.active_camera, (float2*)transed_verts.data(), vertexCount, hex_to_rgban(color));
+    draw_world_polygon(*renderer.active_camera, (float2*)transed_verts.data, vertexCount, hex_to_rgban(color));
 }
 
 void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context) {
@@ -145,7 +148,7 @@ void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void
 
 void scene_render(Scene* s, Arena* frame_arena);
 
-void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String_8 ip_address) {
+void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 ip_address) {
     *s = {};
     s->sys = sys;
     s->online_mode = online;
@@ -179,7 +182,7 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String_8
         }
 
         ENetAddress address;
-        enet_address_set_host(&address, string_to_cstr(scratch.arena, ip_address));
+        enet_address_set_host(&address, (char*)ip_address.data);
         address.port = 1234;
         s->server = enet_host_connect(s->client, &address, 2, 0);
         if (!s->server) {

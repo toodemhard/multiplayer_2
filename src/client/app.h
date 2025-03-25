@@ -15,7 +15,7 @@ struct State {
     Scene local_scene;
     Menu menu;
 
-    std::chrono::time_point<std::chrono::steady_clock> last_frame_time;
+    f64 last_frame_time;
 
     Arena temp_arena;
     Arena persistent_arena;

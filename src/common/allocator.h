@@ -207,19 +207,7 @@ void slice_copy_range(void* dst, const Slice<T>* slice, u64 start, u64 count) {
     memcpy(dst, &slice->data[start], sizeof(T) * count);
 }
 
-struct String8 {
-    u8* data;
-    u64 length;
-};
 
-inline char* c_str(Arena* arena, String8 string) {
-    Slice<u8> idk = slice_create_fixed<u8>(arena, string.length + 1);
-    memcpy(idk.data, string.data, string.length);
-
-    idk[idk.length - 1] = '\0';
-
-    return (char*)idk.data;
-}
 
 typedef u8 HashmapFlags;
 
@@ -252,11 +240,28 @@ struct Hashmap {
 //     u64 count;
 // };
 
-typedef Slice<u8> String_8;
-typedef Slice<u8> StringUtf8;
-typedef Slice<u32> String_32;
+// typedef Slice<u8> String_8;
+// typedef Slice<u8> StringUtf8;
+// typedef Slice<u32> String_32;
 
-String8 literal(const char* str);
+struct String8 {
+    u8* data;
+    u64 length;
+};
+
+
+String8 string8_literal(const char* str);
+// u64 string8_length()
+
+
+// inline char* c_str(Arena* arena, String8 string) {
+//     Slice<u8> idk = slice_create_fixed<u8>(arena, string.length + 1);
+//     memcpy(idk.data, string.data, string.length);
+//
+//     idk[idk.length - 1] = '\0';
+//
+//     return (char*)idk.data;
+// }
 
 u64 fnv1a(Slice<u8> key);
 

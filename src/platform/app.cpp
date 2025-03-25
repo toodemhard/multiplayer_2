@@ -39,26 +39,22 @@ void run(){
     void* memory = malloc(memory_size);
     memset(memory, 0, memory_size);
 
-    auto pwd = std::filesystem::current_path();
-
-    // dll.init(memory);
-
-    auto last_write = std::filesystem::last_write_time("./game.dll");
-
+    OS_Handle dll_file = os_file_open(string8_literal("./game.dll"));
+    u64 last_write;
+    if (!os_file_write_time(dll_file, &last_write)) {
+        ASSERT(false);
+    }
 
     bool reload = false;
 
     while (1) {
-        std::filesystem::file_time_type current_write;
-        try {
-            current_write = std::filesystem::last_write_time("./game.dll");
-        } catch(std::runtime_error& e) {
-            current_write = last_write;
+        u64 current_write;
+        if (!os_file_write_time(dll_file, &current_write)) {
+            ASSERT(false);
         }
 
         // auto other_write = std::filesystem::last_write_time("./game.dll");
 
-        using namespace std::chrono_literals;
         if (last_write != current_write || reload) {
             bool file_locked = true;
             while (file_locked) {
@@ -80,13 +76,16 @@ void run(){
                     DWORD error = GetLastError();
                     printf("Error code: %lu\n", error);
 
-                    using namespace std::chrono_literals;
-                    std::this_thread::sleep_for(50ms);
+                    os_sleep_milliseconds(50);
                 }
             }
 
-            current_write = std::filesystem::last_write_time("./game.dll");
-            std::cout << std::format("{}\n", last_write);
+            if (!os_file_write_time(dll_file, &current_write)) {
+                ASSERT(false);
+            }
+
+            fprintf(stderr, "reloaded: %llu\n", current_write);
+            // ("{}\n", last_write);
             last_write = current_write;
 
 

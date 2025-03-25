@@ -13,6 +13,9 @@
 #include "common/inc.h"
 #include "common/inc.cpp"
 
+#include "os/os.h"
+#include "os/os.c"
+
 #include "color.h"
 #include "exports.h"
 #include "input.h"
@@ -60,12 +63,14 @@ bool init(void* memory) {
     b2World_Step(world_id, 0.1, 4);
 
 
-    std::cout << std::filesystem::current_path().string() << '\n';
+    // std::cout << std::filesystem::current_path().string() << '\n';
+    // Renderer r = {};
+    // r = {};
 
     Arena god_allocator{};
     arena_init(&god_allocator, memory, memory_size);
     State* state = (State*)arena_alloc(&god_allocator, sizeof(State));
-    new (state) State{};
+    *state = State{};
 
     System* sys = &state->sys;
 
@@ -105,7 +110,7 @@ bool init(void* memory) {
     
 
     // Texture textures[ImageID_Count];
-    std::future<void> texture_futures[ImageID_Count];
+    // std::future<void> texture_futures[ImageID_Count];
 
     auto image_to_texture = [](Renderer* renderer, ImageID image_id) {
         int width, height, comp;
@@ -114,11 +119,9 @@ bool init(void* memory) {
     };
 
     for (i32 i = ImageID_NULL + 1; i < ImageID_Count; i++) {
-        texture_futures[i] = std::async(std::launch::async, image_to_texture, &sys->renderer, (ImageID)i);
+        image_to_texture(&sys->renderer, (ImageID)i);
         // image_to_texture(state->renderer, (ImageID)i);
     }
-
-    std::future<void> font_futures[FontID::font_count];
 
     for (i32 i = 0; i < FontID::font_count; i++) {
         font_load(&state->persistent_arena, &sys->fonts[i], &sys->renderer, FontID::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
@@ -129,24 +132,8 @@ bool init(void* memory) {
 
     float2 player_position{0, 0};
 
-    // state->local_scene.frame = 12312;
-    // (&state->local_scene)->m_input = &state->input;
 
-
-
-
-
-    // InitializeYojimbo();
-
-    for (int i = ImageID_NULL + 1; i < ImageID_Count; i++) {
-        texture_futures[i].wait();
-    }
-
-    // for (i32 i = 0; i < FontID::font_count; i++) {
-    //     font_futures[i].wait();
-    // }
-
-    state->last_frame_time = std::chrono::high_resolution_clock::now();
+    state->last_frame_time = os_now_seconds();
 
     sys->fonts_view = slice_create_view(&sys->fonts.data[0], sys->fonts.length);
 
@@ -272,11 +259,13 @@ void menu_update(Menu* menu, Arena* temp_arena) {
                 .background_color = {1,0,0,1},
             }))) {
                 printf("%s\n", string_to_cstr(scratch.arena, menu->text));
+
+                slice_push(&menu->text, (u8)'\0');
                 ring_buffer_push_back(&sys->events, Event{
                     .type = EventType_StartScene,
                     .start_scene = {
                         .online = true,
-                        .connect_ip = menu->text,
+                        .connect_ip = string8_literal((char*)menu->text.data),
                     },
                 });
             }
@@ -312,8 +301,8 @@ extern "C" UPDATE(update) {
 
     arena_reset(&state->temp_arena);
 
-    auto this_frame_time = std::chrono::high_resolution_clock::now();
-    double delta_time = std::chrono::duration_cast<std::chrono::duration<double>>(this_frame_time - state->last_frame_time).count();
+    f64 this_frame_time = os_now_seconds();
+    f64 delta_time = this_frame_time - state->last_frame_time;
     state->last_frame_time = this_frame_time;
 
     input_begin_frame(&sys->input);
@@ -400,7 +389,7 @@ extern "C" UPDATE(update) {
 
     // render
     {
-        auto render_begin_time = std::chrono::high_resolution_clock::now();
+        // auto render_begin_time = std::chrono::high_resolution_clock::now();
         begin_rendering(sys->window, &state->temp_arena);
 
 

@@ -16,7 +16,7 @@ struct Event {
     union {
     struct {
         bool online;
-        Slice<u8> connect_ip;
+        String8 connect_ip;
     } start_scene;
     };
 };
