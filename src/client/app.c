@@ -225,13 +225,6 @@ void menu_update(Menu* menu, Arena* temp_arena) {
     ArenaTemp scratch = scratch_get(0, 0);
     defer_loop(0, scratch_release(scratch)) {
 
-
-    if (input_key_down(SDL_SCANCODE_C)) {
-        printf("aaaaan");
-    }
-    if (input_mouse_down(SDL_BUTTON_LEFT)) {
-        printf("b");
-    }
     ui_row({
         .font_size = font_px(32),
         .stack_axis = Axis2_Y,
