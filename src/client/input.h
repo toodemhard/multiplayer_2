@@ -1,10 +1,10 @@
 #pragma once
 
-#define KEYBINDINGS(_)                                                                                                                     \
-    _(move_up, SDL_SCANCODE_W)                                                                                                             \
-    _(move_left, SDL_SCANCODE_A)                                                                                                           \
-    _(move_down, SDL_SCANCODE_S)                                                                                                           \
-    _(move_right, SDL_SCANCODE_D)                                                                                                          \
+#define KEYBINDINGS(_)\
+    _(move_up, SDL_SCANCODE_W)\
+    _(move_left, SDL_SCANCODE_A)\
+    _(move_down, SDL_SCANCODE_S)\
+    _(move_right, SDL_SCANCODE_D)\
     _(dash, SDL_SCANCODE_SPACE)\
     _(hotbar_slot_1, SDL_SCANCODE_1)\
     _(hotbar_slot_2, SDL_SCANCODE_2)\
@@ -17,38 +17,50 @@
 
 #define ACTION(a, b) ActionID_##a,
 
-enum ActionID {
+typedef enum ActionID {
     KEYBINDINGS(ACTION) 
-    count,
-};
+    ActionID_Count,
+} ActionID;
 
+typedef struct Keybind Keybind;
 struct Keybind {
     ActionID action_id;
     SDL_Scancode scancode;
 };
 
-#define KEYBIND(a, b) Keybind{ActionID_##a, b},
-constexpr Array<Keybind, ActionID::count> default_keybindings = {KEYBINDINGS(KEYBIND)};
+typedef enum A {
+    A_a,
+    A_b,
+} A;
+
+A aaa[2] = {
+    (A)A_a,
+    A_b,
+};
+
+#define KEYBIND(a, b) {ActionID_##a, b},
+Keybind default_keybindings[ActionID_Count] = {KEYBINDINGS(KEYBIND)};
 
 #define AS_STRING(a, b) #a,
-constexpr Array<const char*, ActionID::count> action_names = {KEYBINDINGS(AS_STRING)};
+const char* action_names[ActionID_Count] = {KEYBINDINGS(AS_STRING)};
 
+typedef struct Input Input;
 struct Input {
-    float2 mouse_pos{};
-    float wheel{};
+    float2 mouse_pos;
+    float wheel;
 
-    Slice<u8> input_text;
+    String input_text;
+    SDL_Scancode keybindings[ActionID_Count];
 
-    Array<bool, SDL_SCANCODE_COUNT> keyboard_repeat{};
-    Array<SDL_Scancode, ActionID::count> keybindings;
-    Array<bool, SDL_SCANCODE_COUNT> keyboard_up{};
-    Array<bool, SDL_SCANCODE_COUNT> keyboard_down{};
+    bool keyboard_repeat[SDL_SCANCODE_COUNT];
+    bool keyboard_up[SDL_SCANCODE_COUNT];
+    bool keyboard_down[SDL_SCANCODE_COUNT];
 
-    SDL_MouseButtonFlags button_down_flags{};
-    SDL_MouseButtonFlags button_up_flags{};
+    SDL_MouseButtonFlags button_down_flags;
+    SDL_MouseButtonFlags button_up_flags;
 
-    const bool* keyboard_held = SDL_GetKeyboardState(NULL);
-    SDL_MouseButtonFlags button_held_flags{};
+    const bool* keyboard_held;
+    SDL_MouseButtonFlags button_held_flags;
 
     SDL_Keymod mod_state;
 };
@@ -57,17 +69,17 @@ void input_begin_frame(Input* input);
 void input_end_frame(Input* input);
 void input_set_ctx(Input* input);
 Input* input_get_ctx();
-void input_init_keybinds(Input* input, Array<Keybind, ActionID::count> keybinds);
+void input_init(Input* input, Keybind* keybinds);
 float2 input_mouse_position();
 
 bool input_action_down(int action_id);
 bool input_action_held(int action_id);
 bool input_action_up(int action_id);
 
-bool input_key_down(const SDL_Scancode& scan_code);
-bool input_key_held(const SDL_Scancode& scan_code);
-bool input_key_up(const SDL_Scancode& scan_code);
-bool input_key_down_repeat(const SDL_Scancode& scan_code);
+bool input_key_down(SDL_Scancode scan_code);
+bool input_key_held(SDL_Scancode scan_code);
+bool input_key_up(SDL_Scancode scan_code);
+bool input_key_down_repeat(SDL_Scancode scan_code);
 
 bool input_modifier(const SDL_Keymod modifiers);
 

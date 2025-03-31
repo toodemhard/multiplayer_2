@@ -1,33 +1,38 @@
 #pragma once
 
-enum SceneType {
+typedef enum SceneType {
     SceneType_Menu,
     SceneType_Game,
-};
+} SceneType;
 
-enum EventType {
+typedef enum EventType {
     EventType_NULL,
     EventType_StartScene,
     EventType_QuitScene,
-};
+} EventType;
 
-struct Event {
+typedef struct GameStartEvent {
+    bool online;
+    String8 connect_ip;
+} GameStartEvent;
+
+typedef struct Event {
     EventType type;
     union {
-    struct {
-        bool online;
-        String8 connect_ip;
-    } start_scene;
+        GameStartEvent game_start;
     };
-};
+} Event;
+ring_def(Event);
 
 // more things should use global ctx system
 
-struct System {
+typedef struct System {
     SDL_Window* window;
     Renderer renderer;
     Input input;
-    Array<Font, FontID::font_count> fonts;
-    Slice<Font> fonts_view;
-    RingBuffer<Event, 10> events;
-};
+    Font fonts[FontID_Count];
+    Slice_Font fonts_view;
+
+
+    Ring_Event events;
+} System;

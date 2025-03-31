@@ -1,13 +1,12 @@
-#include "common/types.h"
-#include "common/allocator.h"
-#include "common/allocator.cpp"
+#include "base/base_inc.h"
+#include "base/base_inc.c"
 #include "os/os.h"
 #include "os/os.c"
 
 #include "client/exports.h"
 
 #include "app.h"
-#include "app.cpp"
+#include "app.c"
 
 int main() {
     run();

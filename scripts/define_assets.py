@@ -22,5 +22,6 @@ def write_asset_table(source_dir, file_name):
 
             header.write(f"    _({var_name}, \"{source_dir}/{file}\")\\\n")
 
-write_asset_table("images", "image_table");
-write_asset_table("fonts", "font_table");
+write_asset_table("images", "image_table")
+write_asset_table("fonts", "font_table")
+write_asset_table("shaders", "shader_table")

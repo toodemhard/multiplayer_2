@@ -1,23 +1,23 @@
 internal Input* input_ctx;
 
 void input_begin_frame(Input* input) {
-    ZoneScoped;
-
     input->button_held_flags = SDL_GetMouseState(&input->mouse_pos.x, &input->mouse_pos.y);
     input->mod_state = SDL_GetModState();
-
-    input->input_text = {};
 }
 
 void input_end_frame(Input* input) {
-    ZoneScoped;
-
-    input->keyboard_down = {};
-    input->keyboard_up = {};
-    input->keyboard_repeat = {};
-
-    input->button_down_flags = {};
-    input->button_up_flags = {};
+    zero_struct(&input->input_text);
+    zero_struct(&input->keyboard_down);
+    zero_struct(&input->keyboard_up);
+    zero_struct(&input->keyboard_repeat);
+    zero_struct(&input->button_down_flags);
+    zero_struct(&input->button_up_flags);
+    // input->keyboard_down = {0};
+    // input->keyboard_up = {};
+    // input->keyboard_repeat = {};
+    //
+    // input->button_down_flags = {};
+    // input->button_up_flags = {};
 }
 
 float2 input_mouse_position() {
@@ -31,12 +31,12 @@ Input* input_get_ctx() {
     return input_ctx;
 }
 
-void input_init_keybinds(Input* input, Array<Keybind, ActionID::count> keybinds) {
-    for (i32 i = 0; i < keybinds.length; i ++) {
+void input_init(Input* input, Keybind* keybinds) {
+    for (i32 i = 0; i < ActionID_Count; i ++) {
         Keybind* kb = &keybinds[i];
         input->keybindings[kb->action_id] = kb->scancode;
     }
-    // input->keybindings = keybinds;
+    input->keyboard_held = SDL_GetKeyboardState(NULL);
 }
 
 bool input_action_down(int action_id) {
@@ -67,18 +67,18 @@ bool input_mouse_up(SDL_MouseButtonFlags button) {
     return (input_ctx->button_up_flags & SDL_BUTTON_MASK(button));
 }
 
-bool input_key_down(const SDL_Scancode& scan_code) {
+bool input_key_down(SDL_Scancode scan_code) {
     return input_ctx->keyboard_down[scan_code];
 }
 
-bool input_key_held(const SDL_Scancode& scan_code) {
+bool input_key_held(SDL_Scancode scan_code) {
     return input_ctx->keyboard_held[scan_code];
 }
 
-bool input_key_up(const SDL_Scancode& scan_code) {
+bool input_key_up(SDL_Scancode scan_code) {
     return input_ctx->keyboard_up[scan_code];
 }
 
-bool input_key_down_repeat(const SDL_Scancode& scan_code) {
+bool input_key_down_repeat(SDL_Scancode scan_code) {
     return input_ctx->keyboard_repeat[scan_code];
 }

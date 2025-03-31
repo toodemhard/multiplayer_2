@@ -2,7 +2,7 @@ global Renderer* renderer;
 
 float2 texture_dimensions(TextureID texture_id) {
     Texture* tex = &renderer->textures[texture_id];
-    return {(f32)tex->w, (f32)tex->h};
+    return (float2){(f32)tex->w, (f32)tex->h};
 }
 
 i32 round_to_i32(f32 value) {
@@ -14,7 +14,7 @@ i32 truncate_to_i32(f32 value) {
 }
 
 float2 snap_pos(float2 pos) {
-    return {truncate_to_i32(pos.x * 16.0f) / 16.0f, truncate_to_i32(pos.y * 16.0f) / 16.0f};
+    return (float2){truncate_to_i32(pos.x * 16.0f) / 16.0f, truncate_to_i32(pos.y * 16.0f) / 16.0f};
 }
 
 void renderer_set_ctx(Renderer* _renderer) {
@@ -22,11 +22,10 @@ void renderer_set_ctx(Renderer* _renderer) {
 }
 
 int init_renderer(Renderer* renderer, SDL_Window* window) {
-    ZoneScoped;
-
+    renderer->window_width = 1024;
+    renderer->window_height = 768;
     SDL_GPUDevice* device;
     {
-        ZoneNamedN(a, "Create Device", true);
         device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
         if (device == NULL) {
             SDL_Log("CreateGPUDevice failed");
@@ -37,7 +36,6 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
     }
 
     {
-        ZoneNamedN(claim_window, "Claim Window", true);
         if (!SDL_ClaimWindowForGPUDevice(device, window)) {
             SDL_Log("ClaimWindow failed");
             return 1;
@@ -46,7 +44,7 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
 
     SDL_SetGPUSwapchainParameters(device, window, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, SDL_GPU_PRESENTMODE_IMMEDIATE);
 
-    auto color_target_description = SDL_GPUColorTargetDescription{
+    SDL_GPUColorTargetDescription color_target_description = {
         .format = SDL_GetGPUSwapchainTextureFormat(device, window),
         .blend_state = {
             .src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA,
@@ -58,12 +56,12 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
             .enable_blend = true,
         }
     };
-    auto depth_stencil_state = SDL_GPUDepthStencilState {
+    SDL_GPUDepthStencilState depth_stencil_state = {
         .compare_op = SDL_GPU_COMPAREOP_LESS,
         .enable_depth_test = true,
         .enable_depth_write = true,
     };
-    auto target_info = SDL_GPUGraphicsPipelineTargetInfo {
+    SDL_GPUGraphicsPipelineTargetInfo target_info = {
         .color_target_descriptions = &color_target_description,
         .num_color_targets = 1,
         .depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
@@ -72,10 +70,10 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
 
     // lines pipeline
     {
-        auto vertex_shader = load_shader(device, shaders::raw_vertex_buffer_vert, 0, 0, 0, 0);
-        auto fragment_shader = load_shader(device, shaders::solid_color_frag, 0, 0, 0, 0);
+        SDL_GPUShader* vertex_shader = load_shader(device, ShaderID_raw_vertex_buffer_vert_spv, 0, 0, 0, 0);
+        SDL_GPUShader* fragment_shader = load_shader(device, ShaderID_solid_color_frag_spv, 0, 0, 0, 0);
 
-        SDL_GPUVertexBufferDescription descriptions[] = {SDL_GPUVertexBufferDescription{
+        SDL_GPUVertexBufferDescription descriptions[] = {{
             .slot = 0,
             .pitch = sizeof(PositionColorVertex),
             .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX,
@@ -83,13 +81,13 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
         }};
 
         SDL_GPUVertexAttribute attributes[] = {
-            SDL_GPUVertexAttribute{
+            {
                 .location = 0,
                 .buffer_slot = 0,
                 .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
                 .offset = 0,
             },
-            SDL_GPUVertexAttribute{
+            {
                 .location = 1,
                 .buffer_slot = 0,
                 .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
@@ -97,11 +95,11 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
             },
         };
 
-        auto create_info = SDL_GPUGraphicsPipelineCreateInfo{
+        SDL_GPUGraphicsPipelineCreateInfo create_info = {
             .vertex_shader = vertex_shader,
             .fragment_shader = fragment_shader,
             .vertex_input_state =
-                SDL_GPUVertexInputState{
+                {
                     .vertex_buffer_descriptions = descriptions,
                     .num_vertex_buffers = 1,
                     .vertex_attributes = attributes,
@@ -120,10 +118,10 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
 
     // filled mesh pipeline
     {
-        auto vertex_shader = load_shader(device, shaders::raw_vertex_buffer_vert, 0, 0, 0, 0);
-        auto fragment_shader = load_shader(device, shaders::solid_color_frag, 0, 0, 0, 0);
+        SDL_GPUShader* vertex_shader = load_shader(device, ShaderID_raw_vertex_buffer_vert_spv, 0, 0, 0, 0);
+        SDL_GPUShader* fragment_shader = load_shader(device, ShaderID_solid_color_frag_spv, 0, 0, 0, 0);
 
-        SDL_GPUVertexBufferDescription descriptions[] = {SDL_GPUVertexBufferDescription{
+        SDL_GPUVertexBufferDescription descriptions[] = {{
             .slot = 0,
             .pitch = sizeof(PositionColorVertex),
             .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX,
@@ -131,13 +129,13 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
         }};
 
         SDL_GPUVertexAttribute attributes[] = {
-            SDL_GPUVertexAttribute{
+            {
                 .location = 0,
                 .buffer_slot = 0,
                 .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
                 .offset = 0,
             },
-            SDL_GPUVertexAttribute{
+            {
                 .location = 1,
                 .buffer_slot = 0,
                 .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
@@ -145,11 +143,11 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
             },
         };
 
-        auto pipeline_create_info = SDL_GPUGraphicsPipelineCreateInfo{
+        SDL_GPUGraphicsPipelineCreateInfo pipeline_create_info = {
             .vertex_shader = vertex_shader,
             .fragment_shader = fragment_shader,
             .vertex_input_state =
-                SDL_GPUVertexInputState{
+                {
                     .vertex_buffer_descriptions = descriptions,
                     .num_vertex_buffers = 1,
                     .vertex_attributes = attributes,
@@ -174,21 +172,21 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
         u32 index_buffer_size = megabytes(0.5);
         u32 vertex_buffer_size = megabytes(0.5);
 
-        auto vertex_buffer_create_info = SDL_GPUBufferCreateInfo{
+        SDL_GPUBufferCreateInfo vertex_buffer_create_info = {
             .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
             .size = vertex_buffer_size,
         };
 
         renderer->dynamic_vertex_buffer = SDL_CreateGPUBuffer(renderer->device, &vertex_buffer_create_info);
 
-        auto index_buffer_create_info = SDL_GPUBufferCreateInfo{
+        SDL_GPUBufferCreateInfo index_buffer_create_info = {
             .usage = SDL_GPU_BUFFERUSAGE_INDEX,
             .size = index_buffer_size,
         };
 
         renderer->dynamic_index_buffer = SDL_CreateGPUBuffer(renderer->device, &index_buffer_create_info);
 
-        auto transfer_buffer_create_info = SDL_GPUTransferBufferCreateInfo{
+        SDL_GPUTransferBufferCreateInfo transfer_buffer_create_info = {
             .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
             .size = vertex_buffer_size + index_buffer_size,
         };
@@ -215,7 +213,7 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
         u32 indices_size = sizeof(indices);
 
         {
-            auto createinfo = SDL_GPUBufferCreateInfo{
+            SDL_GPUBufferCreateInfo createinfo = {
                 .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
                 .size = verts_size,
             };
@@ -232,15 +230,15 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
             renderer->rect_index_buffer = SDL_CreateGPUBuffer(renderer->device, &createinfo);
         }
 
-        auto map_pointer = SDL_MapGPUTransferBuffer(renderer->device, renderer->transfer_buffer, false);
+        void* map_pointer = SDL_MapGPUTransferBuffer(renderer->device, renderer->transfer_buffer, false);
 
         memcpy(map_pointer, verts, verts_size);
         memcpy((u8*)map_pointer + verts_size, indices, indices_size);
 
         SDL_UnmapGPUTransferBuffer(renderer->device, renderer->transfer_buffer);
 
-        auto command_buffer = SDL_AcquireGPUCommandBuffer(renderer->device);
-        auto copy_pass = SDL_BeginGPUCopyPass(command_buffer);
+        SDL_GPUCommandBuffer* command_buffer = SDL_AcquireGPUCommandBuffer(renderer->device);
+        SDL_GPUCopyPass* copy_pass = SDL_BeginGPUCopyPass(command_buffer);
 
         {
             SDL_GPUTransferBufferLocation buffer_location = {
@@ -278,16 +276,16 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
 
     // sprite pipeline
     {
-        auto vertex_shader = load_shader(device, shaders::sprite_vert, 0, 0, 0, 0);
-        auto fragment_shader = load_shader(device, shaders::sprite_frag, 1, 0, 0, 0);
+        SDL_GPUShader* vertex_shader = load_shader(device, ShaderID_sprite_vert_spv, 0, 0, 0, 0);
+        SDL_GPUShader* fragment_shader = load_shader(device, ShaderID_sprite_frag_spv, 1, 0, 0, 0);
 
         SDL_GPUVertexBufferDescription descriptions[] = {
-            SDL_GPUVertexBufferDescription{
+            {
                 .slot = 0,
                 .pitch = sizeof(RectVertex),
                 .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX,
             },
-            SDL_GPUVertexBufferDescription{
+            {
                 .slot = 1,
                 .pitch = sizeof(SpriteVertex),
                 .input_rate = SDL_GPU_VERTEXINPUTRATE_INSTANCE,
@@ -296,41 +294,41 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
         };
 
         SDL_GPUVertexAttribute attributes[] = {
-            SDL_GPUVertexAttribute {
+            {
                 .buffer_slot = 0,
                 .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
                 .offset = 0,
             },
-            SDL_GPUVertexAttribute {
+            {
                 .buffer_slot = 0,
                 .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
                 .offset = sizeof(float2),
             },
-            SDL_GPUVertexAttribute {
+            {
                 .buffer_slot = 1,
                 .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
             },
-            SDL_GPUVertexAttribute {
+            {
                 .buffer_slot = 1,
                 .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
             },
-            SDL_GPUVertexAttribute {
+            {
                 .buffer_slot = 1,
                 .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
             },
-            SDL_GPUVertexAttribute {
+            {
                 .buffer_slot = 1,
                 .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
             },
-            SDL_GPUVertexAttribute {
+            {
                 .buffer_slot = 1,
                 .format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM,
             },
-            SDL_GPUVertexAttribute {
+            {
                 .buffer_slot = 1,
                 .format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM,
             },
-            SDL_GPUVertexAttribute {
+            {
                 .buffer_slot = 1,
                 .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT,
             },
@@ -351,7 +349,7 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
             .vertex_shader = vertex_shader,
             .fragment_shader = fragment_shader,
             .vertex_input_state =
-                SDL_GPUVertexInputState{
+                {
                     .vertex_buffer_descriptions = descriptions,
                     .num_vertex_buffers = 2,
                     .vertex_attributes = attributes,
@@ -381,36 +379,39 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
     return 0;
 }
 
-void draw_sprite(Rect normalized_rect, const SpriteProperties& properties);
+void draw_sprite(Rect normalized_rect, SpriteProperties properties);
 
-
-void draw_sprite_world(Camera2D camera, Rect world_rect, const SpriteProperties& properties) {
+void draw_sprite_world(Camera2D camera, Rect world_rect, SpriteProperties properties) {
     ASSERT(properties.texture_id != TextureID_NULL);
     camera.position = snap_pos(camera.position);
     world_rect.position = snap_pos(world_rect.position);
 
-    auto normalized_rect = world_rect_to_normalized(camera, world_rect);
+    Rect normalized_rect = world_rect_to_normalized(camera, world_rect);
     draw_sprite(normalized_rect, properties);
 }
 
-void draw_sprite_screen(Rect screen_rect, const SpriteProperties& properties) {
-    auto resolution = float2{(f32)renderer->window_width, (f32)renderer->window_height};
-    auto norm_rect = screen_rect_to_normalized(screen_rect, resolution);
+void draw_sprite_screen(Rect screen_rect, SpriteProperties properties) {
+    float2 resolution = {(f32)renderer->window_width, (f32)renderer->window_height};
+    Rect norm_rect = screen_rect_to_normalized(screen_rect, resolution);
 
     draw_sprite(norm_rect, properties);
 }
 
 
-void draw_sprite(Rect normalized_rect, const SpriteProperties& properties) {
+void draw_sprite(Rect normalized_rect, SpriteProperties properties) {
 
-    auto normalized_texture_rect = Rect{float2{0,0}, {1,1}};
+    Rect normalized_texture_rect = {(float2){0,0}, {1,1}};
     Rect src_rect = properties.src_rect;
     if (!(src_rect.w == 0 && src_rect.h == 0)) {
-        auto& texture = renderer->textures[(int)properties.texture_id];
-        normalized_texture_rect = {
-            .position = src_rect.position / float2{(f32)texture.w, (f32)texture.h},
-            .size = src_rect.size / float2{(f32)texture.w, (f32)texture.h},
+        Texture texture = renderer->textures[(int)properties.texture_id];
+        normalized_texture_rect = (Rect) {
+            .position = float2_div(src_rect.position, (float2){(f32)texture.w, (f32)texture.h}),
+            .size = float2_div(src_rect.size, (float2){(f32)texture.w, (f32)texture.h}),
         };
+    }
+
+    if (!properties.mult_color.has_value) {
+        opt_set(&properties.mult_color, (RGBA){255,255,255,255});
     }
 
     SpriteVertex sprite_vertex = {
@@ -418,42 +419,42 @@ void draw_sprite(Rect normalized_rect, const SpriteProperties& properties) {
         .size = normalized_rect.size,
         .uv_position = normalized_texture_rect.position,
         .uv_size = normalized_texture_rect.size,
-        .mult_color = properties.mult_color,
+        .mult_color = properties.mult_color.value,
         .mix_color = properties.mix_color,
         .t = properties.t,
     };
 
     bool add_new_draw = true;
-    auto& draw_list = renderer->draw_list;
-    if (draw_list.length > 0) {
-        auto& last_draw = draw_list[draw_list.length - 1];
-        if (last_draw.type == PipelineType::Sprite && last_draw.texture_id == properties.texture_id) {
-            last_draw.vertices_size += sizeof(sprite_vertex);
+    Slice_DrawItem* draw_list = &renderer->draw_list;
+    if (draw_list->length > 0) {
+        DrawItem* last_draw = slice_getp(*draw_list, draw_list->length - 1);
+        if (last_draw->type == PipelineType_Sprite && last_draw->texture_id == properties.texture_id) {
+            last_draw->vertices_size += sizeof(sprite_vertex);
             add_new_draw = false;
         } 
     }
 
     if (add_new_draw) {
-        slice_push(&draw_list, DrawItem{
-            .type = PipelineType::Sprite,
+        slice_push(draw_list, (DrawItem){
+            .type = PipelineType_Sprite,
             .texture_id = properties.texture_id,
             .vertex_buffer_offset = (u32)renderer->vertex_data.length,
             .vertices_size = sizeof(sprite_vertex),
         });
     }
 
-    slice_push_range(&renderer->vertex_data, (u8*)&sprite_vertex, sizeof(sprite_vertex));
+    slice_push_buffer(&renderer->vertex_data, (u8*)&sprite_vertex, sizeof(sprite_vertex));
 }
 
 SDL_GPUShader* load_shader(
     SDL_GPUDevice* device,
-    const char* shaderPath,
+    ShaderID shader_id,
     Uint32 samplerCount,
     Uint32 uniformBufferCount,
     Uint32 storageBufferCount,
     Uint32 storageTextureCount
 ) {
-    ZoneScoped;
+    const char* shaderPath = shader_paths[shader_id];
 
     SDL_GPUShaderStage stage;
     // Auto-detect the shader stage from the file name for convenience
@@ -467,7 +468,7 @@ SDL_GPUShader* load_shader(
     }
 
     size_t codeSize;
-    auto code = (const unsigned char*)SDL_LoadFile(shaderPath, &codeSize);
+    const u8* code = SDL_LoadFile(shaderPath, &codeSize);
     if (code == NULL) {
         SDL_Log("Failed to load shader from disk! %s", shaderPath);
         return NULL;
@@ -496,13 +497,16 @@ SDL_GPUShader* load_shader(
 }
 
 float2 world_to_normalized(Camera2D camera, float2 world_pos) {
-    return ((world_pos - camera.position) / camera.scale * 2.0f);
+    float2 res = float2_sub(world_pos, camera.position);
+    res = float2_div(res, camera.size);
+    res =  float2_scale(res, 2.0);
+    return res;
 }
 
 Rect world_rect_to_normalized(Camera2D camera, Rect world_rect) {
-    return Rect{
-        (world_rect.position - camera.position) / camera.scale * 2.0f,
-        world_rect.size / camera.scale,
+    return (Rect){
+        float2_scale(float2_div(float2_sub(world_rect.position, camera.position), camera.size), 2.0f),
+        float2_div(world_rect.size, camera.size),
     };
 }
 
@@ -525,7 +529,7 @@ void begin_rendering(SDL_Window* window, Arena* temp_arena) {
 
     SDL_GPUColorTargetInfo color_target_info = {0};
     color_target_info.texture = swapchain_texture;
-    color_target_info.clear_color = SDL_FColor{0.0f, 0.0f, 0.0f, 1.0f};
+    color_target_info.clear_color = (SDL_FColor){0.0f, 0.0f, 0.0f, 1.0f};
     color_target_info.load_op = SDL_GPU_LOADOP_CLEAR;
     color_target_info.store_op = SDL_GPU_STOREOP_STORE;
 
@@ -555,7 +559,6 @@ void push_to_transfer_buffer(void** transfer_ptr, void* data, u32 size) {
 };
 
 void end_rendering() {
-    ZoneScoped;
 
     if (renderer->null_swapchain) {
         return;
@@ -571,17 +574,17 @@ void end_rendering() {
 
     SDL_UnmapGPUTransferBuffer(renderer->device, renderer->transfer_buffer);
 
-    auto upload_command_buffer = SDL_AcquireGPUCommandBuffer(renderer->device);
-    auto copy_pass = SDL_BeginGPUCopyPass(upload_command_buffer);
+    SDL_GPUCommandBuffer* upload_command_buffer = SDL_AcquireGPUCommandBuffer(renderer->device);
+    SDL_GPUCopyPass* copy_pass = SDL_BeginGPUCopyPass(upload_command_buffer);
 
     //upload to buffers
     if (renderer->vertex_data.length > 0) {
-        auto transfer_buffer_location = SDL_GPUTransferBufferLocation{
+        SDL_GPUTransferBufferLocation transfer_buffer_location = {
             .transfer_buffer = renderer->transfer_buffer,
             .offset = vertex_buffer_offset,
         };
 
-        auto gpu_buffer_region = SDL_GPUBufferRegion{
+        SDL_GPUBufferRegion gpu_buffer_region = {
             .buffer = renderer->dynamic_vertex_buffer,
             .offset = 0,
             .size = (u32)renderer->vertex_data.length,
@@ -589,11 +592,11 @@ void end_rendering() {
         SDL_UploadToGPUBuffer(copy_pass, &transfer_buffer_location, &gpu_buffer_region, true);
     }
     if (renderer->index_data.length > 0 ) {
-        auto transfer_buffer_location = SDL_GPUTransferBufferLocation{
+        SDL_GPUTransferBufferLocation transfer_buffer_location = {
             .transfer_buffer = renderer->transfer_buffer,
             .offset = index_buffer_offset,
         };
-        auto gpu_buffer_region = SDL_GPUBufferRegion{
+        SDL_GPUBufferRegion gpu_buffer_region = {
             .buffer = renderer->dynamic_index_buffer,
             .offset = 0,
             .size = (u32)renderer->index_data.length,
@@ -604,21 +607,21 @@ void end_rendering() {
     SDL_EndGPUCopyPass(copy_pass);
     SDL_SubmitGPUCommandBuffer(upload_command_buffer);
 
-    auto& draw_list = renderer->draw_list;
-    for (i32 i = 0; i < draw_list.length; i++) {
-        DrawItem& draw_item = draw_list[i];
+    Slice_DrawItem* draw_list = &renderer->draw_list;
+    for (i32 i = 0; i < draw_list->length; i++) {
+        DrawItem* draw_item = slice_getp(*draw_list, i);
         
-        switch (draw_item.type) {
-        case PipelineType::Sprite: {
+        switch (draw_item->type) {
+        case PipelineType_Sprite: {
             SDL_BindGPUGraphicsPipeline(renderer->render_pass, renderer->sprite_pipeline);
             SDL_GPUBufferBinding bindings[] = {
-                SDL_GPUBufferBinding {
+                {
                     .buffer = renderer->rect_vertex_buffer,
                     .offset = 0,
                 },
-                SDL_GPUBufferBinding {
+                {
                     .buffer = renderer->dynamic_vertex_buffer,
-                    .offset = draw_item.vertex_buffer_offset,
+                    .offset = draw_item->vertex_buffer_offset,
                 },
             };
             SDL_BindGPUVertexBuffers(renderer->render_pass, 0, bindings, 2);
@@ -629,52 +632,52 @@ void end_rendering() {
             };
             SDL_BindGPUIndexBuffer(renderer->render_pass, &binding, SDL_GPU_INDEXELEMENTSIZE_16BIT);
 
-            auto& texture = renderer->textures[(int)draw_item.texture_id];
-            auto sampler_binding = SDL_GPUTextureSamplerBinding{.texture=texture.texture, .sampler=texture.sampler};
+            Texture* texture = &renderer->textures[draw_item->texture_id];
+            SDL_GPUTextureSamplerBinding sampler_binding = {.texture=texture->texture, .sampler=texture->sampler};
             SDL_BindGPUFragmentSamplers(renderer->render_pass, 0, &sampler_binding, 1);
 
-            SDL_DrawGPUIndexedPrimitives(renderer->render_pass, 6, draw_item.vertices_size / sizeof(SpriteVertex), 0, 0, 0);
+            SDL_DrawGPUIndexedPrimitives(renderer->render_pass, 6, draw_item->vertices_size / sizeof(SpriteVertex), 0, 0, 0);
 
         } break;
-        case PipelineType::Line: {
+        case PipelineType_Line: {
             SDL_BindGPUGraphicsPipeline(renderer->render_pass, renderer->line_pipeline);
 
-            auto buffer_binding = SDL_GPUBufferBinding{
+            SDL_GPUBufferBinding buffer_binding = {
                 .buffer = renderer->dynamic_vertex_buffer,
-                .offset = draw_item.vertex_buffer_offset,
+                .offset = draw_item->vertex_buffer_offset,
             };
             SDL_BindGPUVertexBuffers(renderer->render_pass, 0, &buffer_binding, 1);
 
-            buffer_binding = SDL_GPUBufferBinding{
+            buffer_binding = (SDL_GPUBufferBinding){
                 .buffer = renderer->dynamic_index_buffer,
-                .offset = draw_item.index_buffer_offset,
+                .offset = draw_item->index_buffer_offset,
             };
 
-            auto index_element_size = SDL_GPU_INDEXELEMENTSIZE_16BIT;
+            SDL_GPUIndexElementSize index_element_size = SDL_GPU_INDEXELEMENTSIZE_16BIT;
 
             SDL_BindGPUIndexBuffer(renderer->render_pass, &buffer_binding, index_element_size);
 
-            SDL_DrawGPUIndexedPrimitives(renderer->render_pass, draw_item.indices_size / sizeof(u16), 1, 0, 0, 0);
+            SDL_DrawGPUIndexedPrimitives(renderer->render_pass, draw_item->indices_size / sizeof(u16), 1, 0, 0, 0);
 
         } break;
-        case PipelineType::Mesh: {
+        case PipelineType_Mesh: {
             SDL_BindGPUGraphicsPipeline(renderer->render_pass, renderer->solid_mesh_pipeline);
 
-            auto buffer_binding = SDL_GPUBufferBinding{
+            SDL_GPUBufferBinding buffer_binding = {
                 .buffer = renderer->dynamic_vertex_buffer,
-                .offset = draw_item.vertex_buffer_offset,
+                .offset = draw_item->vertex_buffer_offset,
             };
             SDL_BindGPUVertexBuffers(renderer->render_pass, 0, &buffer_binding, 1);
 
-            buffer_binding = SDL_GPUBufferBinding{
+            buffer_binding = (SDL_GPUBufferBinding) {
                 .buffer = renderer->dynamic_index_buffer,
-                .offset = draw_item.index_buffer_offset,
+                .offset = draw_item->index_buffer_offset,
             };
 
-            auto index_element_size = SDL_GPU_INDEXELEMENTSIZE_16BIT;
+            SDL_GPUIndexElementSize index_element_size = SDL_GPU_INDEXELEMENTSIZE_16BIT;
 
             SDL_BindGPUIndexBuffer(renderer->render_pass, &buffer_binding, index_element_size);
-            SDL_DrawGPUIndexedPrimitives(renderer->render_pass, draw_item.indices_size / sizeof(u16), 1, 0, 0, 0);
+            SDL_DrawGPUIndexedPrimitives(renderer->render_pass, draw_item->indices_size / sizeof(u16), 1, 0, 0, 0);
 
         } break;
 
@@ -691,12 +694,10 @@ void end_rendering() {
 // other stuff user has to keep it
 // texture id only for renderer managed texture
 // renderer needs to know about textures for bucketing draw calls
-Texture load_texture(TextureID texture_id, const Image& image) {
-    ZoneScoped;
-
+Texture load_texture(TextureID texture_id, Image image) {
     const int comp = 4;
 
-    auto texture_create_info = SDL_GPUTextureCreateInfo{
+    SDL_GPUTextureCreateInfo texture_create_info = {
         .type = SDL_GPU_TEXTURETYPE_2D,
         .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
         .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER,
@@ -706,9 +707,9 @@ Texture load_texture(TextureID texture_id, const Image& image) {
         .num_levels = 1,
     };
 
-    auto texture = SDL_CreateGPUTexture(renderer->device, &texture_create_info);
+    SDL_GPUTexture* texture = SDL_CreateGPUTexture(renderer->device, &texture_create_info);
 
-    auto sampler_create_info = SDL_GPUSamplerCreateInfo{
+    SDL_GPUSamplerCreateInfo sampler_create_info = {
         .min_filter = SDL_GPU_FILTER_NEAREST,
         .mag_filter = SDL_GPU_FILTER_NEAREST,
         .mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_NEAREST,
@@ -717,27 +718,27 @@ Texture load_texture(TextureID texture_id, const Image& image) {
         .address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
     };
 
-    auto sampler = SDL_CreateGPUSampler(renderer->device, &sampler_create_info);
+    SDL_GPUSampler* sampler = SDL_CreateGPUSampler(renderer->device, &sampler_create_info);
 
-    auto upload_command_buffer = SDL_AcquireGPUCommandBuffer(renderer->device);
-    auto copy_pass = SDL_BeginGPUCopyPass(upload_command_buffer);
+    SDL_GPUCommandBuffer* upload_command_buffer = SDL_AcquireGPUCommandBuffer(renderer->device);
+    SDL_GPUCopyPass* copy_pass = SDL_BeginGPUCopyPass(upload_command_buffer);
 
-    auto transfer_create_info = SDL_GPUTransferBufferCreateInfo{
+    SDL_GPUTransferBufferCreateInfo transfer_create_info = {
         .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
         .size = (uint32_t)(image.w * image.h) * comp,
     };
 
-    auto texture_transfer_buffer = SDL_CreateGPUTransferBuffer(renderer->device, &transfer_create_info);
+    SDL_GPUTransferBuffer* texture_transfer_buffer = SDL_CreateGPUTransferBuffer(renderer->device, &transfer_create_info);
 
-    auto texture_transfer_ptr = SDL_MapGPUTransferBuffer(renderer->device, texture_transfer_buffer, false);
+    void* texture_transfer_ptr = SDL_MapGPUTransferBuffer(renderer->device, texture_transfer_buffer, false);
     memcpy(texture_transfer_ptr, image.data, image.w * image.h * comp);
 
     SDL_UnmapGPUTransferBuffer(renderer->device, texture_transfer_buffer);
 
-    auto texture_transfer_info = SDL_GPUTextureTransferInfo{
+    SDL_GPUTextureTransferInfo texture_transfer_info = {
         .transfer_buffer = texture_transfer_buffer,
     };
-    auto texture_region = SDL_GPUTextureRegion{
+    SDL_GPUTextureRegion texture_region = {
         .texture = texture,
         .w = (Uint32)image.w,
         .h = (Uint32)image.h,
@@ -749,7 +750,7 @@ Texture load_texture(TextureID texture_id, const Image& image) {
     SDL_SubmitGPUCommandBuffer(upload_command_buffer);
     SDL_ReleaseGPUTransferBuffer(renderer->device, texture_transfer_buffer);
 
-    auto texture_ref = Texture{.texture = texture, .sampler = sampler, .w = image.w, .h = image.h};
+    Texture texture_ref = {.texture = texture, .sampler = sampler, .w = image.w, .h = image.h};
     if (texture_id) {
         renderer->textures[texture_id] = texture_ref;
     }
@@ -772,7 +773,7 @@ Texture load_texture(TextureID texture_id, const Image& image) {
 // }
 
 RGBA rgban_to_rgba(float4 rgba) {
-    return RGBA {
+    return (RGBA) {
         .r = (u8)(rgba.r * 255),
         .g = (u8)(rgba.b * 255),
         .b = (u8)(rgba.g * 255),
@@ -788,22 +789,22 @@ void draw_world_lines(Camera2D camera, float2* vertices, int vert_count, float4 
     u32 indices_size = sizeof(u16) * 2 * (vert_count - 1);
 
     bool add_new_draw = true;
-    auto& draw_list = renderer->draw_list;
-    if (draw_list.length > 0) {
-        auto& last_draw = draw_list[draw_list.length - 1];
-        if (last_draw.type == PipelineType::Line) {
-            start_index = last_draw.vertices_size / sizeof(PositionColorVertex);
+    Slice_DrawItem* draw_list = &renderer->draw_list;
+    if (draw_list->length > 0) {
+        DrawItem* last_draw = slice_getp(*draw_list, draw_list->length - 1);
+        if (last_draw->type == PipelineType_Line) {
+            start_index = last_draw->vertices_size / sizeof(PositionColorVertex);
 
-            last_draw.vertices_size += verts_size;
-            last_draw.indices_size += indices_size;
+            last_draw->vertices_size += verts_size;
+            last_draw->indices_size += indices_size;
 
             add_new_draw = false;
         } 
     }
 
     if (add_new_draw) {
-        slice_push(&draw_list, DrawItem{
-            .type = PipelineType::Line,
+        slice_push(draw_list, (DrawItem){
+            .type = PipelineType_Line,
             .vertex_buffer_offset = (u32)renderer->vertex_data.length,
             .vertices_size = verts_size,
             .index_buffer_offset = (u32)renderer->index_data.length,
@@ -812,43 +813,43 @@ void draw_world_lines(Camera2D camera, float2* vertices, int vert_count, float4 
     }
 
     for (int i = 0; i < vert_count; i++) {
-        auto vertex = PositionColorVertex{
+        PositionColorVertex vertex = {
                 .position = world_to_normalized(camera, snap_pos(vertices[i])),
                 .color = color,
         };
 
-        slice_push_range(&renderer->vertex_data, (u8*)&vertex, sizeof(vertex));
+        slice_push_buffer(&renderer->vertex_data, (u8*)&vertex, sizeof(vertex));
     }
 
     for (int i = start_index; i < start_index + vert_count - 1; i++) {
         u16 indices[] = {(u16)i, (u16)(i+1)};
-        slice_push_range(&renderer->index_data, (u8*)indices, sizeof(indices));
+        slice_push_buffer(&renderer->index_data, (u8*)indices, sizeof(indices));
     }
 }
 
-void draw_world_polygon(const Camera2D& camera, float2* verts, int vert_count, float4 color) {
-    ASSERT(vert_count >= 3)
+void draw_world_polygon(Camera2D camera, float2* verts, int vert_count, float4 color) {
+    ASSERT(vert_count >= 3);
 
     bool push_new_draw = true;
     u32 verts_size = sizeof(PositionColorVertex) * vert_count;
     u32 indxs_size = sizeof(u16) * (vert_count - 2) * 3;
     u16 start_index = 0;
-    auto& draw_list = renderer->draw_list;
-    if (draw_list.length > 0) {
-        auto& last_draw = draw_list[draw_list.length - 1];
+    Slice_DrawItem* draw_list = &renderer->draw_list;
+    if (draw_list->length > 0) {
+        DrawItem* last_draw = slice_getp(*draw_list, draw_list->length - 1);
 
-        if (last_draw.type == PipelineType::Mesh) {
+        if (last_draw->type == PipelineType_Mesh) {
             push_new_draw = false;
-            start_index = last_draw.vertices_size / sizeof(PositionColorVertex); //GET PREVIOUS VERTEX SIZE BEFORE APPEND SIZE PLS
+            start_index = last_draw->vertices_size / sizeof(PositionColorVertex); //GET PREVIOUS VERTEX SIZE BEFORE APPEND SIZE PLS
 
-            last_draw.vertices_size += verts_size;
-            last_draw.indices_size += indxs_size;
+            last_draw->vertices_size += verts_size;
+            last_draw->indices_size += indxs_size;
         }
     }
 
     if (push_new_draw) {
-        slice_push(&draw_list, DrawItem{
-            .type = PipelineType::Mesh,
+        slice_push(draw_list, (DrawItem){
+            .type = PipelineType_Mesh,
             .vertex_buffer_offset = (u32)renderer->vertex_data.length,
             .vertices_size = verts_size,
             .index_buffer_offset = (u32)renderer->index_data.length,
@@ -858,7 +859,7 @@ void draw_world_polygon(const Camera2D& camera, float2* verts, int vert_count, f
 
     for (u16 i = 1; i < vert_count - 1; i++) {
         u16 indices[] = {(u16)(start_index + 0), (u16)(start_index + i), (u16)(start_index + i + 1)};
-        slice_push_range(&renderer->index_data, (u8*)indices, sizeof(indices));
+        slice_push_buffer(&renderer->index_data, (u8*)indices, sizeof(indices));
     }
 
     for (int i = 0; i < vert_count; i++) {
@@ -867,7 +868,7 @@ void draw_world_polygon(const Camera2D& camera, float2* verts, int vert_count, f
             .color = color,
         };
 
-        slice_push_range(&renderer->vertex_data, (u8*)&vert, sizeof(vert));
+        slice_push_buffer(&renderer->vertex_data, (u8*)&vert, sizeof(vert));
     }
 }
 
@@ -879,7 +880,7 @@ void draw_rect(Rect normalized_rect, float4 rgba) {
         {{1.0, 1.0}},
     };
 
-    u16 indices[6]{
+    u16 indices[6] = {
         0,
         1,
         2,
@@ -891,22 +892,22 @@ void draw_rect(Rect normalized_rect, float4 rgba) {
 
     bool push_new_draw = true;
     u16 start_index = 0;
-    auto& draw_list = renderer->draw_list;
-    if (draw_list.length > 0) {
-        auto& last_draw = draw_list[draw_list.length - 1];
+    Slice_DrawItem* draw_list = &renderer->draw_list;
+    if (draw_list->length > 0) {
+        DrawItem* last_draw = slice_getp(*draw_list, draw_list->length - 1);
 
-        if (last_draw.type == PipelineType::Mesh) {
+        if (last_draw->type == PipelineType_Mesh) {
             push_new_draw = false;
-            start_index = last_draw.vertices_size / sizeof(PositionColorVertex); //GET PREVIOUS VERTEX SIZE BEFORE APPEND SIZE PLS
+            start_index = last_draw->vertices_size / sizeof(PositionColorVertex); //GET PREVIOUS VERTEX SIZE BEFORE APPEND SIZE PLS
 
-            last_draw.vertices_size += sizeof(vertices);
-            last_draw.indices_size += sizeof(indices);
+            last_draw->vertices_size += sizeof(vertices);
+            last_draw->indices_size += sizeof(indices);
         }
     }
 
     if (push_new_draw) {
-        slice_push(&draw_list, DrawItem{
-            .type = PipelineType::Mesh,
+        slice_push(draw_list, (DrawItem){
+            .type = PipelineType_Mesh,
             .vertex_buffer_offset = (u32)renderer->vertex_data.length,
             .vertices_size = sizeof(vertices),
             .index_buffer_offset = (u32)renderer->index_data.length,
@@ -919,18 +920,21 @@ void draw_rect(Rect normalized_rect, float4 rgba) {
     }
 
     for (int i = 0; i < 4; i++) {
-        auto& vert = vertices[i].position;
-        vert = vert * normalized_rect.size + normalized_rect.position;
+        float2* vert = &vertices[i].position;
+        *vert = float2_add(float2_mult(*vert, normalized_rect.size), normalized_rect.position);
         vertices[i].color = rgba;
     }
 
-    slice_push_range(&renderer->vertex_data, (u8*)vertices, sizeof(vertices));
-    slice_push_range(&renderer->index_data, (u8*)indices, sizeof(indices));
+    slice_push_buffer(&renderer->vertex_data, (u8*)vertices, sizeof(vertices));
+    slice_push_buffer(&renderer->index_data, (u8*)indices, sizeof(indices));
 }
 
 Rect screen_rect_to_normalized(Rect rect, float2 resolution) {
-    rect.position = rect.position + rect.size / 2.0f;
-    auto normal_rect = Rect{.position = rect.position / resolution * 2.0f - 1.0f * float2_one, .size = rect.size / resolution};
+    rect.position = float2_add(rect.position, float2_scale(rect.size, 1 / 2.0));
+    Rect normal_rect = {
+        .position = float2_sub(float2_scale(float2_div(rect.position, resolution), 2.0), float2_scale(float2_one, 1.0)),
+        .size = float2_div(rect.size, resolution),
+    };
     normal_rect.position.y *= -1;
     
     return normal_rect;
@@ -941,7 +945,7 @@ void draw_world_rect(Camera2D camera, Rect rect, float4 rgba) {
 }
 
 void draw_screen_rect(Rect rect, float4 rgba) {
-    auto resolution = float2{(f32)renderer->window_width, (f32)renderer->window_height};
+    float2 resolution = {(f32)renderer->window_width, (f32)renderer->window_height};
     draw_rect(screen_rect_to_normalized(rect, resolution), rgba);
 }
 

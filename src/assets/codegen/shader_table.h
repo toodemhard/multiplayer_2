@@ -1,0 +1,21 @@
+#pragma once
+
+#define SHADER_TABLE(_)\
+    _(color_texture_frag_spv, "shaders/color_texture.frag.spv")\
+    _(position_color_vert_spv, "shaders/position_color.vert.spv")\
+    _(pos_color_uv_vert_spv, "shaders/pos_color_uv.vert.spv")\
+    _(pos_uv_vert_spv, "shaders/pos_uv.vert.spv")\
+    _(raw_vertex_buffer_vert_spv, "shaders/raw_vertex_buffer.vert.spv")\
+    _(rect_frag_spv, "shaders/rect.frag.spv")\
+    _(rect_vert_spv, "shaders/rect.vert.spv")\
+    _(solid_color_frag_spv, "shaders/solid_color.frag.spv")\
+    _(sprite_frag_spv, "shaders/sprite.frag.spv")\
+    _(sprite_vert_spv, "shaders/sprite.vert.spv")\
+    _(test_frag_spv, "shaders/test.frag.spv")\
+    _(test_vert_spv, "shaders/test.vert.spv")\
+    _(textured_rect_frag_spv, "shaders/textured_rect.frag.spv")\
+    _(textured_rect_vert_spv, "shaders/textured_rect.vert.spv")\
+    _(textured_rects_vert_spv, "shaders/textured_rects.vert.spv")\
+    _(wire_rect_frag_spv, "shaders/wire_rect.frag.spv")\
+    _(wire_rect_vert_spv, "shaders/wire_rect.vert.spv")\
+    _(world_textured_rect_vert_spv, "shaders/world_textured_rect.vert.spv")\

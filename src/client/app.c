@@ -10,11 +10,16 @@
 
 #include "assets/inc.h"
 
-#include "common/inc.h"
-#include "common/inc.cpp"
 
+#include "base/base_inc.h"
 #include "os/os.h"
+
+#include "base/base_inc.c"
 #include "os/os.c"
+
+
+#include "common/inc.h"
+#include "common/inc.c"
 
 #include "color.h"
 #include "exports.h"
@@ -26,38 +31,37 @@
 #include "scene.h"
 #include "app.h"
 
-#include "font.cpp"
-#include "input.cpp"
-#include "renderer.cpp"
-#include "scene.cpp"
-#include "ui.cpp"
+#include "font.c"
+#include "input.c"
+#include "renderer.c"
+#include "scene.c"
+#include "ui.c"
 
-constexpr double speed_up_fraction = 0.05;
+const global double speed_up_fraction = 0.05;
 
-constexpr int window_width = 1024;
-constexpr int window_height = 768;
+const global int window_width = 1024;
+const global int window_height = 768;
 
-constexpr float idle_period = 0.2;
-constexpr int idle_count = 2;
-constexpr int idle_period_ticks = idle_period * tick_rate;
-constexpr int idle_cycle_period_ticks = idle_period * idle_count * tick_rate;
+#define IDLE_PERIOD 0.2
+#define IDLE_COUNT 2;
+// const global int idle_period_ticks = IDLE_PERIOD * TICK_RATE;
+// const global int idle_cycle_period_ticks = IDLE_PERIOD * IDLE_COUNT * TICK_RATE;
 
 // constexpr float hit_flash_duration = 0.1;
 
-static bool is_reloaded = true;
+global bool is_reloaded = true;
 
 bool init(void* memory) {
-    ZoneScoped;
     b2WorldDef world_def = b2DefaultWorldDef();
-    world_def.gravity = b2Vec2{0.0f, 0.0f};
-    auto world_id = b2CreateWorld(&world_def);
+    world_def.gravity = (b2Vec2){0.0f, 0.0f};
+    b2WorldId world_id = b2CreateWorld(&world_def);
 
-    auto body_def = b2DefaultBodyDef();
+    b2BodyDef body_def = b2DefaultBodyDef();
     body_def.type = b2_dynamicBody;
-    auto body_id = b2CreateBody(world_id, &body_def);
+    b2BodyId body_id = b2CreateBody(world_id, &body_def);
 
-    auto ground_box = b2MakeBox(2.0, 0.5);
-    auto ground_shape_def = b2DefaultShapeDef();
+    b2Polygon ground_box = b2MakeBox(2.0, 0.5);
+    b2ShapeDef ground_shape_def = b2DefaultShapeDef();
     b2CreatePolygonShape(body_id, &ground_shape_def, &ground_box);
 
     b2World_Step(world_id, 0.1, 4);
@@ -67,10 +71,10 @@ bool init(void* memory) {
     // Renderer r = {};
     // r = {};
 
-    Arena god_allocator{};
+    Arena god_allocator = {0};
     arena_init(&god_allocator, memory, memory_size);
     State* state = (State*)arena_alloc(&god_allocator, sizeof(State));
-    *state = State{};
+    zero_struct(state);
 
     System* sys = &state->sys;
 
@@ -87,10 +91,12 @@ bool init(void* memory) {
         scratch_arenas[i] = &state->scratch_arenas[i];
     }
 
-    auto flags = SDL_WINDOW_INPUT_FOCUS; // | SDL_WINDOW_ALWAYS_ON_TOP; // | SDL_WINDOW_FULLSCREEN;
+    sys->events = ring_alloc(Event, &state->persistent_arena, 32);
+
+    SDL_WindowFlags flags = SDL_WINDOW_INPUT_FOCUS; // | SDL_WINDOW_ALWAYS_ON_TOP; // | SDL_WINDOW_FULLSCREEN;
 
     {
-        ZoneNamedN(a, "Create Window", true);
+        // ZoneNamedN(a, "Create Window", true);
             sys->window = SDL_CreateWindow("ye", window_width, window_height, flags);
         if (sys->window == NULL) {
             SDL_Log("CreateWindow failed: %s", SDL_GetError());
@@ -98,11 +104,13 @@ bool init(void* memory) {
     }
 
     if (init_renderer(&sys->renderer, sys->window) != 0) {
-        panic("failed to initialize renderer");
+        ASSERT(false);
+        // panic("failed to initialize renderer");
     }
 
     if (enet_initialize() < 0) {
-        printf("enet failed to init\n");
+        ASSERT(false);
+        // printf("enet failed to init\n");
     }
 
 
@@ -112,30 +120,27 @@ bool init(void* memory) {
     // Texture textures[ImageID_Count];
     // std::future<void> texture_futures[ImageID_Count];
 
-    auto image_to_texture = [](Renderer* renderer, ImageID image_id) {
-        int width, height, comp;
-        unsigned char* image = stbi_load(image_paths[(int)image_id], &width, &height, &comp, STBI_rgb_alpha);
-        load_texture(image_id_to_texture_id(image_id), Image{.w = width, .h = height, .data = image});
-    };
-
     for (i32 i = ImageID_NULL + 1; i < ImageID_Count; i++) {
-        image_to_texture(&sys->renderer, (ImageID)i);
+        // image_to_texture(&sys->renderer, (ImageID)i);
+        int width, height, comp;
+        unsigned char* image = stbi_load(image_paths[(int)i], &width, &height, &comp, STBI_rgb_alpha);
+        load_texture(image_id_to_texture_id(i), (Image){.w = width, .h = height, .data = image});
         // image_to_texture(state->renderer, (ImageID)i);
     }
 
-    for (i32 i = 0; i < FontID::font_count; i++) {
-        font_load(&state->persistent_arena, &sys->fonts[i], &sys->renderer, FontID::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
+    for (i32 i = 0; i < FontID_Count; i++) {
+        font_load(&state->persistent_arena, &sys->fonts[i], &sys->renderer, FontID_Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
         // font::load_font(&state->fonts[i], state->renderer, FontID::Avenir_LT_Std_95_Black_ttf, 512, 512, 64);
     }
 
-    input_init_keybinds(&sys->input, default_keybindings);
+    input_init(&sys->input, default_keybindings);
 
-    float2 player_position{0, 0};
+    float2 player_position = {0, 0};
 
 
     state->last_frame_time = os_now_seconds();
 
-    sys->fonts_view = slice_create_view(&sys->fonts.data[0], sys->fonts.length);
+    sys->fonts_view = slice_create_view(Font, sys->fonts, array_length(sys->fonts));
 
     // double last_render_duration = 0.0;
 
@@ -149,13 +154,13 @@ Menu menu_create(Arena* scene_arena, System* sys) {
     Menu menu = {
         .sys=sys,
         // .text = cstr_to_string("127.0.0.1"),
-        .text = slice_create<u8>(scene_arena, 512),
+        .text = slice_create(u8, scene_arena, 512),
     };
     ui_init(&menu.ui, scene_arena, sys->fonts_view, &sys->renderer);
 
     SDL_StartTextInput(sys->window);
 
-    slice_push_range(&menu.text, cstr_to_string("127.0.0.1"));
+    slice_push_range(&menu.text, slice_str_literal("127.0.0.1"));
 
     return menu;
 }
@@ -174,20 +179,23 @@ bool f;
 
 
 
-void text_field_input(Slice<u8>* text) {
-    string_cat(text, input_get_ctx()->input_text);
+void text_field_input(String* text) {
+    slice_push_range(text, input_get_ctx()->input_text);
+    // string_cat(text, input_get_ctx()->input_text);
 
     if (input_modifier(SDL_KMOD_CTRL) && input_key_down_repeat(SDL_SCANCODE_V)) {
-        string_cat(text, cstr_to_string(SDL_GetClipboardText()));
+        String clipboard_view = cstr_to_string(SDL_GetClipboardText());
+        slice_push_range(text, clipboard_view);
+        // string_cat(text, cstr_to_string(SDL_GetClipboardText()));
     }
 
     if (input_modifier(SDL_KMOD_CTRL) && input_key_down_repeat(SDL_SCANCODE_BACKSPACE)) {
         i32 cut_to = -1;
         bool next_whitespace = false;
         for (i32 i = text->length - 1; i >= 0; (i--, cut_to = i)) {
-            if (next_whitespace && (*text)[i] == ' ') {
+            if (next_whitespace && slice_get(*text, i) == ' ') {
                 break;
-            } else if ((*text)[i] != ' ') {
+            } else if (slice_get(*text, i) != ' ') {
                 next_whitespace = true;
             }
         }
@@ -201,6 +209,8 @@ void text_field_input(Slice<u8>* text) {
     }
 }
 
+hashmap_def(u32, u32);
+
 void menu_update(Menu* menu, Arena* temp_arena) {
 
     // if (menu->input->key_down(SDL_SCANCODE_S)) {
@@ -213,9 +223,15 @@ void menu_update(Menu* menu, Arena* temp_arena) {
     ui_begin();
 
     ArenaTemp scratch = scratch_get(0, 0);
-    defer(scratch_release(scratch));
+    defer_loop(0, scratch_release(scratch)) {
 
 
+    if (input_key_down(SDL_SCANCODE_C)) {
+        printf("aaaaan");
+    }
+    if (input_mouse_down(SDL_BUTTON_LEFT)) {
+        printf("b");
+    }
     ui_row({
         .font_size = font_px(32),
         .stack_axis = Axis2_Y,
@@ -223,18 +239,22 @@ void menu_update(Menu* menu, Arena* temp_arena) {
         // .background_color = {0.1,0.1,0.3,1}
     }) {
 
+        if (input_mouse_down(SDL_BUTTON_LEFT)) {
+            int as = 123;
+        }
+
         if (ui_button(ui_row_ret({
             .text = "Local",
         }))) {
-            ring_buffer_push_back(&sys->events, Event{
+            ring_push_back(&sys->events, (Event){
                 .type = EventType_StartScene,
-                .start_scene = {
+                .game_start = {
                     .online = false,
                 },
             });
         }
 
-        ui_row({}) {
+        ui_row({0}) {
             ui_row({.text = "Server IP: "});
             UI_Key ip_field;
             float4 border_color = {0.4,0.4,0.4,1};
@@ -246,7 +266,7 @@ void menu_update(Menu* menu, Arena* temp_arena) {
                 .border_color = border_color,
             });
             if (ui_is_active(ip_field)) {
-                ui_prev_element()->border_color = {0.9,0.9,0.9,1};
+                ui_prev_element()->border_color = (float4){0.9,0.9,0.9,1};
                 text_field_input(&menu->text);
             }
 
@@ -261,9 +281,9 @@ void menu_update(Menu* menu, Arena* temp_arena) {
                 printf("%s\n", string_to_cstr(scratch.arena, menu->text));
 
                 slice_push(&menu->text, (u8)'\0');
-                ring_buffer_push_back(&sys->events, Event{
+                ring_push_back(&sys->events, (Event){
                     .type = EventType_StartScene,
-                    .start_scene = {
+                    .game_start = {
                         .online = true,
                         .connect_ip = string8_literal((char*)menu->text.data),
                     },
@@ -276,11 +296,13 @@ void menu_update(Menu* menu, Arena* temp_arena) {
     ui_end(temp_arena);
 
     ui_draw(&menu->ui, temp_arena);
+
+    }
 }
 
 
-extern "C" UPDATE(update) {
-    auto state = (State*)memory;
+DLL_EXPORT Signals update(void* memory) {
+    State* state = (State*)memory;
 
     bool quit = false;
 
@@ -355,15 +377,15 @@ extern "C" UPDATE(update) {
     }
 
     while (sys->events.length > 0) {
-        Event union_event = ring_buffer_pop_front(&sys->events);
+        Event union_event = ring_pop_front(&sys->events);
         
         switch (union_event.type) {
         case EventType_StartScene: {
             arena_reset(&state->level_arena);
-            Slice<Font> fonts_view = slice_create_view(&sys->fonts.data[0], sys->fonts.length);
+            Slice_Font fonts_view = slice_create_view(Font, sys->fonts, array_length(sys->fonts));
 
-            auto event = union_event.start_scene; // for once auto is useful, anon struct
-            
+            GameStartEvent event = union_event.game_start;            
+
             scene_init(&state->local_scene, &state->level_arena, sys, event.online, event.connect_ip);
             state->active_scene = SceneType_Game;
         } break;
@@ -391,6 +413,19 @@ extern "C" UPDATE(update) {
     {
         // auto render_begin_time = std::chrono::high_resolution_clock::now();
         begin_rendering(sys->window, &state->temp_arena);
+
+        draw_screen_rect((Rect) {0,0,50,50}, (float4) {1,0,0,1});
+        draw_screen_rect((Rect) {1000,0,24,50}, (float4) {1,0,0,1});
+
+        ArenaTemp scratch = scratch_get(0, 0);
+        Hashmap_u32_u32 hm = hashmap_alloc(u32, u32, scratch.arena, 10);
+        hashmap_set(&hm, 32, 100);
+        u32 ret = hashmap_get(hm, 32);
+
+        scratch_release(scratch);
+
+
+        draw_text(sys->fonts[0], "KYS!!!", 50, (float2){0,0}, rgba_white, 9999);
 
 
         if (state->active_scene == SceneType_Menu) {
@@ -421,7 +456,7 @@ extern "C" UPDATE(update) {
 
     is_reloaded = false;
 
-    return {
+    return (Signals) {
         .quit = quit,
         .reload = reload,
     };

@@ -22,7 +22,7 @@ OS_Handle os_file_open(String8 path) {
 }
 
 bool os_file_close(OS_Handle handle) {
-    return CloseHandle(HandleCast{.os_handle=handle}.win32_handle);
+    return CloseHandle((HandleCast){.os_handle=handle}.win32_handle);
 }
 
 bool os_file_write_time(OS_Handle handle, u64* write_time) {
@@ -32,7 +32,7 @@ bool os_file_write_time(OS_Handle handle, u64* write_time) {
         u64 u64;
     } ft;
     // HandleCast cast = {.os_handle=handle};
-    bool result = GetFileTime(HandleCast{.os_handle=handle}.win32_handle, NULL, NULL, &ft.ft);
+    bool result = GetFileTime((HandleCast){.os_handle=handle}.win32_handle, NULL, NULL, &ft.ft);
 
     *write_time = ft.u64;
 

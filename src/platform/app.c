@@ -1,12 +1,11 @@
-struct DLL {
+typedef struct DLL {
     SDL_SharedObject* object;
     
     // init_func* init;
-    update_func* update;
-};
+    UpdateFunction update;
+} DLL;
 
 void load_dll(DLL* dll) {
-    ZoneScoped;
     if (dll->object != NULL) {
         SDL_UnloadObject(dll->object);
     }
@@ -20,19 +19,46 @@ void load_dll(DLL* dll) {
         fprintf(stderr, "%s\n", SDL_GetError());
     }
 
-    dll->update = (update_func*)SDL_LoadFunction(dll->object, "update");
+    dll->update = (UpdateFunction)SDL_LoadFunction(dll->object, "update");
     // dll->init = (init_func*)SDL_LoadFunction(dll->object, "init");
 }
 
 
-void run(){
-    TracyNoop;
+void ErrorExit() 
+{ 
+    // Retrieve the system error message for the last-error code
 
-    ASSERT(SDL_LoadObject("box2dd.dll") != NULL)
-    ASSERT(SDL_LoadObject("enet.dll") != NULL)
+    LPVOID lpMsgBuf;
+    DWORD dw = GetLastError(); 
+
+    if (FormatMessage(
+        FORMAT_MESSAGE_ALLOCATE_BUFFER | 
+        FORMAT_MESSAGE_FROM_SYSTEM |
+        FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL,
+        dw,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        (LPTSTR) &lpMsgBuf,
+        0, NULL) == 0) {
+        // MessageBox(NULL, TEXT("FormatMessage failed"), TEXT("Error"), MB_OK);
+        // ExitProcess(dw);
+        printf("%s", lpMsgBuf);
+    }
+
+
+    // MessageBox(NULL, (LPCTSTR)lpMsgBuf, TEXT("Error"), MB_OK);
+    //
+    // LocalFree(lpMsgBuf);
+}
+
+void run(){
+    // TracyNoop;
+
+    ASSERT(SDL_LoadObject("box2dd.dll") != NULL);
+    ASSERT(SDL_LoadObject("enet.dll") != NULL);
 
     // auto object = SDL_LoadObject("./game.dll");
-    DLL dll{};
+    DLL dll = {0};
     load_dll(&dll);
 
 
@@ -44,14 +70,19 @@ void run(){
     if (!os_file_write_time(dll_file, &last_write)) {
         ASSERT(false);
     }
+    os_file_close(dll_file);
 
     bool reload = false;
 
     while (1) {
         u64 current_write;
+        OS_Handle dll_file = os_file_open(string8_literal("./game.dll"));
         if (!os_file_write_time(dll_file, &current_write)) {
-            ASSERT(false);
+            // ErrorExit();
+            // printf("%s", GetLastError());
+            // ASSERT(false);
         }
+        os_file_close(dll_file);
 
         // auto other_write = std::filesystem::last_write_time("./game.dll");
 
@@ -80,9 +111,11 @@ void run(){
                 }
             }
 
+            OS_Handle dll_file = os_file_open(string8_literal("./game.dll"));
             if (!os_file_write_time(dll_file, &current_write)) {
                 ASSERT(false);
             }
+            os_file_close(dll_file);
 
             fprintf(stderr, "reloaded: %llu\n", current_write);
             // ("{}\n", last_write);
@@ -92,7 +125,7 @@ void run(){
             load_dll(&dll);
         }
 
-        auto signals = dll.update(memory);
+        Signals signals = dll.update(memory);
         reload = signals.reload;
 
         if (signals.quit) {

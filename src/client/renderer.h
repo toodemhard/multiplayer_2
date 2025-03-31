@@ -1,38 +1,38 @@
 #pragma once
 
-struct Texture {
+typedef struct Texture {
     SDL_GPUTexture* texture;
     SDL_GPUSampler* sampler;
     int w, h;
-};
+} Texture;
 
-struct PositionColorVertex {
+typedef struct PositionColorVertex {
     float2 position;
     float4 color;
-};
+} PositionColorVertex;
 
-struct PositionUvColorVertex {
+typedef struct PositionUvColorVertex {
     float2 position;
     float2 uv;
     RGBA color;
-};
+} PositionUvColorVertex;
 
-struct MixColor {
+typedef struct MixColor {
     float4 color;
     float t;
-};
+} MixColor;
 
-struct Camera2D {
+typedef struct Camera2D {
     float2 position;
-    float2 scale;
-};
+    float2 size;
+} Camera2D;
 
-struct RectVertex {
+typedef struct RectVertex {
     float2 position;
     float2 uv;
-};
+} RectVertex;
 
-struct SpriteVertex {
+typedef struct SpriteVertex {
     float2 position;
     float2 size;
     float2 uv_position;
@@ -41,23 +41,23 @@ struct SpriteVertex {
     RGBA mult_color;
     RGBA mix_color;
     float t;
-};
+} SpriteVertex;
 
-struct SpriteProperties {
+typedef struct SpriteProperties {
     TextureID texture_id;
     Rect src_rect;
-    RGBA mult_color=color::white;
+    Opt_RGBA mult_color;
     RGBA mix_color;
     float t;
-};
+} SpriteProperties;
 
-enum class PipelineType {
-    Sprite,
-    Mesh,
-    Line,
-};
+typedef enum PipelineType {
+    PipelineType_Sprite,
+    PipelineType_Mesh,
+    PipelineType_Line,
+} PipelineType;
 
-struct DrawItem {
+typedef struct DrawItem {
     PipelineType type;
 
     TextureID texture_id;
@@ -66,11 +66,12 @@ struct DrawItem {
 
     u32 index_buffer_offset;
     u32 indices_size;
-};
+} DrawItem;
+slice_def(DrawItem);
 
-struct Renderer {
-    i32 window_width = 1024;
-    i32 window_height = 768;
+typedef struct Renderer {
+    i32 window_width;
+    i32 window_height;
 
     Camera2D* active_camera;
 
@@ -83,9 +84,9 @@ struct Renderer {
     SDL_GPUCommandBuffer* draw_command_buffer;
     SDL_GPURenderPass* render_pass;
 
-    Slice<DrawItem> draw_list;
-    Slice<u8> vertex_data;
-    Slice<u8> index_data;
+    Slice_DrawItem draw_list;
+    Slice_u8 vertex_data;
+    Slice_u8 index_data;
     SDL_GPUBuffer* dynamic_vertex_buffer;
     SDL_GPUBuffer* dynamic_index_buffer;
     SDL_GPUTransferBuffer* transfer_buffer;
@@ -96,20 +97,20 @@ struct Renderer {
     SDL_GPUBuffer* rect_vertex_buffer;
     SDL_GPUBuffer* rect_index_buffer;
 
-    bool null_swapchain = false;
-};
+    bool null_swapchain;
+} Renderer;
 
 
-struct Image {
+typedef struct Image {
     int w, h;
     void* data;
-};
+} Image;
 
 
-inline float2 screen_to_world_pos(const Camera2D& cam, float2 screen_pos, int s_w, int s_h) {
+inline float2 screen_to_world_pos(Camera2D cam, float2 screen_pos, int s_w, int s_h) {
     screen_pos.y = s_h - screen_pos.y;
-
-    return cam.position + (screen_pos / float2{(float)s_w, (float)s_h} - 0.5f * float2_one) * cam.scale;
+    float2 a = float2_sub(float2_div( screen_pos, (float2){(float)s_w, (float)s_h}), float2_scale(float2_one, 0.5));
+    return float2_add(cam.position, float2_mult(a, cam.size));
 }
 
 float2 snap_pos(float2 pos);
@@ -117,7 +118,7 @@ float2 snap_pos(float2 pos);
 float2 texture_dimensions(TextureID texture_id);
 
 
-SDL_GPUShader* load_shader( SDL_GPUDevice* device, const char* shaderPath, Uint32 samplerCount, Uint32 uniformBufferCount, Uint32 storageBufferCount, Uint32 storageTextureCount);
+SDL_GPUShader* load_shader( SDL_GPUDevice* device, ShaderID shader_id, Uint32 samplerCount, Uint32 uniformBufferCount, Uint32 storageBufferCount, Uint32 storageTextureCount);
 
 void renderer_set_ctx(Renderer* _renderer);
 int init_renderer(Renderer* renderer_out, SDL_Window* window);
@@ -128,12 +129,12 @@ float2 world_to_normalized(Camera2D camera, float2 world_pos);
 Rect world_rect_to_normalized(Camera2D camera, Rect world_rect);
 Rect screen_rect_to_normalized(Rect rect, float2 resolution);
 
-void draw_sprite_world(Camera2D camera, Rect world_rect, const SpriteProperties& properties);
-void draw_sprite_screen(Rect screen_rect, const SpriteProperties& properties);
+void draw_sprite_world(Camera2D camera, Rect world_rect, SpriteProperties properties);
+void draw_sprite_screen(Rect screen_rect, SpriteProperties properties);
 void draw_world_lines(Camera2D camera, float2* vertices, int vert_count, float4 color);
 void draw_world_rect(Camera2D camera, Rect rect, float4 rgba);
 void draw_screen_rect(Rect rect, float4 rgba);
 
-Texture load_texture(TextureID texture_id, const Image& image);
+Texture load_texture(TextureID texture_id, Image image);
 
-void draw_world_polygon(const Camera2D& camera, float2* verts, int vert_count, float4 color);
+void draw_world_polygon(Camera2D camera, float2* verts, int vert_count, float4 color);

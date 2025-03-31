@@ -1,22 +1,25 @@
 #include "assets/inc.h"
 
+#include "base/base_inc.h"
+#include "base/base_inc.c"
+
 #include "common/inc.h"
-#include "common/inc.cpp"
+#include "common/inc.c"
 
 
-struct State {
-    GameState state{};
+typedef struct State {
+    GameState state;
 
-    f64 accumulator = 0.0;
-    u64 frame = {};
-    f64 time = {};
-    u64 current_tick = 0;
+    f64 accumulator;
+    u64 frame;
+    f64 time;
+    u64 current_tick;
 
     EntityHandle player_handle;
 
 
-    PlayerInput inputs[max_player_count];
-    b2DebugDraw m_debug_draw{};
+    PlayerInput inputs[MAX_PLAYER_COUNT];
+    b2DebugDraw m_debug_draw;
 
     bool inventory_open;
     bool moving_spell;
@@ -26,14 +29,15 @@ struct State {
 
 
     Arena* level_arena;
-};
+} State;
 
-struct Client {
+typedef struct Client {
     bool active;
     ClientID id;
-    RingBuffer<PlayerInput, 10> input_buffer;
+    Ring_PlayerInput input_buffer;
     ENetPeer* peer;
-};
+} Client;
+slice_def(Client);
 
 int main() {
     if (SDL_Init(0)) {
@@ -63,10 +67,10 @@ int main() {
     Arena temp_arena = arena_suballoc(&god_arena, megabytes(6));
 
     
-    State state = {};
+    State state = {0};
     State* s = &state;
 
-    Slice<Client> clients = slice_create<Client>(&persistent_arena, 16);
+    Slice_Client clients = slice_create(Client, &persistent_arena, 16);
     ClientID client_index = 0;
 
     ENetEvent event;
@@ -92,21 +96,22 @@ int main() {
 
                 Client* client = NULL;
                 for (i32 i = 0; i < clients.length; i++) {
-                    if (!clients[i].active) {
-                        client = &clients[i];
+                    if (!slice_get(clients,i).active) {
+                        client = slice_getp(clients, i);
                         found_hole = true;
                         break;
                     }
                 }
                 if (!found_hole) {
-                    slice_push(&clients, {});
+                    slice_push(&clients, (Client){});
                     client = slice_back(clients);
                 }
 
-                *client = {
+                *client = (Client){
                     .active = true,
                     .id = client_index,
                     .peer = event.peer,
+                    .input_buffer = ring_alloc(PlayerInput, &persistent_arena, 10),
                 };
                 event.peer->data = client;
                 client_index++;
@@ -118,7 +123,7 @@ int main() {
 
             case ENET_EVENT_TYPE_RECEIVE: {
                 Stream stream = {
-                    .slice = slice_create_view<u8>(event.packet->data, event.packet->dataLength),
+                    .slice = slice_create_view(u8, event.packet->data, event.packet->dataLength),
                     .operation = Stream_Read,
                 };
 
@@ -130,7 +135,7 @@ int main() {
                     TestMessage message = {};
                     serialize_test_message(&stream, &temp_arena, &message);
                     ENetPacket* packet = enet_packet_create(event.packet->data, event.packet->dataLength, ENET_PACKET_FLAG_RELIABLE);
-                    enet_peer_send(clients[1].peer, Channel_Reliable, packet);
+                    enet_peer_send(slice_get(clients, 1).peer, Channel_Reliable, packet);
                     enet_host_flush(server);
                     // printf ("A packet of length %u containing %s was received from %s on channel %u.\n",
                     //     event.packet -> dataLength,
@@ -147,9 +152,9 @@ int main() {
                     PlayerInput input = {};
                     serialize_input_message(&stream, &input);
 
-                    auto input_buffer = &client->input_buffer;
+                    Ring_PlayerInput* input_buffer = &client->input_buffer;
                     if (input_buffer->length < input_buffer->capacity){
-                        ring_buffer_push_back(&client->input_buffer, input);
+                        ring_push_back(&client->input_buffer, input);
                     }
                 }
                 enet_packet_destroy (event.packet);
@@ -162,7 +167,7 @@ int main() {
 
                 i32 to_remove = -1;
                 for (i32 i = 0; i < clients.length; i++) {
-                    if (clients[i].id == client->id) {
+                    if (slice_get(clients, i).id == client->id) {
                         to_remove = i;
                         break;
                     }
@@ -178,46 +183,46 @@ int main() {
 
 
         Arena tick_arena = arena_suballoc(&temp_arena, megabytes(4));
-        while (s->accumulator >= fixed_dt) {
-            s->accumulator = s->accumulator - fixed_dt;
-            s->time += fixed_dt;
+        while (s->accumulator >= FIXED_DT) {
+            s->accumulator = s->accumulator - FIXED_DT;
+            s->time += FIXED_DT;
 
             Inputs inputs = {
-                .ids = slice_create<ClientID>(&tick_arena, clients.length),
-                .inputs = slice_create<PlayerInput>(&tick_arena, clients.length),
+                .ids = slice_create(ClientID, &tick_arena, clients.length),
+                .inputs = slice_create(PlayerInput, &tick_arena, clients.length),
             };
 
             for (i32 i = 0; i < clients.length; i++) {
-                slice_push(&inputs.ids, clients[i].id);
-                PlayerInput input = {};
+                slice_push(&inputs.ids, slice_get(clients, i).id);
+                PlayerInput input = {0};
                 // printf("%d\n", clients[i].input_buffer.length);
-                if (clients[i].input_buffer.length > 0) {
-                     input = ring_buffer_pop_front(&clients[i].input_buffer);
+                if (slice_get(clients, i).input_buffer.length > 0) {
+                     input = ring_pop_front(slice_getp(clients,i).input_buffer);
                 }
                 slice_push(&inputs.inputs, input);
             }
 
-            state_update(&s->state, &tick_arena, inputs, s->current_tick, tick_rate);
+            state_update(&s->state, &tick_arena, inputs, s->current_tick, TICK_RATE);
 
 
 
-            Slice<Entity>* ents = &s->state.entities;
-            Slice<Entity*> players = slice_create<Entity*>(&tick_arena, 32);
-            Slice<Ghost> ghosts = entities_to_snapshot(&tick_arena, s->state.entities, s->current_tick, &players);
+            Slice_Entity* ents = &s->state.entities;
+            Slice_pEntity players = slice_p_create(Entity, &tick_arena, 32);
+            Slice_Ghost ghosts = entities_to_snapshot(&tick_arena, s->state.entities, s->current_tick, &players);
 
             Stream stream = {
-                .slice = slice_create<u8>(&tick_arena, kilobytes(100)),
+                .slice = slice_create(u8, &tick_arena, kilobytes(100)),
                 .operation = Stream_Write,
             };
 
             for (i32 i = 0; i < clients.length; i++) {
-                Client* client = &clients[i];
+                Client* client = slice_getp(clients, i);
                 u8 input_buffer_size = (u8)client->input_buffer.length;
 
                 Entity* player = NULL;
                 for (i32 p_idx = 0; p_idx < players.length; p_idx++) {
-                    if (players[p_idx]->client_id == client->id) {
-                        player = players[p_idx];
+                    if (slice_get(players, p_idx)->client_id == client->id) {
+                        player = slice_get(players, p_idx);
                         break;
                     }
                 }

@@ -10,11 +10,11 @@ f32 ru(f32 value) {
 
 internal void ui_frame_init(UI_Frame* frame, Arena* arena) {
     arena_reset(arena);
-    frame->elements = slice_create<UI_Element>(arena, 1024);
+    frame->elements = slice_create(UI_Element, arena, 1024);
     // frame->hashed_elements = hashmap_create(arena, 1024);
 }
 
-void ui_init(UI* ui, Arena* arena, const Slice<Font> fonts, Renderer* renderer) {
+void ui_init(UI* ui, Arena* arena, Slice_Font fonts, Renderer* renderer) {
     for (i32 i = 0; i < 2; i++) {
         ui->frame_arenas[i] = arena_suballoc(arena, megabytes(0.5));
         ui_frame_init(&ui->frame_buffer[i], &ui->frame_arenas[i]);
@@ -25,7 +25,7 @@ void ui_init(UI* ui, Arena* arena, const Slice<Font> fonts, Renderer* renderer) 
     ui->fonts = fonts;
     ui->base_size = 16;
 
-    ui->cache = hashmap_create<UI_Key, u32>(arena, 1024);
+    ui->cache = hashmap_alloc(UI_Key, u32, arena, 1024);
 }
 
 void ui_begin() {
@@ -52,7 +52,7 @@ bool ui_is_active(UI_Key element) {
     return ui_ctx->active_element == element;
 }
 
-UI_Key ui_key(Slice<u8> key) {
+UI_Key ui_key(Slice_u8 key) {
     return fnv1a(key);
 }
 
@@ -77,13 +77,13 @@ UI_Key ui_push_row_internal(UI_Element element, const char* file, i32 line) {
     }
 
     ArenaTemp scratch = scratch_get(0,0);
-    defer(scratch_release(scratch));
+    defer_loop(0, scratch_release(scratch)) {
     
-    Slice<u8> key = slice_create<u8>(scratch.arena, key_size);
+    Slice_u8 key = slice_create(u8, scratch.arena, key_size);
 
     slice_push_range(&key, slice_data_raw(element.exc_key));
     if (use_src_key) {
-        slice_push_range(&key, (u8*)&line, sizeof(line));
+        slice_push_buffer(&key, (u8*)&line, sizeof(line));
     }
     slice_push_range(&key, slice_data_raw(element.salt_key));
 
@@ -100,6 +100,7 @@ UI_Key ui_push_row_internal(UI_Element element, const char* file, i32 line) {
     //     element.border_color = {1,1,0,1};
     // }
     //
+    }
 
     slice_push(&ui->elements, element);
     UI_Element* current = slice_back(ui->elements);
@@ -107,7 +108,7 @@ UI_Key ui_push_row_internal(UI_Element element, const char* file, i32 line) {
     for (i32 i = 0; i < Axis2_Count; i++) {
         UI_Size* size = &current->size[i];
         if (size->type == UI_SizeType_Pixels) {
-            current->computed_size[i] = size->value;
+            current->computed_size.v[i] = size->value;
         }
     }
 
@@ -140,7 +141,7 @@ UI_Key ui_push_row_internal(UI_Element element, const char* file, i32 line) {
 }
 
 UI_Element* ui_get(UI_Key index) {
-    return &ui_ctx->frame_buffer[ui_ctx->active_frame].elements[index];
+    return slice_getp(ui_ctx->frame_buffer[ui_ctx->active_frame].elements, index);
 }
 
 bool ui_button(UI_Key element) {
@@ -151,15 +152,14 @@ bool ui_hover(UI_Key key) {
     u64 last_index = (ui_ctx->active_frame + 1) % 2;
     UI_Frame* last_frame = &ui_ctx->frame_buffer[last_index];
 
-    UI_Element zero{};
+    UI_Element zero = {0};
     UI_Element* element = &zero;
-
-    if (hashmap_key_exists(&ui_ctx->cache, key)) {
-        element = &last_frame->elements[hashmap_get(&ui_ctx->cache, key)];
+    if (hashmap_key_exists(ui_ctx->cache, key)) {
+        element = slice_getp(last_frame->elements, hashmap_get(ui_ctx->cache, key));
     }
 
     float2 p0 = *(float2*)&element->computed_position;
-    float2 p1 = {p0.x + element->computed_size[Axis2_X], p0.y + element->computed_size[Axis2_Y]};
+    float2 p1 = {p0.x + element->computed_size.v[Axis2_X], p0.y + element->computed_size.v[Axis2_Y]};
     float2 cursor = input_mouse_position();
     bool is_hover = false;
     if (cursor.x >= p0.x && cursor.y >= p0.y && cursor.x <= p1.x && cursor.y <= p1.y) {
@@ -189,16 +189,16 @@ UI_Key ui_pop_row() {
 void ui_end(Arena* temp_arena) {
     ui_pop_row();
     ArenaTemp checkpoint = arena_begin_temp_allocs(temp_arena);
-    defer(arena_end_temp_allocs(checkpoint));
+    defer_loop(0, arena_end_temp_allocs(checkpoint)) {
 
     UI_Frame* ui = &ui_ctx->frame_buffer[ui_ctx->active_frame];
 
 
-    Slice<UI_Element*> pre_stack = slice_create<UI_Element*>(temp_arena, 512);
-    Slice<UI_Element*> post_stack = slice_create<UI_Element*>(temp_arena, 512);
+    Slice_pUI_Element pre_stack = slice_p_create(UI_Element, temp_arena, 512);
+    Slice_pUI_Element post_stack = slice_p_create(UI_Element, temp_arena, 512);
 
     if (ui->elements.length > 0) {
-        slice_push(&pre_stack, &ui->elements[0]);
+        slice_push(&pre_stack, slice_getp(ui->elements, 0));
     }
 
     // postorder dfs with 2 stacks idfk
@@ -221,7 +221,7 @@ void ui_end(Arena* temp_arena) {
                 UI_Size* size = &current->size[i];
 
                 if (size->type == UI_SizeType_ParentFraction) {
-                    current->computed_size[i] = parent->computed_size[i] * size->value;
+                    current->computed_size.v[i] = parent->computed_size.v[i] * size->value;
                 }
             }
             if (current->font_size.type == FontSizeType_Default) {
@@ -236,13 +236,13 @@ void ui_end(Arena* temp_arena) {
 
         // postorder
 
-        float2 text_size = text_dimensions(ui_ctx->fonts[current->font], current->text, current->font_size.value);
+        float2 text_size = text_dimensions(slice_get(ui_ctx->fonts,current->font), current->text, current->font_size.value);
 
-        float2 image_size = {};
+        float2 image_size = {0};
 
         if (current->image != ImageID_NULL) {
             const Texture* texture = &ui_ctx->renderer->textures[current->image];
-            image_size = {(f32)texture->w, (f32)texture->h};
+            image_size = (float2){(f32)texture->w, (f32)texture->h};
         }
 
 
@@ -251,9 +251,9 @@ void ui_end(Arena* temp_arena) {
             UI_Size* semantic_size = &current->size[i];
 
             if (semantic_size->type == UI_SizeType_Fit) {
-                current->computed_size[i] += text_size[i];
+                current->computed_size.v[i] += text_size.v[i];
 
-                current->computed_size[i] += image_size[i];
+                current->computed_size.v[i] += image_size.v[i];
             }
         }
 
@@ -261,7 +261,7 @@ void ui_end(Arena* temp_arena) {
             UI_Size* semantic_size = &current->size[i];
             if (semantic_size->type == UI_SizeType_ImageProportional) {
                 i32 other_axis = (i + 1) % Axis2_Count;
-                current->computed_size[i] += current->computed_size[other_axis] * (image_size[i] / image_size[other_axis]);
+                current->computed_size.v[i] += current->computed_size.v[other_axis] * (image_size.v[i] / image_size.v[other_axis]);
 
             }
         }
@@ -270,12 +270,12 @@ void ui_end(Arena* temp_arena) {
 
             if (current->padding[i].type == UI_SizeType_Pixels) {
                 current->computed_padding[i] += current->padding[i].value;
-                current->computed_size[i / 2] += current->computed_padding[i];
+                current->computed_size.v[i / 2] += current->computed_padding[i];
             }
 
             if (current->border[i].type == UI_SizeType_Pixels) {
                 current->computed_border[i] += current->border[i].value;
-                current->computed_size[i / 2] += current->computed_border[i];
+                current->computed_size.v[i / 2] += current->computed_border[i];
             }
 
         }
@@ -286,9 +286,9 @@ void ui_end(Arena* temp_arena) {
             for (i32 i = 0; i < Axis2_Count; i++) {
                 if (parent->size[i].type == UI_SizeType_Fit) {
                     if (i == grow_axis) {
-                        parent->computed_size[i] += current->computed_size[i];
+                        parent->computed_size.v[i] += current->computed_size.v[i];
                     } else {
-                        parent->computed_size[i] = f32_max(parent->computed_size[i], current->computed_size[i]);
+                        parent->computed_size.v[i] = f32_max(parent->computed_size.v[i], current->computed_size.v[i]);
                     }
                 }
             }
@@ -297,7 +297,7 @@ void ui_end(Arena* temp_arena) {
 
     slice_clear(&pre_stack);
     if (ui->elements.length > 0) {
-        slice_push(&pre_stack, &ui->elements[0]);
+        slice_push(&pre_stack, slice_getp(ui->elements,0));
     }
 
     // preorder for grow
@@ -309,7 +309,7 @@ void ui_end(Arena* temp_arena) {
         // grow child elements which have grow sizing property
         float2 grow_space = current->computed_size;
         for (i32 side = 0; side < RectSide_Count; side++) {
-            grow_space[side / 2] -= current->computed_padding[side] + current->computed_border[side];
+            grow_space.v[side / 2] -= current->computed_padding[side] + current->computed_border[side];
         }
 
         i32 grow_children_count_in_stack_dir = 0;
@@ -320,14 +320,14 @@ void ui_end(Arena* temp_arena) {
 
             for (i32 axis = 0; axis < Axis2_Count; axis++) {
                 if (axis == current->stack_axis) {
-                    grow_space[axis] -= child->computed_size[axis];
+                    grow_space.v[axis] -= child->computed_size.v[axis];
                 }
                 if (child->size[axis].type == UI_SizeType_Grow && axis == current->stack_axis) {
                     grow_children_count_in_stack_dir++;
                 }
 
                 if(child->size[axis].type == UI_SizeType_Grow && axis != current->stack_axis) {
-                    child->computed_size[axis] += grow_space[axis];
+                    child->computed_size.v[axis] += grow_space.v[axis];
                 }
             }
 
@@ -335,11 +335,11 @@ void ui_end(Arena* temp_arena) {
         }
 
         child = current->last_child;
-        f32 distribution_of_capital = grow_space[current->stack_axis] / grow_children_count_in_stack_dir;
+        f32 distribution_of_capital = grow_space.v[current->stack_axis] / grow_children_count_in_stack_dir;
         while (child) {
             for (i32 axis = 0; axis < Axis2_Count; axis++) {
                 if (child->size[axis].type == UI_SizeType_Grow && axis == current->stack_axis) {
-                    child->computed_size[axis] += distribution_of_capital;
+                    child->computed_size.v[axis] += distribution_of_capital;
                 }
             }
 
@@ -351,7 +351,7 @@ void ui_end(Arena* temp_arena) {
 
     slice_clear(&pre_stack);
     if (ui->elements.length > 0) {
-        slice_push(&pre_stack, &ui->elements[0]);
+        slice_push(&pre_stack, slice_getp(ui->elements,0));
     }
 
 
@@ -374,36 +374,55 @@ void ui_end(Arena* temp_arena) {
         for (i32 i = 0; i < Axis2_Count; i++) {
             if (current->position[i].type == UI_PositionType_AutoOffset) {
                 if (current->parent) {
-                    current->computed_position[i] = parent->next_position[i];
+                    current->computed_position.v[i] = parent->next_position.v[i];
                     if (i == parent->stack_axis && !(current->flags & UI_Flags_Float)) {
-                        parent->next_position[i] += current->computed_size[i];
+                        parent->next_position.v[i] += current->computed_size.v[i];
                     }
 
 
                 }
-                current->computed_position[i] += current->position[i].value;
+                current->computed_position.v[i] += current->position[i].value;
             }
 
             UI_Position position = current->position[i];
 
             if (position.type == UI_PositionType_Anchor) {
-                current->computed_position[i] = parent->computed_position[i] + (parent->computed_size[i] - current->computed_size[i]) * position.value;
+                current->computed_position.v[i] = parent->computed_position.v[i] + (parent->computed_size.v[i] - current->computed_size.v[i]) * position.value;
             }
 
-            current->content_position[i] = current->computed_position[i];
-            current->content_position[i] += current->computed_padding[i * 2] + current->computed_border[i * 2];
+            current->content_position.v[i] = current->computed_position.v[i];
+            current->content_position.v[i] += current->computed_padding[i * 2] + current->computed_border[i * 2];
         }
         current->next_position = current->content_position;
     }
 
     for (i32 i = 0; i < ui->elements.length; i++) {
-        UI_Element* element = &ui->elements[i];
+        // hashmap_set_raw(
+        //         (&ui_ctx->cache)->pairs,
+        //         (&ui_ctx->cache)->capacity,
+        //         (&ui_ctx->cache)->count,
+        //         (typeof(element->computed_key)[1]{element->computed_key}),
+        //         sizeof(element->computed_key),
+        //         (typeof((u32)i)[1]{(u32)i}),
+        //         sizeof((u32)i)
+        //         );
+        UI_Element* element = slice_getp(ui->elements,i);
 
+// hashmap_set_raw(
+//     (&ui_ctx->cache)->pairs,
+//     (&ui_ctx->cache)->capacity,
+//     &(&ui_ctx->cache)->count,
+//     ((typeof(element->computed_key)[1]){element->computed_key}),
+//     sizeof(element->computed_key),
+//     __builtin_offsetof(typeof(*(&ui_ctx->cache)->pairs), key)((typeof((u32)i)[1]){(u32)i}),
+//     sizeof((u32)i),
+//     __builtin_offsetof(typeof(*(&ui_ctx->cache)->pairs), value)
+// )
         hashmap_set(&ui_ctx->cache, element->computed_key, (u32)i);
 
         if (input_mouse_down(SDL_BUTTON_LEFT)) {
             float2 p0 = element->computed_position;
-            float2 p1 = {p0.x + element->computed_size[Axis2_X], p0.y + element->computed_size[Axis2_Y]};
+            float2 p1 = (float2){p0.x + element->computed_size.v[Axis2_X], p0.y + element->computed_size.v[Axis2_Y]};
             float2 cursor = input_mouse_position();
             // bool is_hover = false;
             if (cursor.x >= p0.x && cursor.y >= p0.y && cursor.x <= p1.x && cursor.y <= p1.y) {
@@ -411,27 +430,25 @@ void ui_end(Arena* temp_arena) {
             }
         }
     }
+
+    }
 }
 
 float2 f32arr_to_float2(f32 vec[2]) {
-    return {vec[0], vec[1]};
-}
-
-float2 float2_add(float2 a, float2 b) {
-    return {a.x + b.x, a.y + b.y};
+    return (float2){vec[0], vec[1]};
 }
 
 void ui_draw(UI* ui_ctx, Arena* temp_arena) {
-    ArenaTemp checkpoint = arena_begin_temp_allocs(temp_arena);
-    defer(arena_end_temp_allocs(checkpoint));
+    // ArenaTemp checkpoint = arena_begin_temp_allocs(temp_arena);
+    // defer(arena_end_temp_allocs(checkpoint));
 
     UI_Frame* ui = &ui_ctx->frame_buffer[ui_ctx->active_frame];
 
-    Slice<UI_Element*> pre_stack = slice_create<UI_Element*>(temp_arena, 512);
-    Slice<UI_Element*> post_stack = slice_create<UI_Element*>(temp_arena, 512);
+    Slice_pUI_Element pre_stack = slice_p_create(UI_Element, temp_arena, 512);
+    Slice_pUI_Element post_stack = slice_p_create(UI_Element, temp_arena, 512);
 
     if (ui->elements.length > 0) {
-        slice_push(&pre_stack, &ui->elements[0]);
+        slice_push(&pre_stack, slice_getp(ui->elements, 0));
     }
 
 
@@ -456,16 +473,16 @@ void ui_draw(UI* ui_ctx, Arena* temp_arena) {
             i32 vertical = 1 - i / 2;
             f32 border_width = current->computed_border[i];
             Rect border_rect = {
-                .x = current->computed_position[Axis2_X],
-                .y = current->computed_position[Axis2_Y],
-                .w = vertical * border_width + horizontal * current->computed_size[Axis2_X],
-                .h = horizontal * border_width + vertical * current->computed_size[Axis2_Y],
+                .x = current->computed_position.v[Axis2_X],
+                .y = current->computed_position.v[Axis2_Y],
+                .w = vertical * border_width + horizontal * current->computed_size.v[Axis2_X],
+                .h = horizontal * border_width + vertical * current->computed_size.v[Axis2_Y],
             };
             if (i == RectSide_Right) {
-                border_rect.x += current->computed_size[Axis2_X] - border_width;
+                border_rect.x += current->computed_size.v[Axis2_X] - border_width;
             }
             if (i == RectSide_Bottom) {
-                border_rect.y += current->computed_size[Axis2_Y] - border_width;
+                border_rect.y += current->computed_size.v[Axis2_Y] - border_width;
             }
             draw_screen_rect(border_rect, current->border_color);
         }
@@ -473,18 +490,18 @@ void ui_draw(UI* ui_ctx, Arena* temp_arena) {
         float2 content_size = current->computed_size;
         for (i32 i = 0; i < RectSide_Count; i++) {
             i32 axis = i / Axis2_Count;
-            content_size[axis] -= current->computed_border[i] + current->computed_padding[i];
+            content_size.v[axis] -= current->computed_border[i] + current->computed_padding[i];
         }
 
         if (current->image != ImageID_NULL) {
-            draw_sprite_screen({current->content_position, content_size}, 
-            SpriteProperties{
+            draw_sprite_screen((Rect){current->content_position, content_size}, 
+            (SpriteProperties){
                 .texture_id = image_id_to_texture_id(current->image),
                 .src_rect = current->image_src,
             });
         }
 
-        draw_text(ui_ctx->fonts[current->font], current->text, current->font_size.value, current->content_position);
+        draw_text(slice_get(ui_ctx->fonts, current->font), current->text, current->font_size.value, current->content_position, rgba_white, 9999);
     }
 
     while (post_stack.length > 0) {

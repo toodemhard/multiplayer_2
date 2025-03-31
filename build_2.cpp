@@ -8,134 +8,135 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <cstdlib>
-#include "tinycthread.h"
-
-#include <stdarg.h>
-#include "common/types.h"
-#include "common/allocator.h"
-
-#include "tinycthread.c"
-#include "common/allocator.cpp"
+// #include <stdarg.h>
+// #include "tinycthread.h"
+// #include "common/types.h"
+// #include "common/allocator.h"
+//
+// #include "tinycthread.c"
+// #include "common/allocator.cpp"
  
 
 #include <iostream>
 
-struct Future {
-    bool finish;
-    mtx_t mtx;
-    cnd_t cnd;
-};
+#define ASSERT(condition) if (!(condition)) { fprintf(stderr, "ASSERT: %s %s:%d\n", #condition, __FILE__, __LINE__); __debugbreak(); }
 
-typedef void (*Fn)(void* data);
-
-struct Task {
-    Fn fn;
-    void* data;
-    Future* future;
-};
-
-
-constexpr u64 max_threads = 256;
-
-struct ThreadPool {
-    RingBuffer<Task, 1024> task_queue;
-    mtx_t queue_mtx;
-    cnd_t queue_cnd;
-
-    Slice<Future> futures;
-    mtx_t futures_mtx;
-
-    thrd_t threads[max_threads];
-    u32 thread_count; 
-
-    bool terminate;
-};
-
-ThreadPool pool;
-
-void wait_future(Future* future) {
-    mtx_lock(&future->mtx);
-    while (future->finish != true) {
-        cnd_wait(&future->cnd, &future->mtx);
-    }
-    mtx_unlock(&future->mtx);
-}
-
-int worker_thread(void* data) {
-    ThreadPool* pool = (ThreadPool*)data;
-
-    while (true) {
-
-        mtx_lock(&pool->queue_mtx);
-        while (pool->task_queue.length <= 0 && !pool->terminate) {
-            cnd_wait(&pool->queue_cnd, &pool->queue_mtx);
-        }
-        if (pool->terminate) {
-            mtx_unlock(&pool->queue_mtx);
-            break;
-        }
-        Task task = ring_buffer_pop_front(&pool->task_queue);
-        mtx_unlock(&pool->queue_mtx);
-
-        task.fn(task.data);
-        mtx_lock(&task.future->mtx);
-        task.future->finish = true;
-        mtx_unlock(&task.future->mtx);
-        cnd_signal(&task.future->cnd);
-    }
-
-    return 0;
-}
-
-void thread_pool_init(ThreadPool* pool, Arena* a, int thread_count) {
-    *pool = {};
-    mtx_init(&pool->queue_mtx, 0);
-    cnd_init(&pool->queue_cnd);
-    mtx_init(&pool->futures_mtx, 0);
-
-    slice_init(&pool->futures, a, 1000);
-
-    pool->thread_count = thread_count;
-    for (int i = 0; i < thread_count; i++) {
-        thrd_create(&pool->threads[i], worker_thread, pool);
-    }
-}
-
-void thread_pool_shutdown(ThreadPool* pool) {
-    mtx_lock(&pool->queue_mtx);
-    pool->terminate = true;
-    mtx_unlock(&pool->queue_mtx);
-    cnd_broadcast(&pool->queue_cnd);
-
-    for (int i = 0; i < pool->thread_count; i++) {
-        thrd_join(&pool->threads[i], NULL);
-    }
-}
-
-Future* queue_task(ThreadPool* pool, Fn task, void* data) {
-    mtx_lock(&pool->queue_mtx);
-    
-
-    mtx_lock(&pool->futures_mtx);
-    slice_push(&pool->futures, {});
-    Future* future = slice_back(pool->futures);
-    mtx_init(&future->mtx, 0);
-    cnd_init(&future->cnd);
-
-    
-    ring_buffer_push_back(&pool->task_queue, {
-        .fn = task,
-        .data = data,
-        .future = future,
-    });
-
-    mtx_unlock(&pool->futures_mtx);
-    mtx_unlock(&pool->queue_mtx);
-
-    cnd_signal(&pool->queue_cnd);
-
-    return future;
-}
+// struct Future {
+//     bool finish;
+//     mtx_t mtx;
+//     cnd_t cnd;
+// };
+//
+// typedef void (*Fn)(void* data);
+//
+// struct Task {
+//     Fn fn;
+//     void* data;
+//     Future* future;
+// };
+//
+//
+// constexpr u64 max_threads = 256;
+//
+// struct ThreadPool {
+//     RingBuffer<Task, 1024> task_queue;
+//     mtx_t queue_mtx;
+//     cnd_t queue_cnd;
+//
+//     Slice<Future> futures;
+//     mtx_t futures_mtx;
+//
+//     thrd_t threads[max_threads];
+//     u32 thread_count; 
+//
+//     bool terminate;
+// };
+//
+// ThreadPool pool;
+//
+// void wait_future(Future* future) {
+//     mtx_lock(&future->mtx);
+//     while (future->finish != true) {
+//         cnd_wait(&future->cnd, &future->mtx);
+//     }
+//     mtx_unlock(&future->mtx);
+// }
+//
+// int worker_thread(void* data) {
+//     ThreadPool* pool = (ThreadPool*)data;
+//
+//     while (true) {
+//
+//         mtx_lock(&pool->queue_mtx);
+//         while (pool->task_queue.length <= 0 && !pool->terminate) {
+//             cnd_wait(&pool->queue_cnd, &pool->queue_mtx);
+//         }
+//         if (pool->terminate) {
+//             mtx_unlock(&pool->queue_mtx);
+//             break;
+//         }
+//         Task task = ring_buffer_pop_front(&pool->task_queue);
+//         mtx_unlock(&pool->queue_mtx);
+//
+//         task.fn(task.data);
+//         mtx_lock(&task.future->mtx);
+//         task.future->finish = true;
+//         mtx_unlock(&task.future->mtx);
+//         cnd_signal(&task.future->cnd);
+//     }
+//
+//     return 0;
+// }
+//
+// void thread_pool_init(ThreadPool* pool, Arena* a, int thread_count) {
+//     *pool = {};
+//     mtx_init(&pool->queue_mtx, 0);
+//     cnd_init(&pool->queue_cnd);
+//     mtx_init(&pool->futures_mtx, 0);
+//
+//     slice_init(&pool->futures, a, 1000);
+//
+//     pool->thread_count = thread_count;
+//     for (int i = 0; i < thread_count; i++) {
+//         thrd_create(&pool->threads[i], worker_thread, pool);
+//     }
+// }
+//
+// void thread_pool_shutdown(ThreadPool* pool) {
+//     mtx_lock(&pool->queue_mtx);
+//     pool->terminate = true;
+//     mtx_unlock(&pool->queue_mtx);
+//     cnd_broadcast(&pool->queue_cnd);
+//
+//     for (int i = 0; i < pool->thread_count; i++) {
+//         thrd_join(&pool->threads[i], NULL);
+//     }
+// }
+//
+// Future* queue_task(ThreadPool* pool, Fn task, void* data) {
+//     mtx_lock(&pool->queue_mtx);
+//     
+//
+//     mtx_lock(&pool->futures_mtx);
+//     slice_push(&pool->futures, {});
+//     Future* future = slice_back(pool->futures);
+//     mtx_init(&future->mtx, 0);
+//     cnd_init(&future->cnd);
+//
+//     
+//     ring_buffer_push_back(&pool->task_queue, {
+//         .fn = task,
+//         .data = data,
+//         .future = future,
+//     });
+//
+//     mtx_unlock(&pool->futures_mtx);
+//     mtx_unlock(&pool->queue_mtx);
+//
+//     cnd_signal(&pool->queue_cnd);
+//
+//     return future;
+// }
 
 enum class buildsystem {
     cmake,
@@ -465,6 +466,7 @@ void build_target(Target target, Lib libs[], int lib_count, Compiler compiler, s
         printf("%s\n", std::filesystem::current_path().string().data());
     }
 
+    std::string compiler_flags_2 = std::format("-std=c99, {}", compiler_flags);
     for (auto& src : source_files) {
         std::string include_ext = "";
         include_ext += std::format(" -include {} ", (project_root / "src" / (target.pch_name + ".h") ).string());
@@ -473,7 +475,7 @@ void build_target(Target target, Lib libs[], int lib_count, Compiler compiler, s
         }
         include_ext += includes;
 
-        commands_json += add_compile_command(compiler_flags,include_ext, src.string(), src.string());
+        commands_json += add_compile_command(compiler_flags_2,include_ext, src.string(), src.string());
     }
     for (auto& h : header_files) {
         std::string include_ext = "";
@@ -481,7 +483,7 @@ void build_target(Target target, Lib libs[], int lib_count, Compiler compiler, s
         include_ext += std::format(" -include {} ", (project_root / target.main_unit).string());
         include_ext += includes;
 
-        commands_json += add_compile_command(compiler_flags,include_ext, h.string() + ".cpp", h.string());
+        commands_json += add_compile_command(compiler_flags_2,include_ext, h.string() + ".cpp", h.string());
     }
 
 
@@ -503,16 +505,16 @@ void build_target(Target target, Lib libs[], int lib_count, Compiler compiler, s
         }
     }
 
-    if (target.main_unit != "") {
-        std::filesystem::path main_filepath = project_root / target.main_unit;
-        std::string name = main_filepath.filename().stem().string();
-
-        if (!obj_write_times.contains(name)) {
-            compile = true;
-        } else if (obj_write_times[name] < std::filesystem::last_write_time(main_filepath)) {
-            compile = true;
-        }
-    }
+    // if (target.main_unit != "") {
+    //     std::filesystem::path main_filepath = project_root / target.main_unit;
+    //     std::string name = main_filepath.filename().stem().string();
+    //
+    //     if (!obj_write_times.contains(name)) {
+    //         compile = true;
+    //     } else if (obj_write_times[name] < std::filesystem::last_write_time(main_filepath)) {
+    //         compile = true;
+    //     }
+    // }
 
 
     for (auto& h : header_files) {
@@ -540,8 +542,8 @@ void build_target(Target target, Lib libs[], int lib_count, Compiler compiler, s
         printf("target: %s skipped\n", target.name);
     }
 
-    ArenaTemp scratch = scratch_get(0,0);
-    defer(scratch_release(scratch));
+    // ArenaTemp scratch = scratch_get(0,0);
+    // defer(scratch_release(scratch));
     if (compile) {
         timer timer("compile");
 
@@ -589,6 +591,7 @@ void build_target(Target target, Lib libs[], int lib_count, Compiler compiler, s
                 if (strcmp(target.name, "game") == 0) {
                     system("del *_game.pdb *_game.rdi");
                 }
+                compiler_flags += " -D DLL";
                 auto now = std::chrono::system_clock::now().time_since_epoch().count();
                 linker_flags += std::format(" /PDB:{}_game.pdb /DLL {} {} /OUT:{}.dll /EXPORT:update", now, target.crt, lib_files, target.name);
 
@@ -598,13 +601,13 @@ void build_target(Target target, Lib libs[], int lib_count, Compiler compiler, s
 
 
             if (compiler == Compiler_MSVC) {
-                command = std::format("cl {} {} {} {} /link {}", compiler_flags, use_pch_arg, includes, (project_root / target.main_unit).string(), linker_flags);
+                command = std::format("cl {} /Fo{} {} {} {} /link {}", compiler_flags, out_dir, use_pch_arg, includes, (project_root / target.main_unit).string(), linker_flags);
             } else {
                 ASSERT(false);
             }
 
-            system(command.data());
             printf("%s\n", command.data());
+            system(command.data());
         }
 
     }
@@ -672,14 +675,14 @@ void build_target(Target target, Lib libs[], int lib_count, Compiler compiler, s
 
 #define ns_per_s 100000000
 int main(int argc, char* argv[]) {
-    u64 arena_size = megabytes(4);
-    Arena arena = arena_create(malloc(arena_size), arena_size);
-
-    Arena arenas[scratch_count];
-    for (i32 i = 0; i < scratch_count; i++)  {
-        arenas[i] = arena_suballoc(&arena, megabytes(1));
-        scratch_arenas[i] = &arenas[i];
-    }
+    // u64 arena_size = megabytes(4);
+    // Arena arena = arena_create(malloc(arena_size), arena_size);
+    //
+    // Arena arenas[scratch_count];
+    // for (i32 i = 0; i < scratch_count; i++)  {
+    //     arenas[i] = arena_suballoc(&arena, megabytes(1));
+    //     scratch_arenas[i] = &arenas[i];
+    // }
 
     // thread_pool_init(&pool, &arena, 8);
     // defer(thread_pool_shutdown(&pool));
@@ -740,27 +743,27 @@ int main(int argc, char* argv[]) {
             .lib_path = "SDL3.lib",
             .shared_lib_path = "SDL3.dll"
         },
-        Lib {
-            .name = "tracy",
-            .buildsystem = buildsystem::cmake,
-            .rel_include_paths = {"public"},
-            .lib_path = "TracyClient.lib",
-            .shared_lib_path = "TracyClient.dll",
-            .cmake_args = "-DBUILD_SHARED_LIBS=ON -DTRACY_ENABLE=OFF -DTRACY_ON_DEMAND=OFF"// -DTRACY_DELAYED_INIT=ON -DTRACY_MANUAL_LIFETIME=ON"
-        },
-        Lib {
-            .name = "yojimbo",
-            .buildsystem = buildsystem::premake,
-            .rel_include_paths = {"include", "serialize"},
-            .lib_out_dir = "../lib/yojimbo/bin/Debug",
-            .lib_files = {
-                "sodium-builtin.lib",
-                "tlsf.lib",
-                "netcode.lib",
-                "reliable.lib",
-                "yojimbo.lib",
-            }
-        },
+        // Lib {
+        //     .name = "tracy",
+        //     .buildsystem = buildsystem::cmake,
+        //     .rel_include_paths = {"public"},
+        //     .lib_path = "TracyClient.lib",
+        //     .shared_lib_path = "TracyClient.dll",
+        //     .cmake_args = "-DBUILD_SHARED_LIBS=ON -DTRACY_ENABLE=OFF -DTRACY_ON_DEMAND=OFF"// -DTRACY_DELAYED_INIT=ON -DTRACY_MANUAL_LIFETIME=ON"
+        // },
+        // Lib {
+        //     .name = "yojimbo",
+        //     .buildsystem = buildsystem::premake,
+        //     .rel_include_paths = {"include", "serialize"},
+        //     .lib_out_dir = "../lib/yojimbo/bin/Debug",
+        //     .lib_files = {
+        //         "sodium-builtin.lib",
+        //         "tlsf.lib",
+        //         "netcode.lib",
+        //         "reliable.lib",
+        //         "yojimbo.lib",
+        //     }
+        // },
         Lib {
             .name = "enet",
             .rel_include_paths = {"include"},
@@ -790,17 +793,17 @@ int main(int argc, char* argv[]) {
         Target{
             .type = target_type::precompiled_header,
             .name = "pch",
-            .main_unit = "src/pch.cpp",
+            .main_unit = "src/pch.c",
             .files = {
                 src_single("src/pch.h"),
-                src_single("src/pch.cpp"),
+                src_single("src/pch.c"),
             },
             .include_dirs = include_dirs,
         },
         Target{
             .type = target_type::shared_lib,
             .name = "game",
-            .main_unit = "src/client/app.cpp",
+            .main_unit = "src/client/app.c",
             .files = {
                 source_file { 
                     .type = files_type::glob,
@@ -811,6 +814,8 @@ int main(int argc, char* argv[]) {
                     .value = "src/common",
                 },
                 src_glob("src/os"),
+                src_glob("src/assets"),
+                src_glob("src/base"),
             },
             .libs = {
                 "box2d",
@@ -824,7 +829,7 @@ int main(int argc, char* argv[]) {
         Target{
             .type = target_type::executable,
             .name = "platform",
-            .main_unit = "src/platform/main.cpp",
+            .main_unit = "src/platform/main.c",
             .files = {
                 source_file { 
                     .type = files_type::glob,
@@ -844,7 +849,7 @@ int main(int argc, char* argv[]) {
         Target{
             .type = target_type::executable,
             .name = "server",
-            .main_unit = "src/server/main.cpp",
+            .main_unit = "src/server/main.c",
             .files = {
                 source_file { 
                     .type = files_type::glob,
@@ -880,7 +885,7 @@ int main(int argc, char* argv[]) {
 
     // std::string compiler /lin
 
-    std::string msvc_compiler_flags = std::format("/std:c++20 /EHsc /MP {} " TRACY_DEFINES " /D ENET_DLL", add_flags);
+    std::string msvc_compiler_flags = std::format("/std:clatest /MP {} " TRACY_DEFINES " /D ENET_DLL", add_flags);
     std::string clang_compiler_flags = std::format("-std=c++20 -w -O0 -fno-exceptions -fno-rtti -Wno-deprecated-declarations -ftime-trace {} " TRACY_DEFINES " -D ENET_DLL", add_flags);
 
     std::string compiler_flags = msvc_compiler_flags;

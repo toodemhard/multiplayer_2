@@ -4,12 +4,13 @@
 // void local_scene_update(LocalScene* scene, double delta_time);
 // void local_scene_render(LocalScene* scene, Renderer* renderer, SDL_Window* window);
 
-struct Menu {
+typedef struct Menu {
     System* sys;
-    Slice<u8> text;
+    Slice_u8 text;
     UI ui;
-};
+} Menu;
 
+typedef struct State State;
 struct State {
     System sys;
     Scene local_scene;

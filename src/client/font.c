@@ -1,4 +1,4 @@
-Slice<u8> read_file(Arena* arena, const char* file_path) {
+Slice_u8 read_file(Arena* arena, const char* file_path) {
     FILE* file = fopen(file_path, "rb");
     if (!file) {
         fprintf(stderr, "%s not found\n", file_path);
@@ -7,7 +7,7 @@ Slice<u8> read_file(Arena* arena, const char* file_path) {
     u64 size = ftell(file);
     fseek(file, 0, SEEK_SET);
     
-    Slice<u8> data = slice_create_fixed<u8>(arena, size);
+    Slice_u8 data = slice_create_fixed(u8, arena, size);
     fread(data.data, sizeof(u8), size, file);
 
     return data;
@@ -36,37 +36,37 @@ struct FontAtlasConfig {
 // IconFontAtlas icon_font_atlas;
 
 void font_load(Arena* arena, Font* font_output, Renderer* renderer, FontID font_id, int w, int h, int font_size) {
-    *font_output = Font{
-        .char_data = slice_create_fixed<stbtt_packedchar>(arena, num_chars),
+    *font_output = (Font) {
+        .char_data = slice_create_fixed(stbtt_packedchar, arena, num_chars),
         .w = w,
         .h = h,
         .baked_font_size = font_size
     };
 
-    auto bitmap_length = w * h;
+    u64 bitmap_length = w * h;
 
     ArenaTemp scratch = scratch_get(0,0);
-    auto bitmap = slice_create_fixed<u8>(scratch.arena, bitmap_length);
+    Slice_u8 bitmap = slice_create_fixed(u8, scratch.arena, bitmap_length);
 
-    auto ttf_buffer = read_file(scratch.arena, font_paths[(int)font_id]);
+    Slice_u8 ttf_buffer = read_file(scratch.arena, font_paths[(int)font_id]);
     stbtt_pack_context spc;
-    stbtt_PackBegin(&spc, bitmap.data, w, h, 0, 1, nullptr);
+    stbtt_PackBegin(&spc, bitmap.data, w, h, 0, 1, NULL);
     stbtt_PackFontRange(&spc, ttf_buffer.data, 0, font_size, char_start, num_chars, font_output->char_data.data);
     stbtt_PackEnd(&spc);
 
     int image_size = bitmap_length * 4;
-    auto image = slice_create_fixed<u8>(scratch.arena, image_size);
+    Slice_u8 image = slice_create_fixed(u8, scratch.arena, image_size);
     for (int i = 0; i < bitmap_length; i++) {
-        image[i * 4] = 255;
-        image[i * 4 + 1] = 255;
-        image[i * 4 + 2] = 255;
-        image[i * 4 + 3] = bitmap[i];
+        *slice_getp(image, i * 4) = 255;
+        *slice_getp(image, i * 4 + 1) = 255;
+        *slice_getp(image, i * 4 + 2) = 255;
+        *slice_getp(image, i * 4 + 3) = slice_get(bitmap, i);
     }
     
-    auto texture_id = font_id_to_texture_id(font_id);
+    TextureID texture_id = font_id_to_texture_id(font_id);
     load_texture(
         texture_id,
-        Image{
+        (Image) {
             .w = w,
             .h = h,
             .data = image.data,
@@ -225,10 +225,9 @@ int utf8decode_unsafe(const char* s, int32_t* c) {
     return 1;
 }
 
-void draw_text(const Font& font, const char* text, float font_size, float2 position, RGBA color, float max_width) {
-    ZoneScoped;
+void draw_text(Font font, const char* text, float font_size, float2 position, RGBA color, float max_width) {
 
-    if (text == nullptr) {
+    if (text == NULL) {
         return;
     }
 
@@ -237,25 +236,29 @@ void draw_text(const Font& font, const char* text, float font_size, float2 posit
     float x = position.x;
     while (*text && x - position.x <= max_width) {
         int32_t c;
-        auto bytes_skip = utf8decode_unsafe(text, &c);
+        i32 bytes_skip = utf8decode_unsafe(text, &c);
         if (c == '\n') {
             position.y += font_size;
             x = position.x;
         } else {
-            auto texture = font.texture_atlas;
-            stbtt_packedchar char_info = font.char_data[c - char_start];
+            TextureID texture = font.texture_atlas;
+            stbtt_packedchar char_info = slice_get(font.char_data, c - char_start);
 
             float w = char_info.x1 - char_info.x0;
             float h = char_info.y1 - char_info.y0;
-            auto src = Rect{(float)char_info.x0, (float)char_info.y0, w, h};
-            auto dst = Rect{
-                float2{x + char_info.xoff * size_ratio, font_size + position.y + char_info.yoff * size_ratio},
+            Rect src = {(float)char_info.x0, (float)char_info.y0, w, h};
+            Rect dst = {
+                (float2){x + char_info.xoff * size_ratio, font_size + position.y + char_info.yoff * size_ratio},
                 {w * size_ratio, h * size_ratio}
             };
 
             //TODO: fix
             // draw_textured_rect(&renderer, font.texture_atlas, src, dst);
-            draw_sprite_screen(dst, {.texture_id=font.texture_atlas, .src_rect=src});
+            draw_sprite_screen(dst, (SpriteProperties){
+                .texture_id = font.texture_atlas,
+                .src_rect = src,
+                .mult_color = color,
+            });
 
             x += char_info.xadvance * size_ratio;
         }
@@ -264,12 +267,12 @@ void draw_text(const Font& font, const char* text, float font_size, float2 posit
     }
 }
 
-float2 text_dimensions(const Font& font, const char* text, f32 font_size) {
+float2 text_dimensions(Font font, const char* text, f32 font_size) {
     float max_width = 0;
     float width = 0;
 
-    if (text == nullptr) {
-        return {};
+    if (text == NULL) {
+        return (float2) {0};
     }
 
     float size_ratio = font_size / font.baked_font_size;
@@ -278,13 +281,13 @@ float2 text_dimensions(const Font& font, const char* text, f32 font_size) {
 
     while (*text) {
         int32_t c;
-        auto bytes_skip = utf8decode_unsafe(text, &c);
+        i32 bytes_skip = utf8decode_unsafe(text, &c);
         if (c == '\n') {
             max_width = f32_max(max_width, width);
             width = 0;
             lines++;
         } else {
-            stbtt_packedchar char_info = font.char_data[c - char_start];
+            stbtt_packedchar char_info = slice_get(font.char_data, c - char_start);
 
             width += char_info.xadvance;
         }
@@ -293,11 +296,11 @@ float2 text_dimensions(const Font& font, const char* text, f32 font_size) {
     }
     max_width = f32_max(max_width, width);
 
-    return float2{max_width * size_ratio, lines * font_size};
+    return (float2) {max_width * size_ratio, lines * font_size};
 }
 
 float text_height(const char* text, float font_size) {
-    if (text == nullptr) {
+    if (text == NULL) {
         return 0;
     }
 

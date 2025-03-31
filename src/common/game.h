@@ -1,11 +1,12 @@
 #pragma once
 
-enum class PlayerAnimationState {
-    Idle,
-    Moving,
-    Count,
-};
+typedef enum PlayerAnimState {
+    PlayerAnimState_Idle,
+    PlayerAnimState_Moving,
+    PlayerAnimState_Count,
+} PlayerAnimState;
 
+typedef struct PlayerInput PlayerInput;
 struct PlayerInput {
     bool up;
     bool down;
@@ -14,35 +15,37 @@ struct PlayerInput {
     bool fire;
     bool dash;
 
-    Array<bool, 8> select_spell;
+    bool select_spell[8];
     float2 cursor_world_pos;
 
     u16 move_spell_src;
     u16 move_spell_dst;
 };
+slice_def(PlayerInput);
+ring_def(PlayerInput);
 
-constexpr int max_player_count = 8;
+#define MAX_PLAYER_COUNT 8
 
-enum class PlayerState {
-    Neutral,
-    Dashing,
-};
+typedef enum PlayerState {
+    PlayerState_Neutral,
+    PlayerState_Dashing,
+} PlayerState;
 
-enum SpellType {
+typedef enum SpellType {
     SpellType_NULL,
     SpellType_Fireball,
     SpellType_SpreadBolt,
     SpellType_IceWall,
     SpellType_SniperRifle,
-};
+} SpellType;
 
-enum EntityType {
+typedef enum EntityType {
     EntityType_NULL,
     EntityType_Player,
     EntityType_Bullet,
     EntityType_Box,
     EntityType_Dummy,
-};
+} EntityType;
 
 
 typedef u64 EntityFlags;
@@ -62,23 +65,28 @@ enum {
 };
 
 typedef u32 EntityIndex;
+slice_def(EntityIndex);
 
+typedef struct EntityHandle EntityHandle;
 struct EntityHandle {
     EntityIndex index;
     u32 generation;
 };
 
 typedef u64 ClientID;
+slice_def(ClientID);
 
+typedef struct Inputs Inputs;
 struct Inputs {
-    Slice<ClientID> ids;
-    Slice<PlayerInput> inputs;
+    Slice_ClientID ids;
+    Slice_PlayerInput inputs;
 };
 
-constexpr i32 hotbar_length = 8;
-constexpr i32 inventory_rows = 4;
+const i32 hotbar_length = 8;
+const i32 inventory_rows = 4;
 
 // visual copy on client idk wtf to call it
+typedef struct Ghost Ghost;
 struct Ghost {
     TextureID sprite;
     Rect sprite_src;
@@ -89,7 +97,9 @@ struct Ghost {
     bool show_health;
     bool hit_flash;
 };
+slice_def(Ghost);
 
+typedef struct Entity Entity;
 struct Entity {
     //automatically set by create_ent()
     float2 position;
@@ -105,7 +115,7 @@ struct Entity {
 
     b2BodyId body_id;
 
-    Array<SpellType, 10> hotbar;
+    SpellType hotbar[10];
     ClientID client_id;
     PlayerState player_state;
     float2 dash_direction;
@@ -122,18 +132,18 @@ struct Entity {
 
     EntityHandle owner;
 };
+slice_def(Entity);
+slice_p_def(Entity);
 
-constexpr int bullets_capacity = 16;
-constexpr int boxes_capacity = 64;
-
-
+typedef struct Bullet Bullet;
 struct Bullet {
     b2BodyId body_id;
     u32 create_tick;
 };
 
-constexpr int box_health = 50;
+const global int box_health = 50;
 
+typedef struct Box Box;
 struct Box {
     b2BodyId body_id;
     b2ShapeId shape_id;
@@ -141,9 +151,9 @@ struct Box {
     int health;
 };
 
-
+typedef struct GameState GameState;
 struct GameState {
-    Slice<Entity> entities;
+    Slice_Entity entities;
 
     b2WorldId world_id;
     b2BodyId ground_id;
@@ -155,15 +165,12 @@ struct GameState {
 
 
 void state_init(GameState* state, Arena* arena);
-
 void state_update(GameState* state, Arena* temp_arena, Inputs inputs, u32 current_tick, i32 tick_rate);
 
 void create_box(GameState* state, float2 position);
-
 EntityHandle create_player(GameState* state, ClientID client_id);
 
-Entity* entity_list_get(const Slice<Entity>* entity_list, EntityHandle handle);
-
-bool entity_is_valid(const Slice<Entity>* entity_list, EntityHandle handle);
-
-Slice<Ghost> entities_to_snapshot(Arena* tick_arena, const Slice<Entity> ents, u64 current_tick, Slice<Entity*>* players);
+Entity* entity_list_get(Slice_Entity entity_list, EntityHandle handle);
+EntityHandle entity_list_add(Slice_Entity* entity_list, Entity entity);
+bool entity_is_valid(Slice_Entity entity_list, EntityHandle handle);
+Slice_Ghost entities_to_snapshot(Arena* tick_arena, Slice_Entity ents, u64 current_tick, Slice_pEntity* players);

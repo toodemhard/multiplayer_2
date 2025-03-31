@@ -1,65 +1,67 @@
 ﻿#pragma once
 
-enum UI_SizeType {
+typedef enum UI_SizeType {
     UI_SizeType_Fit,
     UI_SizeType_Pixels,
     UI_SizeType_BaseFontRelative,
     UI_SizeType_ParentFraction,
     UI_SizeType_ImageProportional,
     UI_SizeType_Grow,
-};
+} UI_SizeType;
 
-enum RectSide {
+typedef enum RectSide {
     RectSide_Left,
     RectSide_Right,
     RectSide_Top,
     RectSide_Bottom,
     RectSide_Count,
-};
+} RectSide;
 
-enum Axis2 {
+typedef enum Axis2 {
     Axis2_X,
     Axis2_Y,
     Axis2_Count,
-};
+} Axis2;
 
-struct UI_Size {
+typedef struct UI_Size {
     UI_SizeType type;      
     f32 value;
-};
+} UI_Size;
 
-enum UI_PositionType { 
+typedef enum UI_PositionType { 
     UI_PositionType_AutoOffset,
     UI_PositionType_Absolute,
     UI_PositionType_Anchor,
-};
+} UI_PositionType;
 
-struct UI_Position {
+typedef struct UI_Position {
     UI_PositionType type;
     f32 value;
-};
+} UI_Position;
 
-enum UI_Flags {
+typedef enum UI_Flags {
     UI_Flags_Float = 1 << 0,
-};
+} UI_Flags;
 
-enum FontSizeType {
+typedef enum FontSizeType {
     FontSizeType_Default,
     FontSizeType_Pixels,
-};
+} FontSizeType;
 
-struct FontSize {
+typedef struct FontSize {
     FontSizeType type;
     f32 value;
-};
+} FontSize;
 
 typedef u64 UI_Key;
+hashmap_def(UI_Key, u32);
 
+typedef struct UI_Element UI_Element;
 struct UI_Element {
     // user config
     UI_Key* out_key;
-    Slice<u8> exc_key; // replaces source key to be able to id key in multiple places
-    Slice<u8> salt_key; // adds to source key
+    Slice_u8 exc_key; // replaces source key to be able to id key in multiple places
+    Slice_u8 salt_key; // adds to source key
     UI_Flags flags;
     const char* text;
     FontID font;
@@ -95,25 +97,28 @@ struct UI_Element {
     
     bool is_hovered;
 };
+slice_def(UI_Element);
+slice_p_def(UI_Element);
 
 
 // need to have access to last frame state
-struct UI_Frame {
-    Slice<UI_Element> elements;
-};
+typedef struct UI_Frame {
+    Slice_UI_Element elements;
+} UI_Frame;
 
+typedef struct UI UI;
 struct UI {
     UI_Frame frame_buffer[2]; //not that kind of frame buffer
     Arena frame_arenas[2]; // plan is to only have reinitializations instead of init and reset pairs
 
     // values should be index to last frame elements probably
-    Hashmap<u64, u32> cache;
+    Hashmap_UI_Key_u32 cache;
     // Slice<UI_Element> element_cache;
 
     u32 active_frame;
 
-    Slice<UI_Element*> parent_stack;
-    Slice<Font> fonts;
+    Slice_pUI_Element parent_stack;
+    Slice_Font fonts;
     f32 base_size;
 
     UI_Key active_element;
@@ -121,14 +126,11 @@ struct UI {
     Renderer* renderer;
 };
 
-struct ElementProps {
-};
-
-UI_Key ui_key(Slice<u8> key);
+UI_Key ui_key(Slice_u8 key);
 UI_Element* ui_get(UI_Key index);
 bool ui_hover(UI_Key index);
 void ui_set_ctx(UI* _ui);
-void ui_init(UI* ui, Arena* arena, const Slice<Font> fonts, Renderer* renderer);
+void ui_init(UI* ui, Arena* arena, Slice_Font fonts, Renderer* renderer);
 void ui_draw(UI* ui_ctx, Arena* temp_arena);
 UI_Key ui_push_row_internal(UI_Element element, const char* file, i32 line);
 UI_Key ui_pop_row();
@@ -139,31 +141,31 @@ bool ui_button(UI_Key element);
 void ui_end(Arena* temp_arena);
 UI_Element* ui_prev_element();
 
-constexpr UI_Position position_offset_px(f32 value) {
-    return {UI_PositionType_AutoOffset, value};
+inline UI_Position position_offset_px(f32 value) {
+    return (UI_Position){UI_PositionType_AutoOffset, value};
 }
 
-constexpr UI_Size size_px(f32 value) {
-    return UI_Size{UI_SizeType_Pixels, value};
+inline UI_Size size_px(f32 value) {
+    return (UI_Size){UI_SizeType_Pixels, value};
 }
 
-constexpr UI_Size size_grow() {
-    return UI_Size{UI_SizeType_Grow};
+inline UI_Size size_grow() {
+    return (UI_Size){UI_SizeType_Grow};
 }
 
-constexpr UI_Size size_proportional() {
-    return UI_Size{UI_SizeType_ImageProportional};
+inline UI_Size size_proportional() {
+    return (UI_Size){UI_SizeType_ImageProportional};
 }
 
-constexpr FontSize font_px(f32 value) {
-    return FontSize {
+FontSize font_px(f32 value) {
+    return (FontSize) {
         FontSizeType_Pixels,
         value,
     };
 }
 
-constexpr UI_Position anchor(f32 value) {
-    return UI_Position{UI_PositionType_Anchor, value};
+UI_Position anchor(f32 value) {
+    return (UI_Position){UI_PositionType_Anchor, value};
 }
 
 // relative units
@@ -174,7 +176,7 @@ inline UI_Size size_ru(f32 value) {
 }
 
 inline FontSize font_ru(f32 value) {
-    return FontSize{FontSizeType_Pixels, ru(value)};
+    return (FontSize){FontSizeType_Pixels, ru(value)};
 }
 
 #define size2_ru(v0, v1) {size_ru(v0), size_ru(v1)}
@@ -186,17 +188,15 @@ inline FontSize font_ru(f32 value) {
 
 #define sides2_px(v1, v2) {size_px(v1), size_px(v1), size_px(v2), size_px(v2)}
 
-// https://github.com/EpicGamesExt/raddebugger/blob/master/src/base/base_core.h
-#define DeferLoop(begin, end) for(int _i_ = ((begin), 0); !_i_; _i_ += 1, (end))
 
 // i32 i = (printf("fakdhf\n"), 123);
 // comma operator runs multiple expressions and return last although = is higher precedence
 
 #define ui_push_row(...)\
-ui_push_row_internal(__VA_ARGS__, __FILE__, __LINE__)
+ui_push_row_internal((UI_Element)__VA_ARGS__, __FILE__, __LINE__)
 
 #define ui_row(...)\
-DeferLoop(ui_push_row(__VA_ARGS__), ui_pop_row())\
+defer_loop(ui_push_row(__VA_ARGS__), ui_pop_row())\
 
 #define ui_row_ret(...)\
 (ui_push_row(__VA_ARGS__), ui_pop_row())
