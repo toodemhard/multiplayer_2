@@ -1,6 +1,6 @@
 @echo off
 
-pushd b3
+pushd debug
 
 .\build.exe
 
