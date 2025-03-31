@@ -289,9 +289,6 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
 
 
 
-    if (input_key_down(SDL_SCANCODE_2)) {
-        printf("alksdhfj\n");
-    }
 
     // spell_move_source {}
     accumulate_input_events(&s->tick_input, &sys->input);
@@ -519,10 +516,6 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
 
         input_set_ctx(&s->tick_input);
 
-        if (input_key_down(SDL_SCANCODE_2)) {
-            printf("alksdhfj\n");
-        }
-
         s->accumulator = s->accumulator - FIXED_DT;
         s->time += FIXED_DT;
 
@@ -532,11 +525,6 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
 
         if (input_key_down(SDL_SCANCODE_E)) {
             s->accumulator -= FIXED_DT;
-        }
-
-        float2 aa = input_mouse_position();
-        if (input_mouse_down(SDL_BUTTON_LEFT)) {
-            printf("%f, %f\n", aa.x, aa.y);
         }
 
         ClientID id = 0;
@@ -708,16 +696,6 @@ void render_ghosts(Camera2D camera, Slice_Ghost ghosts) {
 
 void scene_render(Scene* s, Arena* frame_arena) {
     System* sys = s->sys;
-    // printf("%d\n", s->latest_snapshot[0].type);
-    draw_sprite_world(
-        s->camera,
-        (Rect){(float2){0,0}, {1,1}},
-        (SpriteProperties){
-            .texture_id = TextureID_ice_wall_png,
-
-        }
-        
-    );
     render_ghosts(s->camera, s->latest_snapshot);
     for (i32 i = 0; i < 4; i++) {
         Chunk* chunk = &chunks[i];

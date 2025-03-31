@@ -414,20 +414,6 @@ DLL_EXPORT Signals update(void* memory) {
         // auto render_begin_time = std::chrono::high_resolution_clock::now();
         begin_rendering(sys->window, &state->temp_arena);
 
-        draw_screen_rect((Rect) {0,0,50,50}, (float4) {1,0,0,1});
-        draw_screen_rect((Rect) {1000,0,24,50}, (float4) {1,0,0,1});
-
-        ArenaTemp scratch = scratch_get(0, 0);
-        Hashmap_u32_u32 hm = hashmap_alloc(u32, u32, scratch.arena, 10);
-        hashmap_set(&hm, 32, 100);
-        u32 ret = hashmap_get(hm, 32);
-
-        scratch_release(scratch);
-
-
-        draw_text(sys->fonts[0], "KYS!!!", 50, (float2){0,0}, rgba_white, 9999);
-
-
         if (state->active_scene == SceneType_Menu) {
             menu_update(&state->menu, &state->temp_arena);
         }
