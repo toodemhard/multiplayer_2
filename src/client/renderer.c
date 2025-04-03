@@ -511,7 +511,7 @@ Rect world_rect_to_normalized(Camera2D camera, Rect world_rect) {
 }
 
 void begin_rendering(SDL_Window* window, Arena* temp_arena) {
-    slice_init(&renderer->draw_list, temp_arena, 100);
+    slice_init(&renderer->draw_list, temp_arena, 512);
     slice_init(&renderer->vertex_data, temp_arena, megabytes(0.5));
     slice_init(&renderer->index_data, temp_arena, megabytes(0.5));
 

@@ -1,5 +1,10 @@
 #pragma once
 
+typedef enum ReplicationType {
+    ReplicationType_Snapshot,
+    ReplicationType_Predicted,
+} ReplicationType;
+
 typedef enum PlayerAnimState {
     PlayerAnimState_Idle,
     PlayerAnimState_Moving,
@@ -50,9 +55,11 @@ typedef enum EntityType {
 
 typedef u64 EntityFlags;
 #define ENTITY_FLAGS(_)\
+_(physics)\
 _(hittable)\
 _(expires)\
 _(attack)\
+_(player)\
 _(damage_owner)\
 
 #define ENTITY_FLAG_INDEX(a) EntityFlagIndex_##a,
@@ -88,6 +95,7 @@ const i32 inventory_rows = 4;
 // visual copy on client idk wtf to call it
 typedef struct Ghost Ghost;
 struct Ghost {
+    ReplicationType replication_type;
     TextureID sprite;
     Rect sprite_src;
     bool flip_sprite;
@@ -99,29 +107,51 @@ struct Ghost {
 };
 slice_def(Ghost);
 
+// store definition to recreate
+typedef struct ColliderDef {
+    f32 half_width;
+    f32 half_height;
+} ColliderDef;
+
+typedef struct PhysicsComponent {
+    ColliderDef collider;
+    b2BodyType body_type;
+    float2 position;
+    float2 linear_velocity;
+    f32 linear_damping;
+    bool is_sensor;
+
+} PhysicsComponent;
+
+// some fields are for configure initialization
+// some are runtime data
+// some are references to out of struct data
 typedef struct Entity Entity;
 struct Entity {
     //automatically set by create_ent()
-    float2 position;
-    bool is_active;
+    bool active;
     u32 generation;
+    u32 index;
+
+    EntityType type;
+    EntityFlags flags;
+    ReplicationType replication_type;
 
     TextureID sprite;
     Rect sprite_src;
     bool flip_sprite;
 
-    EntityType type;
-    EntityFlags flags;
-
+    PhysicsComponent physics;
+    // dont set
     b2BodyId body_id;
 
-    SpellType hotbar[10];
+    //player
     ClientID client_id;
+    SpellType hotbar[10];
     PlayerState player_state;
     float2 dash_direction;
     u32 dash_end_tick;
     u16 selected_spell;
-
 
     // hittable
     i32 health;
@@ -151,6 +181,19 @@ struct Box {
     int health;
 };
 
+#define MAX_ENTITIES 256
+#define MAX_PREDICTED 128
+
+// typedef struct EntityList {
+//     Entity entities[MAX_ENTITIES];
+// } EntityList;
+//
+// ring_def(Slice_Entity);
+// typedef struct GameHistory {
+//
+//     Ring_Slice_Entity history;
+// } GameHistory;
+
 typedef struct GameState GameState;
 struct GameState {
     Slice_Entity entities;
@@ -171,6 +214,6 @@ void create_box(GameState* state, float2 position);
 EntityHandle create_player(GameState* state, ClientID client_id);
 
 Entity* entity_list_get(Slice_Entity entity_list, EntityHandle handle);
-EntityHandle entity_list_add(Slice_Entity* entity_list, Entity entity);
+EntityHandle create_entity(GameState* s, Entity entity);
 bool entity_is_valid(Slice_Entity entity_list, EntityHandle handle);
-Slice_Ghost entities_to_snapshot(Arena* tick_arena, Slice_Entity ents, u64 current_tick, Slice_pEntity* players);
+// void entities_to_snapshot(Slice_Ghost* ghosts, Slice_Entity ents, u64 current_tick, Slice_pEntity* players);

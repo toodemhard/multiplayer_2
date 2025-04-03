@@ -49,8 +49,8 @@ struct TestMessage {
     Slice_u8 str;
 };
 
-typedef struct Snapshot Snapshot;
-struct Snapshot {
+typedef struct SnapshotMessage SnapshotMessage;
+struct SnapshotMessage {
     u8 input_buffer_size;
     Slice_Ghost ghosts;
     Entity player;
@@ -68,6 +68,7 @@ void serialize_bytes(Stream* stream, u8* bytes, u64 size);
 // void serialize_string(Stream* stream, Arena* read_arena, String8* string);
 void serialize_test_message(Stream* stream, Arena* read_arena, TestMessage* message);
 
+void serialize_entity(Stream* stream, Entity* ent);
 void serialize_input_message(Stream* stream, PlayerInput* input);
 void serialize_snapshot(Stream* stream, u8* input_buffer_size, Slice_Ghost* ghosts, Entity* player);
 

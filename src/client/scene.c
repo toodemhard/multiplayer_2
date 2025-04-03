@@ -164,9 +164,58 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
 
     ui_init(&s->ui, level_arena, sys->fonts_view, &sys->renderer);
 
-    state_init(&s->state, level_arena);
+    state_init(&s->predicted_state, level_arena);
+    state_init(&s->offline_state, level_arena);
 
-    s->player_handle = create_player(&s->state, 0);
+    s->latency_buff = ring_alloc(Snapshot, level_arena, 64);
+
+    ArenaTemp scratch = scratch_get(0,0);
+
+    if (!online) {
+        create_box(&s->offline_state, (float2){1, 1});
+
+        {
+            Entity ent = {0};
+            entity_add_physics_component(&ent, (PhysicsComponent) {
+                .collider = (ColliderDef) {0.5, 2},
+                .position = (float2) {2, 0},
+            });
+            create_entity(&s->offline_state, ent);
+        }
+
+        s->player_handle = create_player(&s->offline_state, 0);
+
+        Slice_Ghost replicate = slice_create(Ghost, scratch.arena, 128);
+
+        entities_to_snapshot(&replicate, s->offline_state.entities, s->current_tick, NULL);
+
+        Slice_u8 fake_network_buff = slice_create(u8, scratch.arena, sizeof(Entity) * 512);
+        Stream write_stream = {
+            .slice = fake_network_buff,
+            .operation = Stream_Write,
+        };
+
+        serialize_entity_list(&write_stream, &s->offline_state.entities);
+
+        Stream read_stream = {
+            .slice = fake_network_buff,
+            .operation = Stream_Read,
+        };
+
+        Slice_Entity init_snapshot = slice_create(Entity, scratch.arena, 512);
+        serialize_entity_list(&read_stream, &init_snapshot);
+
+        for (u32 i = 0; i < init_snapshot.length; i++) {
+            create_entity(&s->predicted_state, slice_get(init_snapshot, i));
+        }
+
+        
+        // create_player(&s->offline_state, 0);
+    }
+
+    scratch_release(scratch);
+
+
 
     b2DebugDraw* m_debug_draw = &s->m_debug_draw;
     *m_debug_draw = b2DefaultDebugDraw();
@@ -201,9 +250,15 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
         }
 
         // enet_peer_ping_interval(s->server, 10);
+
+        // if online snapshot needs to be reusable persistent memory because
+        // packets can be received across frames
+        // otherwise recreate every tick
+        slice_init(&s->latest_snapshot, level_arena, 1000);
     }
 
-    slice_init(&s->latest_snapshot, level_arena, 1000);
+    // 
+
 
     // }
 }
@@ -254,10 +309,11 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
                     // printf("asdl %f\n", delta_time);
                     // serialize_slice(&stream, &s->latest_snapshot);
                     u8 input_buffer_size;
+                    slice_clear(&s->latest_snapshot);
                     serialize_snapshot(&stream, &input_buffer_size, &s->latest_snapshot, &s->player);
                     s->last_input_buffer_size = input_buffer_size;
 
-                    s->camera.position = s->player.position;
+                    s->camera.position = s->player.physics.position;
                     f64 acc_diff = (target_input_buffer_size - input_buffer_size) / (f64)TICK_RATE * 0.05;
                     // printf("%f\n", acc_diff);
                     s->accumulator += acc_diff;
@@ -396,6 +452,10 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
 
     if (input_key_down(SDL_SCANCODE_ESCAPE)) {
         s->paused = !s->paused;
+    }
+
+    if (input_key_down(SDL_SCANCODE_J)) {
+        s->debug_draw = !s->debug_draw;
     }
 
 
@@ -583,13 +643,33 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
         // if (entity_is_valid(&s->state.entities, s->player_handle)) {
         //     player_pos = float2{.b2vec=b2Body_GetPosition(entity_list_get(&s->state.entities, s->player_handle)->body_id)};
         // }
-        state_update(&s->state, &s->tick_arena, inputs, s->current_tick, TICK_RATE);
+        state_update(&s->offline_state, &s->tick_arena, inputs, s->current_tick, TICK_RATE);
+        state_update(&s->predicted_state, &s->tick_arena, inputs, s->current_tick, TICK_RATE);
+
+        // history 
 
         if (!s->online_mode) {
             Slice_pEntity players = slice_p_create(Entity, &s->tick_arena, 1);
-            s->latest_snapshot = entities_to_snapshot(&s->tick_arena, s->state.entities, s->current_tick, &players);
-            s->player = *slice_get(players, 0);
-            s->camera.position = s->player.position;
+            s->latest_snapshot = slice_create(Ghost, &s->tick_arena, 512);
+
+            entities_to_snapshot(&s->latest_snapshot, s->offline_state.entities, s->current_tick, &players);
+            // ring_push_back(&s->latency_buff, (Snapshot){});
+            //
+            // Slice_Ghost packet = (Slice_Ghost){
+            //     .data = s->latency_buff.data[s->latency_buff.start].ghosts,
+            //     .capacity = MAX_ENTITIES,
+            // };
+            // entities_to_snapshot(&packet, s->offline_state.entities, s->current_tick, &players);
+            //
+            // if (s->latency_buff.length >= 60) {
+            //     s->snapshot = ring_pop_front(&s->latency_buff);
+            // }
+
+
+            if (players.length > 0) {
+                s->player = *slice_get(players, 0);
+                s->camera.position = s->player.physics.position;
+            }
         }
 
         input_end_frame(&s->tick_input);
@@ -625,7 +705,6 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
     }
 
     s->frame++;
-
     scene_render(s, frame_arena);
 }
 
@@ -633,9 +712,12 @@ bool float2_cmp(float2 a, float2 b) {
     return a.x == b.x && a.y == b.y;
 }
 
-void render_ghosts(Camera2D camera, Slice_Ghost ghosts) {
+void render_ghosts(Camera2D camera, Slice_Ghost ghosts, bool filter_predicted) {
     for (i32 i = 0; i < ghosts.length; i++) {
         const Ghost* ghost = slice_getp(ghosts, i);
+        if (filter_predicted && ghost->replication_type != ReplicationType_Snapshot) {
+            continue;
+        }
 
         Rect world_rect = {
             .position = ghost->position,
@@ -674,12 +756,14 @@ void render_ghosts(Camera2D camera, Slice_Ghost ghosts) {
             world_rect.size.x *= -1;
         }
 
-        draw_sprite_world(camera, world_rect, (SpriteProperties){
-            .texture_id = ghost->sprite,
-            .src_rect = ghost->sprite_src,
-            .mix_color = flash_color,
-            .t = t,
-        });
+        if (ghost->sprite != TextureID_NULL) {
+            draw_sprite_world(camera, world_rect, (SpriteProperties){
+                .texture_id = ghost->sprite,
+                .src_rect = ghost->sprite_src,
+                .mix_color = flash_color,
+                .t = t,
+            });
+        }
 
         if (ghost->show_health) {
             float2 pos = float2_sub(world_rect.position, (float2){0, -1});
@@ -696,7 +780,23 @@ void render_ghosts(Camera2D camera, Slice_Ghost ghosts) {
 
 void scene_render(Scene* s, Arena* frame_arena) {
     System* sys = s->sys;
-    render_ghosts(s->camera, s->latest_snapshot);
+
+    if (!s->online_mode) {
+        ArenaTemp scratch = scratch_get(0,0);
+        Slice_Ghost predict_ghosts = slice_create(Ghost, scratch.arena, 128);
+        entities_to_snapshot(&predict_ghosts, s->predicted_state.entities, s->current_tick, NULL);
+
+        render_ghosts(s->camera, predict_ghosts, false);
+        scratch_release(scratch);
+    }
+
+
+    // Slice_Ghost view = slice_create_view(Ghost, s->snapshot.ghosts, MAX_ENTITIES);
+    // render_ghosts(s->camera, view, true);
+
+    render_ghosts(s->camera, s->latest_snapshot, true);
+
+    
     for (i32 i = 0; i < 4; i++) {
         Chunk* chunk = &chunks[i];
         for (i32 tile_index = 0; tile_index < chunk_size; tile_index++) {
@@ -716,8 +816,9 @@ void scene_render(Scene* s, Arena* frame_arena) {
         }
     }
 
-    if (!s->online_mode) {
-        // b2World_Draw(s->state.world_id, &s->m_debug_draw);
+    if (s->debug_draw) {
+        b2World_Draw(s->offline_state.world_id, &s->m_debug_draw);
+        b2World_Draw(s->predicted_state.world_id, &s->m_debug_draw);
     }
     // render_state(renderer, window, &s->state, s->current_tick, fixed_dt, s->camera);
     // render_ghosts(s->camera, s->latest_snapshot);

@@ -17,9 +17,68 @@ void stream_pos_reset(Stream* stream) {
 }
 
 void serialize_player(Stream* s, Entity* player) {
-    serialize_var(s, &player->position);
+    serialize_var(s, &player->physics.position);
     serialize_var(s, &player->hotbar);
     serialize_var(s, &player->selected_spell);
+}
+
+void serialize_entity_list(Stream* stream, Slice_Entity* entities) {
+    u32* count_ref = (u32*)slice_getp(stream->slice, stream->current);
+
+    u32 count = 0;
+    serialize_var(stream, &count);
+
+    if (stream->operation == Stream_Write) {
+        for (u32 i = 0; i < entities->length; i++) {
+            Entity* ent = slice_getp(*entities, i);
+
+            if (ent->active && ent->replication_type == ReplicationType_Predicted) {
+                serialize_entity(stream, ent);
+                count += 1;
+            }
+        }
+
+        *count_ref = count;
+    }
+
+    if (stream->operation == Stream_Read) {
+        for (u32 i = 0; i < count; i++) {
+            slice_push(entities, (Entity){});
+            Entity* ent = slice_back(*entities);
+            serialize_entity(stream, ent);
+        }
+    }
+}
+
+void serialize_entity(Stream* stream, Entity* ent) {
+
+    serialize_var(stream, &ent->type);
+    serialize_var(stream, &ent->flags);
+
+    serialize_var(stream, &ent->sprite);
+    serialize_var(stream, &ent->sprite_src);
+    serialize_var(stream, &ent->flip_sprite);
+
+    if (ent->flags & EntityFlags_player) {
+        serialize_bytes(stream, (u8*)ent->hotbar, sizeof(ent->hotbar));
+        serialize_var(stream, &ent->player_state);
+        serialize_var(stream, &ent->dash_direction);
+        serialize_var(stream, &ent->dash_end_tick);
+        serialize_var(stream, &ent->selected_spell);
+    }
+
+    if (ent->flags & EntityFlags_physics) {
+        serialize_var(stream, &ent->physics);
+    }
+
+    if (ent->flags & EntityFlags_hittable) {
+        serialize_var(stream, &ent->health);
+        serialize_var(stream, &ent->hit_flash_end_tick);
+    }
+
+    if (ent->flags & EntityFlags_expires) {
+        serialize_var(stream, &ent->expire_tick);
+    }
 }
 
 void serialize_snapshot(Stream* stream, u8* input_buffer_size, Slice_Ghost* ghosts, Entity* player) {

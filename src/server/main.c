@@ -208,7 +208,8 @@ int main() {
 
             Slice_Entity* ents = &s->state.entities;
             Slice_pEntity players = slice_p_create(Entity, &tick_arena, 32);
-            Slice_Ghost ghosts = entities_to_snapshot(&tick_arena, s->state.entities, s->current_tick, &players);
+            Slice_Ghost ghosts = slice_create(Ghost, &tick_arena, 1000);
+            entities_to_snapshot(&ghosts, s->state.entities, s->current_tick, &players);
 
             Stream stream = {
                 .slice = slice_create(u8, &tick_arena, kilobytes(100)),

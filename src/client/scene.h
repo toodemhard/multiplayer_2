@@ -23,6 +23,12 @@ typedef struct Chunk {
     Tile tiles[chunk_size];
 } Chunk;
 
+typedef struct Snapshot {
+    Ghost ghosts[MAX_ENTITIES];
+} Snapshot;
+
+ring_def(Snapshot);
+
 typedef struct Scene Scene;
 struct Scene {
     System* sys;
@@ -32,9 +38,14 @@ struct Scene {
 
     Camera2D camera;
 
-    GameState state;
+    GameState offline_state; // fake server for local play
+    GameState predicted_state;
+
+    Ring_Snapshot latency_buff;
 
     u8 last_input_buffer_size;
+
+    Snapshot snapshot;
     Slice_Ghost latest_snapshot;
 
     u32 last_total_sent_data;
@@ -45,6 +56,7 @@ struct Scene {
     double acc_2;
 
     bool online_mode;
+    bool debug_draw;
 
     bool edit_mode;
 

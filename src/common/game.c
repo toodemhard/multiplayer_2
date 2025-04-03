@@ -30,7 +30,7 @@ EntityIndex entity_ptr_to_index(Slice_Entity ent_list, Entity* ent_ptr) {
 }
 
 bool entity_is_valid(Slice_Entity entity_list, EntityHandle handle) {
-    if (!entity_list.data[handle.index].is_active) {
+    if (!entity_list.data[handle.index].active) {
         return false;
     }
 
@@ -52,16 +52,29 @@ Entity* entity_list_get(Slice_Entity entity_list, EntityHandle handle) {
     return ret;
 }
 
-EntityHandle entity_list_add(Slice_Entity* entity_list, Entity entity) {
-    entity.is_active = true;
+// create_entity(Slice_Entity* entity_list, Entity) {
+//
+// }
 
+void entity_add_physics_component(Entity* ent, PhysicsComponent physics) {
+    ent->flags |= EntityFlags_physics;
+    ent->physics = physics;
+}
+
+EntityHandle create_entity(GameState* s, Entity entity) {
+    entity.active = true;
+
+    Slice_Entity* entity_list = &s->entities;
+
+    Entity* ent = NULL;
     EntityIndex index;
     bool found_hole = false;
     for (u32 i = 0; i < entity_list->length; i++) {
         Entity* existing_ent = slice_getp(*entity_list, i);
-        if (existing_ent->is_active == false) {
+        if (existing_ent->active == false) {
             entity.generation = existing_ent->generation + 1;
             *existing_ent = entity;
+            ent = existing_ent;
             found_hole = true;
             index = i;
             break;
@@ -72,6 +85,26 @@ EntityHandle entity_list_add(Slice_Entity* entity_list, Entity entity) {
         index = entity_list->length;
         entity.generation = 0;
         slice_push(entity_list, entity);
+        ent = slice_back(*entity_list);
+    }
+
+    // initialize out of struct components like physics
+    if (ent->flags & EntityFlags_physics) {
+        PhysicsComponent* phys = &ent->physics;
+        b2BodyDef body_def = b2DefaultBodyDef();
+        body_def.type = phys->body_type;
+        body_def.position = phys->position.b2vec;
+        body_def.linearVelocity = phys->linear_velocity.b2vec;
+        body_def.fixedRotation = true;
+        body_def.linearDamping = phys->linear_damping;
+        ent->body_id = b2CreateBody(s->world_id, &body_def);
+        ColliderDef collider = phys->collider;
+        b2Polygon polygon = b2MakeBox(collider.half_width, collider.half_height);
+        b2ShapeDef shape_def = b2DefaultShapeDef();
+        shape_def.isSensor = phys->is_sensor;
+        shape_def.friction = 0;
+        shape_def.userData = ent;
+        b2ShapeId shape_id = b2CreatePolygonShape(ent->body_id, &shape_def, &polygon);
     }
 
     return (EntityHandle) {
@@ -80,39 +113,39 @@ EntityHandle entity_list_add(Slice_Entity* entity_list, Entity entity) {
     };
 }
 
+// // initialize out of struct components like physics
+// void entity_init(GameState* s, Entity* ent) {
+//     if (ent->flags & EntityFlags_physics) {
+//         b2BodyDef body_def = b2DefaultBodyDef();
+//         body_def.type = ent->body_type;
+//         body_def.position = ent->position.b2vec;
+//         body_def.linearVelocity = ent->linear_velocity.b2vec;
+//         body_def.fixedRotation = true;
+//         b2CreateBody(s->world_id, &body_def);
+//         ColliderDef collider = ent->collider;
+//         b2Polygon polygon = b2MakeBox(collider.half_width, collider.half_height);
+//     }
+// }
 
 void create_box(GameState* state, float2 position) {
-    b2BodyDef body_def = b2DefaultBodyDef();
-    body_def.type = b2_dynamicBody;
-    body_def.position = position.b2vec;
-    body_def.linearDamping = 4;
-    body_def.fixedRotation = true;
-    b2BodyId body_id = b2CreateBody(state->world_id, &body_def);
-
-    Entity box = {
+    Entity ent = {
         .sprite = TextureID_box_png,
         .type = EntityType_Box,
-        .flags = EntityFlags_hittable,
-        .body_id = body_id,
+        .flags = EntityFlags_physics | EntityFlags_hittable,
         .health = box_health,
     };
 
-    EntityHandle ent_handle = entity_list_add(&state->entities, box);
+    entity_add_physics_component(&ent, (PhysicsComponent) {
+        .collider = (ColliderDef) {0.5, 0.5},
+        .body_type = b2_dynamicBody,
+        .position = position,
+        .linear_damping = 4,
+    });
 
-    b2Polygon polygon = b2MakeBox(0.5, 0.5);
-    b2ShapeDef shape_def = b2DefaultShapeDef();
-    shape_def.userData = slice_getp(state->entities, ent_handle.index);
-    b2CreatePolygonShape(body_id, &shape_def, &polygon);
+    EntityHandle ent_handle = create_entity(state, ent);
 }
 
 void create_wall(GameState* state, float2 position, Dir8 direction) {
-    b2BodyDef body_def = b2DefaultBodyDef();
-    // body_def.type = b2_staticBody;
-    body_def.position = position.b2vec;
-    // body_def.fixedRotation = true;
-
-    b2BodyId body_id = b2CreateBody(state->world_id, &body_def);
-
     Rect src = {0,0,64,64};
     bool flip_sprite = false;
     if (direction == Dir8_Up || direction == Dir8_Down) {
@@ -129,55 +162,42 @@ void create_wall(GameState* state, float2 position, Dir8 direction) {
         .sprite = TextureID_ice_wall_png,
         .sprite_src = src,
         .flip_sprite = flip_sprite,
-        .flags = EntityFlags_hittable,
-        .body_id = body_id,
+        .flags = EntityFlags_physics | EntityFlags_hittable,
         .health = 50,
     };
 
-    EntityHandle handle = entity_list_add(&state->entities, wall);
+    entity_add_physics_component(&wall, (PhysicsComponent) {
+        .position = position,
+        .collider = (ColliderDef) {1, 1},
+    });
 
-    b2ShapeDef shape_def = b2DefaultShapeDef();
-    // shape_def.isSensor = true;
-    // shape_def.friction = 0;
-    // shape_def.userData = &(state->entities[handle.index]);
-    b2Polygon polygon = b2MakeBox(0.25, 0.25);
-
-    b2ShapeId shape_id = b2CreatePolygonShape(body_id, &shape_def, &polygon);
+    EntityHandle handle = create_entity(state, wall);
 }
 
 void create_bullet(GameState* state, EntityHandle owner, float2 position, float2 direction, u32 current_tick, i32 tick_rate) {
-    b2BodyDef body_def = b2DefaultBodyDef();
-    body_def.type = b2_dynamicBody;
-    body_def.position = position.b2vec;
-    body_def.linearVelocity = float2_scale(direction, bullet_speed).b2vec;
-    body_def.fixedRotation = true;
-
-    b2BodyId body_id = b2CreateBody(state->world_id, &body_def);
-
     Entity bullet = {
         .sprite = TextureID_bullet_png,
         .type = EntityType_Bullet,
-        .flags = EntityFlags_attack | EntityFlags_expires,
-        .body_id = body_id,
+        .flags = EntityFlags_physics | EntityFlags_attack | EntityFlags_expires,
         .expire_tick = current_tick + (u32)(bullet_expire_duration * tick_rate),
         .owner = owner,
     };
 
-    EntityHandle handle = entity_list_add(&state->entities, bullet);
+    entity_add_physics_component(&bullet, (PhysicsComponent) {
+        .collider = (ColliderDef) {0.25, 0.25},
+        .position = position,
+        .linear_velocity = float2_scale(direction, bullet_speed),
+        .body_type = b2_dynamicBody,
+        .is_sensor = true,
+    });
 
-    b2ShapeDef shape_def = b2DefaultShapeDef();
-    shape_def.isSensor = true;
-    shape_def.friction = 0;
-    shape_def.userData = slice_getp(state->entities, handle.index);
-    b2Polygon polygon = b2MakeBox(0.25, 0.25);
-
-    b2ShapeId shape_id = b2CreatePolygonShape(body_id, &shape_def, &polygon);
+    create_entity(state, bullet);
 }
 
 void entity_list_remove(Slice_Entity* entity_list, EntityIndex index) {
     Entity* ent = slice_getp(*entity_list, index);
-    if (ent->is_active) {
-        ent->is_active = false;
+    if (ent->active) {
+        ent->active = false;
 
         if (b2Body_IsValid(ent->body_id)) {
             b2DestroyBody(ent->body_id);
@@ -200,11 +220,11 @@ void state_init(GameState* state, Arena* arena) {
     // b2ShapeDef groundShapeDef = b2DefaultShapeDef();
     // b2CreatePolygonShape(groundId, &groundShapeDef, &groundBox);
 
-    b2World_Step(state->world_id, 0.1, 4);
+    // b2World_Step(state->world_id, 0.1, 4);
 
-    {
-        create_box(state, (float2){1, 1});
-    }
+    // {
+    //     create_box(state, (float2){1, 1});
+    // }
 }
 
 const float player_speed = 6;
@@ -271,7 +291,7 @@ void state_update(GameState* state, Arena* temp_arena, Inputs inputs, u32 curren
     for (u32 i = 0; i < state->entities.length; i++) {
         Entity* ent = &state->entities.data[i];
 
-        if (!ent->is_active) {
+        if (!ent->active) {
             continue;
         }
 
@@ -413,42 +433,48 @@ void state_update(GameState* state, Arena* temp_arena, Inputs inputs, u32 curren
 }
 
 EntityHandle create_player(GameState* state, ClientID client_id) {
-    b2BodyDef body_def = b2DefaultBodyDef();
-    body_def.type = b2_dynamicBody;
-    body_def.position = (b2Vec2){0.0, 1.0};
-    body_def.fixedRotation = true;
-    b2BodyId body_id = b2CreateBody(state->world_id, &body_def);
+    // b2BodyDef body_def = b2DefaultBodyDef();
+    // body_def.fixedRotation = true;
+    // b2BodyId body_id = b2CreateBody(state->world_id, &body_def);
     
     Entity player = {
         .sprite = TextureID_player_png,
         .type = EntityType_Player,
-        .flags = EntityFlags_hittable,
-        .body_id = body_id,
+        .flags = EntityFlags_player | EntityFlags_physics | EntityFlags_hittable,
+        .replication_type = ReplicationType_Predicted,
         .hotbar = {SpellType_Fireball, SpellType_SpreadBolt, SpellType_IceWall, SpellType_SniperRifle},
         .client_id = client_id,
         // .hotbar = {SpellType_Bolt, SpellType_SpreadBolt},
         .health = 100,
     };
 
-    EntityHandle handle = entity_list_add(&state->entities, player);
+    entity_add_physics_component(&player, (PhysicsComponent) {
+        .collider = (ColliderDef){0.5, 0.5},
+        .body_type = b2_dynamicBody,
+        .position = (float2){0.0, 1.0},
+    });
 
-    b2Polygon polygon = b2MakeBox(0.5, 0.5);
-    b2ShapeDef shape_def = b2DefaultShapeDef();
-    shape_def.friction = 0;
-    shape_def.userData = slice_getp(state->entities, handle.index);
+    EntityHandle handle = create_entity(state, player);
 
-    b2CreatePolygonShape(body_id, &shape_def, &polygon);
+    // b2Polygon polygon = b2MakeBox(0.5, 0.5);
+    // b2ShapeDef shape_def = b2DefaultShapeDef();
+    // shape_def.friction = 0;
+    // shape_def.userData = slice_getp(state->entities, handle.index);
+    //
+    // b2CreatePolygonShape(body_id, &shape_def, &polygon);
 
     return handle;
 }
 
-Slice_Ghost entities_to_snapshot(Arena* tick_arena, const Slice_Entity ents, u64 current_tick, Slice_pEntity* players) {
-    Slice_Ghost ghosts = slice_create(Ghost, tick_arena, ents.length);
+// out params
+void entities_to_snapshot(Slice_Ghost* ghosts, Slice_Entity ents, u64 current_tick, Slice_pEntity* players) {
+    // Slice_Ghost ghosts = slice_create(Ghost, tick_arena, ents.length);
 
     for (i32 i = 0; i < ents.length; i++) {
         Entity* ent = slice_getp(ents, i);
-        if (ent->is_active) {
-            slice_push(&ghosts, (Ghost){
+        if (ent->active) {
+            slice_push(ghosts, (Ghost){
+                .replication_type = ent->replication_type,
                 .sprite = ent->sprite,
                 .sprite_src = ent->sprite_src,
                 .flip_sprite = ent->flip_sprite,
@@ -458,12 +484,10 @@ Slice_Ghost entities_to_snapshot(Arena* tick_arena, const Slice_Entity ents, u64
                 .hit_flash = ent->hit_flash_end_tick > current_tick,
             });
 
-            if (ent->type == EntityType_Player) {
-                ent->position.b2vec = b2Body_GetPosition(ent->body_id);
+            if (players != NULL && ent->type == EntityType_Player) {
+                ent->physics.position.b2vec = b2Body_GetPosition(ent->body_id);
                 slice_push(players, ent);
             }
         }
     }
-
-    return ghosts;
 }
