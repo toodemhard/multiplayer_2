@@ -6,8 +6,8 @@
     float2_scale((float2){1 * 4.0f/3.0f, 1}, 12.0f),\
 })
 
-#define chunk_width 8
-#define chunk_size chunk_width * chunk_width
+#define ChunkWidth 8
+#define ChunkSize ChunkWidth * ChunkWidth
 
 typedef struct Tile {
     bool is_set;
@@ -20,11 +20,12 @@ typedef struct Tile {
 
 typedef struct Chunk {
     float2 position;
-    Tile tiles[chunk_size];
+    Tile tiles[ChunkSize];
 } Chunk;
 
 typedef struct Snapshot {
-    Ghost ghosts[MAX_ENTITIES];
+    Ghost ghosts[MaxPredicted];
+    u32 tick;
 } Snapshot;
 
 ring_def(Snapshot);
@@ -38,15 +39,19 @@ struct Scene {
 
     Camera2D camera;
 
+    Server local_server;
     GameState offline_state; // fake server for local play
     GameState predicted_state;
 
+
+    // Ring_PredictionTick prediction_history;
+
     Ring_Snapshot latency_buff;
 
-    u8 last_input_buffer_size;
+    // u8 last_input_buffer_size;
 
-    Snapshot snapshot;
-    Slice_Ghost latest_snapshot;
+    // Snapshot snapshot;
+    SnapshotMessage latest_snapshot;
 
     u32 last_total_sent_data;
     u32 last_total_received_data;

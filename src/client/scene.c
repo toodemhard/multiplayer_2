@@ -1,32 +1,32 @@
 #define GRID_STEP 1.0
 
-Chunk chunks[4] = {
-    {
-        .position = {-chunk_width, chunk_width},
-    },
-    {
-        .position = {0, chunk_width},
-        .tiles = {{
-            // .is_set = true,
-            .texture = TextureID_tilemap_png,
-            .x = 32,
-            .w = 16,
-            .h = 16,
-        }}
-    },
-    {
-        .position = {-chunk_width, 0}
-    },
-    {
-        .position = {0, 0},
-        .tiles = {{
-            .is_set = true,
-            .texture = TextureID_tilemap_png,
-            .w = 16,
-            .h = 16,
-        }}
-    },
-};
+// Chunk chunks[4] = {
+//     {
+//         .position = {-chunk_width, chunk_width},
+//     },
+//     {
+//         .position = {0, chunk_width},
+//         .tiles = {{
+//             // .is_set = true,
+//             .texture = TextureID_tilemap_png,
+//             .x = 32,
+//             .w = 16,
+//             .h = 16,
+//         }}
+//     },
+//     {
+//         .position = {-chunk_width, 0}
+//     },
+//     {
+//         .position = {0, 0},
+//         .tiles = {{
+//             .is_set = true,
+//             .texture = TextureID_tilemap_png,
+//             .w = 16,
+//             .h = 16,
+//         }}
+//     },
+// };
 
 void end_input_events(Input* tick_inputs) {
     zero_struct(&tick_inputs->keyboard_up);
@@ -167,51 +167,62 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
     state_init(&s->predicted_state, level_arena);
     state_init(&s->offline_state, level_arena);
 
+
+    if (!online) {
+        ENetAddress host_address = {
+            .host = ENET_HOST_ANY,
+            .port = 1234,
+        };
+
+        server_init(&s->local_server, level_arena);
+        server_connect(&s->local_server, host_address);
+    }
+
     s->latency_buff = ring_alloc(Snapshot, level_arena, 64);
 
     ArenaTemp scratch = scratch_get(0,0);
 
-    if (!online) {
-        create_box(&s->offline_state, (float2){1, 1});
-
-        {
-            Entity ent = {0};
-            entity_add_physics_component(&ent, (PhysicsComponent) {
-                .collider = (ColliderDef) {0.5, 2},
-                .position = (float2) {2, 0},
-            });
-            create_entity(&s->offline_state, ent);
-        }
-
-        s->player_handle = create_player(&s->offline_state, 0);
-
-        Slice_Ghost replicate = slice_create(Ghost, scratch.arena, 128);
-
-        entities_to_snapshot(&replicate, s->offline_state.entities, s->current_tick, NULL);
-
-        Slice_u8 fake_network_buff = slice_create(u8, scratch.arena, sizeof(Entity) * 512);
-        Stream write_stream = {
-            .slice = fake_network_buff,
-            .operation = Stream_Write,
-        };
-
-        serialize_entity_list(&write_stream, &s->offline_state.entities);
-
-        Stream read_stream = {
-            .slice = fake_network_buff,
-            .operation = Stream_Read,
-        };
-
-        Slice_Entity init_snapshot = slice_create(Entity, scratch.arena, 512);
-        serialize_entity_list(&read_stream, &init_snapshot);
-
-        for (u32 i = 0; i < init_snapshot.length; i++) {
-            create_entity(&s->predicted_state, slice_get(init_snapshot, i));
-        }
-
-        
-        // create_player(&s->offline_state, 0);
-    }
+    // if (!online) {
+    //     create_box(&s->offline_state, (float2){1, 1});
+    //
+    //     {
+    //         Entity ent = {0};
+    //         entity_add_physics_component(&ent, (PhysicsComponent) {
+    //             .collider = (ColliderDef) {0.5, 2},
+    //             .position = (float2) {2, 0},
+    //         });
+    //         create_entity(&s->offline_state, ent);
+    //     }
+    //
+    //     s->player_handle = create_player(&s->offline_state, 0);
+    //
+    //     Slice_Ghost replicate = slice_create(Ghost, scratch.arena, 128);
+    //
+    //     entities_to_snapshot(&replicate, s->offline_state.entities, s->current_tick, NULL);
+    //
+    //     Slice_u8 fake_network_buff = slice_create(u8, scratch.arena, sizeof(Entity) * 512);
+    //     Stream write_stream = {
+    //         .slice = fake_network_buff,
+    //         .operation = Stream_Write,
+    //     };
+    //
+    //     serialize_entity_list(&write_stream, &s->offline_state.entities);
+    //
+    //     Stream read_stream = {
+    //         .slice = fake_network_buff,
+    //         .operation = Stream_Read,
+    //     };
+    //
+    //     Slice_Entity init_snapshot = slice_create(Entity, scratch.arena, 512);
+    //     serialize_entity_list(&read_stream, &init_snapshot);
+    //
+    //     for (u32 i = 0; i < init_snapshot.length; i++) {
+    //         create_entity(&s->predicted_state, slice_get(init_snapshot, i));
+    //     }
+    //
+    //     
+    //     // create_player(&s->offline_state, 0);
+    // }
 
     scratch_release(scratch);
 
@@ -235,32 +246,33 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
     // ArenaTemp scratch = scratch_get(0,0); 
     // defer_loop(0, scratch_release(scratch)) {
 
-    if (online) {
-        s->client = enet_host_create(NULL, 1, 2, 0, 0);
-        if (s->client == NULL) {
-            fprintf (stderr, "An error occurred while trying to create an ENet client host.\n");
-        }
-
-        ENetAddress address;
-        enet_address_set_host(&address, (char*)ip_address.data);
-        address.port = 1234;
-        s->server = enet_host_connect(s->client, &address, 2, 0);
-        if (!s->server) {
-            fprintf(stderr, "no peer");
-        }
-
-        // enet_peer_ping_interval(s->server, 10);
-
-        // if online snapshot needs to be reusable persistent memory because
-        // packets can be received across frames
-        // otherwise recreate every tick
-        slice_init(&s->latest_snapshot, level_arena, 1000);
+    s->client = enet_host_create(NULL, 1, 2, 0, 0);
+    if (s->client == NULL) {
+        fprintf (stderr, "An error occurred while trying to create an ENet client host.\n");
     }
 
-    // 
+    ENetAddress connect_address;
+    connect_address.port = 1234;
+    if (online) {
+        enet_address_set_host(&connect_address, (char*)ip_address.data);
+    } else {
+        enet_address_set_host(&connect_address, "127.0.0.1");
+    }
 
+    s->server = enet_host_connect(s->client, &connect_address, 2, 0);
+    if (!s->server) {
+        fprintf(stderr, "no peer");
+    }
 
-    // }
+    if (!online) {
+        enet_peer_timeout(s->server, U32_Max, U32_Max, U32_Max);
+    }
+
+    // enet_peer_ping_interval(s->server, 10);
+
+    // snapshot needs to be reusable persistent memory because
+    // packets can be received across frames
+    slice_init(&s->latest_snapshot.ghosts, level_arena, MaxEntities);
 }
 
 void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
@@ -275,69 +287,72 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
 
     input_set_ctx(&sys->input);
 
-    if (s->online_mode) {
-        ENetEvent net_event;
-        while (enet_host_service(s->client, &net_event, 0)) {
-            switch (net_event.type) {
-            case ENET_EVENT_TYPE_CONNECT: {
-                printf ("A new client connected from %x:%u.\n", 
-                    net_event.peer -> address.host,
-                    net_event.peer -> address.port
-                );
-
-                /* Store any relevant client information here. */
-                net_event.peer -> data = (void*)"Client information";
-
-            } break;
-            case ENET_EVENT_TYPE_RECEIVE: {
-                // printf ("A packet of length %zu containing %s was received from %s on channel %u.\n",
-                //     net_event.packet->dataLength,
-                //     net_event.packet->data,
-                //     (u8*)net_event.peer->data,
-                //     net_event.channelID
-                // );
-
-                Stream stream = {
-                    .slice = slice_create_view(u8, net_event.packet->data, net_event.packet->dataLength),
-                    .operation = Stream_Read,
-                };
-                MessageType message_type;   // = *(MessageType*)net_event.packet->data;
-                serialize_var(&stream, &message_type);
-                stream_pos_reset(&stream);
-
-                if (message_type == MessageType_Snapshot) {
-                    // printf("asdl %f\n", delta_time);
-                    // serialize_slice(&stream, &s->latest_snapshot);
-                    u8 input_buffer_size;
-                    slice_clear(&s->latest_snapshot);
-                    serialize_snapshot(&stream, &input_buffer_size, &s->latest_snapshot, &s->player);
-                    s->last_input_buffer_size = input_buffer_size;
-
-                    s->camera.position = s->player.physics.position;
-                    f64 acc_diff = (target_input_buffer_size - input_buffer_size) / (f64)TICK_RATE * 0.05;
-                    // printf("%f\n", acc_diff);
-                    s->accumulator += acc_diff;
-                }
-
-                ArenaTemp scratch = scratch_get(0,0);
-                defer_loop(0, scratch_release(scratch)) {
-
-                    if (message_type == MessageType_Test) {
-                        TestMessage message = {};
-                        serialize_test_message(&stream, scratch.arena, &message);
-
-                        printf("%s", slice_str_to_cstr(scratch.arena, message.str));
-                    }
-
-                }
-
-                enet_packet_destroy (net_event.packet);
-            } break;
-            }
-        }
-    } else {
-
+    if (!s->online_mode) {
+        server_update(&s->local_server);
     }
+
+    ENetEvent net_event;
+    while (enet_host_service(s->client, &net_event, 0)) {
+        switch (net_event.type) {
+        case ENET_EVENT_TYPE_CONNECT: {
+            printf ("A new client connected from %x:%u.\n", 
+                net_event.peer -> address.host,
+                net_event.peer -> address.port
+            );
+
+            /* Store any relevant client information here. */
+            net_event.peer -> data = (void*)"Client information";
+
+        } break;
+        case ENET_EVENT_TYPE_RECEIVE: {
+            // printf ("A packet of length %zu containing %s was received from %s on channel %u.\n",
+            //     net_event.packet->dataLength,
+            //     net_event.packet->data,
+            //     (u8*)net_event.peer->data,
+            //     net_event.channelID
+            // );
+
+            Stream stream = {
+                .slice = slice_create_view(u8, net_event.packet->data, net_event.packet->dataLength),
+                .operation = Stream_Read,
+            };
+            MessageType message_type;   // = *(MessageType*)net_event.packet->data;
+            serialize_var(&stream, &message_type);
+            stream_pos_reset(&stream);
+
+            if (message_type == MessageType_Snapshot) {
+                // printf("asdl %f\n", delta_time);
+                // serialize_slice(&stream, &s->latest_snapshot);
+                // u8 input_buffer_size;
+                slice_clear(&s->latest_snapshot.ghosts);
+                s->latest_snapshot.player = &s->player;
+                serialize_snapshot_message(&stream, &s->latest_snapshot);
+                // s->player = *s->latest_snapshot.player;
+                // s->last_snapshot.input = input_buffer_size;
+                s->camera.position = s->player.physics.position;
+
+                f64 acc_diff = (target_input_buffer_size - s->latest_snapshot.input_buffer_size) / (f64)TICK_RATE * 0.05;
+                // printf("%f\n", acc_diff);
+                s->accumulator += acc_diff;
+            }
+
+            ArenaTemp scratch = scratch_get(0,0);
+            defer_loop(0, scratch_release(scratch)) {
+
+                if (message_type == MessageType_Test) {
+                    TestMessage message = {};
+                    serialize_test_message(&stream, scratch.arena, &message);
+
+                    printf("%s", slice_str_to_cstr(scratch.arena, message.str));
+                }
+
+            }
+
+            enet_packet_destroy (net_event.packet);
+        } break;
+        }
+    }
+
 
     // Entity* player = entity_list_get(&s->state.entities, s->player_handle);
     // Entity zero = {};
@@ -447,7 +462,6 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
 
     if (input_key_down(SDL_SCANCODE_TAB)) {
         s->inventory_open = !s->inventory_open;
-
     }
 
     if (input_key_down(SDL_SCANCODE_ESCAPE)) {
@@ -460,7 +474,7 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
 
 
     /* Slice<u8> string = */ 
-    String8 string = string8_format(frame_arena, "inptbuff: %d", s->last_input_buffer_size);
+    String8 string = string8_format(frame_arena, "inptbuff: %d", s->latest_snapshot.input_buffer_size);
     // snprintf((char*)string.data, slice_size_bytes(string), );
     // snprintf((char*)string.data, slice_size_bytes(string), "inptbuff: %d", s->last_input_buffer_size);
     // printf("%s", string.data);
@@ -571,6 +585,7 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
     ui_end(frame_arena);
 
     while (s->accumulator >= FIXED_DT) {
+        // printf("%d\n", s->latest_snapshot.input_buffer_size);
         arena_reset(&s->tick_arena);
         input_begin_frame(&s->tick_input);
 
@@ -622,19 +637,21 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
         };
 
 
-        if (s->online_mode) {
+        // if (s->online_mode) {
             // enet_peer_ping(s->server);
-            serialize_input_message(&stream, &input);
+        serialize_input_message(&stream, &input);
 
-            ENetPacket* packet = enet_packet_create(stream.slice.data, stream.slice.length, ENET_PACKET_FLAG_RELIABLE);
-            enet_peer_send(s->server, Channel_Reliable, packet);
-            enet_host_flush(s->client);
-        }
+        ENetPacket* packet = enet_packet_create(stream.slice.data, stream.slice.length, ENET_PACKET_FLAG_RELIABLE);
+        enet_peer_send(s->server, Channel_Reliable, packet);
+        enet_host_flush(s->client);
+        // }
 
 
         if (input_mouse_up(SDL_BUTTON_LEFT)) {
             s->moving_spell = false;
         }
+
+
         // int throttle_ticks{};
         // state_update(&s->state, &tick_arena, inputs, s->current_tick, tick_rate);
 
@@ -643,34 +660,60 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
         // if (entity_is_valid(&s->state.entities, s->player_handle)) {
         //     player_pos = float2{.b2vec=b2Body_GetPosition(entity_list_get(&s->state.entities, s->player_handle)->body_id)};
         // }
-        state_update(&s->offline_state, &s->tick_arena, inputs, s->current_tick, TICK_RATE);
-        state_update(&s->predicted_state, &s->tick_arena, inputs, s->current_tick, TICK_RATE);
+
+        // state_update(&s->offline_state, &s->tick_arena, inputs, s->current_tick, TICK_RATE);
+        // state_update(&s->predicted_state, &s->tick_arena, inputs, s->current_tick, TICK_RATE);
+
+        // ring_push_back(&s->prediction_history, (PredictionTick){});
+        // PredictionTick* pushed = &s->prediction_history.data[s->prediction_history.end];
+        // memcpy(pushed->entities, s->predicted_state.entities.data, sizeof(pushed->entities));
+        // pushed->tick = s->current_tick;
 
         // history 
 
-        if (!s->online_mode) {
-            Slice_pEntity players = slice_p_create(Entity, &s->tick_arena, 1);
-            s->latest_snapshot = slice_create(Ghost, &s->tick_arena, 512);
+        // if (!s->online_mode) {
+        //     Slice_pEntity players = slice_p_create(Entity, &s->tick_arena, 1);
+        //     s->latest_snapshot = slice_create(Ghost, &s->tick_arena, 512);
+        //
+        //     entities_to_snapshot(&s->latest_snapshot, s->offline_state.entities, s->current_tick, &players);
+        //     // ring_push_back(&s->latency_buff, (Snapshot){});
+        //     //
+        //     // Slice_Ghost packet = (Slice_Ghost){
+        //     //     .data = s->latency_buff.data[s->latency_buff.start].ghosts,
+        //     //     .capacity = MAX_ENTITIES,
+        //     // };
+        //     // entities_to_snapshot(&packet, s->offline_state.entities, s->current_tick, &players);
+        //     //
+        //     // if (s->latency_buff.length >= 60) {
+        //     //     s->snapshot = ring_pop_front(&s->latency_buff);
+        //     // }
+        //
+        //
+        //     if (players.length > 0) {
+        //         s->player = *slice_get(players, 0);
+        //         s->camera.position = s->player.physics.position;
+        //     }
+        // }
 
-            entities_to_snapshot(&s->latest_snapshot, s->offline_state.entities, s->current_tick, &players);
-            // ring_push_back(&s->latency_buff, (Snapshot){});
-            //
-            // Slice_Ghost packet = (Slice_Ghost){
-            //     .data = s->latency_buff.data[s->latency_buff.start].ghosts,
-            //     .capacity = MAX_ENTITIES,
-            // };
-            // entities_to_snapshot(&packet, s->offline_state.entities, s->current_tick, &players);
-            //
-            // if (s->latency_buff.length >= 60) {
-            //     s->snapshot = ring_pop_front(&s->latency_buff);
-            // }
+        // rollback
+
+        // PredictionTick* predicted_tick;
+        // for (i32 i = 0; i < s->prediction_history.length; i++) {
+        //     const i32 capacity = s->prediction_history.capacity;
+        //     i32 tick_index = (s->prediction_history.end - i + capacity) % capacity;
+        //     predicted_tick = ring_get_ref(s->prediction_history, tick_index);
+        //
+        //     if (predicted_tick.tick == s->latest_snapshot.tick) {
+        //         break;
+        //     }
+        // }
 
 
-            if (players.length > 0) {
-                s->player = *slice_get(players, 0);
-                s->camera.position = s->player.physics.position;
-            }
-        }
+        // for (i32 i = 0; i < s->latest_snapshot.length; i++) {
+        //     Ghost* ghost = slice_getp(s->latest_snapshot, i);
+        //
+        //     for (i32 ent_idx = 0; i < array_length(s->))
+        // }
 
         input_end_frame(&s->tick_input);
         s->current_tick++;
@@ -683,26 +726,26 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
         s->edit_mode = !s->edit_mode;
     }
 
-    if (s->edit_mode) {
-        if (input_mouse_held(SDL_BUTTON_LEFT)) {
-            Chunk* chunk = &chunks[3];
-            float2 pos = screen_to_world_pos(s->camera, sys->input.mouse_pos, sys->renderer.window_width, sys->renderer.window_height);
-            i32 x = (i32) chunk->position.x + (floor(pos.x) / GRID_STEP);
-            i32 y = (i32)chunk->position.y + (floor(pos.y) / GRID_STEP);
-            Tile tile = {
-                true,
-                TextureID_tilemap_png,
-                0,
-                0,
-                16,
-                16,
-            };
-
-            i32 i = y * chunk_width + x;
-            chunk->tiles[i] = tile;
-            printf("%d, %d\n", x, y);
-        }
-    }
+    // if (s->edit_mode) {
+    //     if (input_mouse_held(SDL_BUTTON_LEFT)) {
+    //         Chunk* chunk = &chunks[3];
+    //         float2 pos = screen_to_world_pos(s->camera, sys->input.mouse_pos, sys->renderer.window_width, sys->renderer.window_height);
+    //         i32 x = (i32) chunk->position.x + (floor(pos.x) / GRID_STEP);
+    //         i32 y = (i32)chunk->position.y + (floor(pos.y) / GRID_STEP);
+    //         Tile tile = {
+    //             true,
+    //             TextureID_tilemap_png,
+    //             0,
+    //             0,
+    //             16,
+    //             16,
+    //         };
+    //
+    //         i32 i = y * chunk_width + x;
+    //         chunk->tiles[i] = tile;
+    //         printf("%d, %d\n", x, y);
+    //     }
+    // }
 
     s->frame++;
     scene_render(s, frame_arena);
@@ -781,40 +824,40 @@ void render_ghosts(Camera2D camera, Slice_Ghost ghosts, bool filter_predicted) {
 void scene_render(Scene* s, Arena* frame_arena) {
     System* sys = s->sys;
 
-    if (!s->online_mode) {
-        ArenaTemp scratch = scratch_get(0,0);
-        Slice_Ghost predict_ghosts = slice_create(Ghost, scratch.arena, 128);
-        entities_to_snapshot(&predict_ghosts, s->predicted_state.entities, s->current_tick, NULL);
-
-        render_ghosts(s->camera, predict_ghosts, false);
-        scratch_release(scratch);
-    }
+    // if (!s->online_mode) {
+    //     ArenaTemp scratch = scratch_get(0,0);
+    //     Slice_Ghost predict_ghosts = slice_create(Ghost, scratch.arena, 128);
+    //     entities_to_snapshot(&predict_ghosts, s->predicted_state.entities, s->current_tick, NULL);
+    //
+    //     render_ghosts(s->camera, predict_ghosts, false);
+    //     scratch_release(scratch);
+    // }
 
 
     // Slice_Ghost view = slice_create_view(Ghost, s->snapshot.ghosts, MAX_ENTITIES);
     // render_ghosts(s->camera, view, true);
 
-    render_ghosts(s->camera, s->latest_snapshot, true);
 
+    render_ghosts(s->camera, s->latest_snapshot.ghosts, false);
     
-    for (i32 i = 0; i < 4; i++) {
-        Chunk* chunk = &chunks[i];
-        for (i32 tile_index = 0; tile_index < chunk_size; tile_index++) {
-            Tile* tile = &chunk->tiles[tile_index];
-            if (!tile->is_set) {
-                continue;
-            }
-            float2 pos = float2_add(chunk->position, (float2){tile_index % chunk_width + 0.5f, (i32)(tile_index / chunk_width) + 0.5f});
-            draw_sprite_world(
-                s->camera,
-                (Rect){.position = pos, .size={1, 1}},
-                (SpriteProperties){
-                    .texture_id = TextureID_tilemap_png,
-                    .src_rect = (Rect){(float2){(f32)tile->x, (f32)tile->y}, {16,16}},
-                }
-            );
-        }
-    }
+    // for (i32 i = 0; i < 4; i++) {
+    //     Chunk* chunk = &chunks[i];
+    //     for (i32 tile_index = 0; tile_index < chunk_size; tile_index++) {
+    //         Tile* tile = &chunk->tiles[tile_index];
+    //         if (!tile->is_set) {
+    //             continue;
+    //         }
+    //         float2 pos = float2_add(chunk->position, (float2){tile_index % chunk_width + 0.5f, (i32)(tile_index / chunk_width) + 0.5f});
+    //         draw_sprite_world(
+    //             s->camera,
+    //             (Rect){.position = pos, .size={1, 1}},
+    //             (SpriteProperties){
+    //                 .texture_id = TextureID_tilemap_png,
+    //                 .src_rect = (Rect){(float2){(f32)tile->x, (f32)tile->y}, {16,16}},
+    //             }
+    //         );
+    //     }
+    // }
 
     if (s->debug_draw) {
         b2World_Draw(s->offline_state.world_id, &s->m_debug_draw);

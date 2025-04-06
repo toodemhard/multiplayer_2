@@ -132,6 +132,7 @@ struct Entity {
     bool active;
     u32 generation;
     u32 index;
+    u32 net_id;
 
     EntityType type;
     EntityFlags flags;
@@ -181,14 +182,15 @@ struct Box {
     int health;
 };
 
-#define MAX_ENTITIES 256
-#define MAX_PREDICTED 128
+#define MaxEntities 256
+#define MaxPredicted 128
 
-// typedef struct EntityList {
+// typedef struct PredictionTick {
+//     u32 tick;
 //     Entity entities[MAX_ENTITIES];
-// } EntityList;
-//
-// ring_def(Slice_Entity);
+// } PredictionTick;
+// ring_def(PredictionTick);
+
 // typedef struct GameHistory {
 //
 //     Ring_Slice_Entity history;
@@ -197,6 +199,7 @@ struct Box {
 typedef struct GameState GameState;
 struct GameState {
     Slice_Entity entities;
+    u32 serial;
 
     b2WorldId world_id;
     b2BodyId ground_id;
@@ -208,7 +211,7 @@ struct GameState {
 
 
 void state_init(GameState* state, Arena* arena);
-void state_update(GameState* state, Arena* temp_arena, Inputs inputs, u32 current_tick, i32 tick_rate);
+void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_rate);
 
 void create_box(GameState* state, float2 position);
 EntityHandle create_player(GameState* state, ClientID client_id);

@@ -81,22 +81,22 @@ void serialize_entity(Stream* stream, Entity* ent) {
     }
 }
 
-void serialize_snapshot(Stream* stream, u8* input_buffer_size, Slice_Ghost* ghosts, Entity* player) {
+void serialize_snapshot_message(Stream* stream, SnapshotMessage* s) {
     MessageType message_type = MessageType_Snapshot;
     serialize_var(stream, &message_type);
-    serialize_var(stream, input_buffer_size);
-    serialize_slice(stream, ghosts);
+    serialize_var(stream, &s->input_buffer_size);
+    serialize_slice(stream, &s->ghosts);
 
     bool player_alive = false;
 
-    if (player != NULL) {
+    if (s->player != NULL) {
         player_alive = true;
     }
 
     serialize_bool(stream, &player_alive);
 
     if (player_alive) {
-        serialize_player(stream, player);
+        serialize_player(stream, s->player);
     }
 }
 

@@ -235,6 +235,10 @@ Opt_u64 hashmap_get_idx_raw_assert(void* key, u64 key_size, u64 key_offset, void
 // bool bitlist_get(Bitlist* bitlist, u64 index);
 // void bitlist_set(Bitlist* bitlist, u64 index, bool value);
 
+
+// for in place ring buffer just define this but replace T* with T data[N]
+// still can use ring macros as long as field names same
+// c * == [] finally delivers??
 #define ring_def(T)\
 typedef struct {\
     u64 start;\
@@ -256,6 +260,8 @@ typedef struct {\
         .capacity = (_capacity),\
     }
 
+#define ring_get_ref(r, idx)\
+    &(r).data[(idx)]
 
 #define ring_push_back(r, ...)\
 do {\

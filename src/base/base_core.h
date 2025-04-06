@@ -19,6 +19,8 @@ typedef int8_t i8;
 typedef float f32;
 typedef double f64;
 
+#define U32_Max 0xFFFFFFFF
+
 #define kilobytes(n) 1024ULL * n
 #define megabytes(n) kilobytes(1024ULL) * n
 #define gigabytes(n) megabytes(1024ULL) * n

@@ -88,6 +88,9 @@ EntityHandle create_entity(GameState* s, Entity entity) {
         ent = slice_back(*entity_list);
     }
 
+    s->serial += 1;
+    ent->net_id = s->serial;
+
     // initialize out of struct components like physics
     if (ent->flags & EntityFlags_physics) {
         PhysicsComponent* phys = &ent->physics;
@@ -255,12 +258,15 @@ float deg_to_rad(float deg) {
     return deg * deg_in_rads;
 }
 
-void state_update(GameState* state, Arena* temp_arena, Inputs inputs, u32 current_tick, i32 tick_rate) {
+void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_rate) {
+    ArenaTemp scratch = scratch_get(0,0);
+    defer_loop((void)0, scratch_release(scratch)) {
+
     const f64 dt = 1.0 / tick_rate;
 
     b2World_Step(state->world_id, dt, substep_count);
 
-    Slice_EntityIndex delete_list = slice_create(EntityIndex, temp_arena, 512);
+    Slice_EntityIndex delete_list = slice_create(EntityIndex, scratch.arena, 512);
 
     b2SensorEvents sensorEvents = b2World_GetSensorEvents(state->world_id);
     for (int i = 0; i < sensorEvents.beginCount; ++i) {
@@ -427,8 +433,11 @@ void state_update(GameState* state, Arena* temp_arena, Inputs inputs, u32 curren
             }
         }
     }
+
     for (u32 i = 0; i < delete_list.length; i++) {
         entity_list_remove(&state->entities, slice_get(delete_list, i));
+    }
+
     }
 }
 
