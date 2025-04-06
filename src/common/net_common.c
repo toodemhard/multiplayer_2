@@ -22,6 +22,7 @@ void serialize_player(Stream* s, Entity* player) {
     serialize_var(s, &player->selected_spell);
 }
 
+
 void serialize_entity_list(Stream* stream, Slice_Entity* entities) {
     u32* count_ref = (u32*)slice_getp(stream->slice, stream->current);
 
@@ -79,6 +80,12 @@ void serialize_entity(Stream* stream, Entity* ent) {
     if (ent->flags & EntityFlags_expires) {
         serialize_var(stream, &ent->expire_tick);
     }
+}
+
+void serialize_state_init_message(Stream* stream, Slice_Entity* entities) {
+    MessageType message_type = MessageType_StateInit;
+    serialize_var(stream, &message_type);
+    serialize_entity_list(stream, entities);
 }
 
 void serialize_snapshot_message(Stream* stream, SnapshotMessage* s) {

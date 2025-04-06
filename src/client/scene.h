@@ -40,7 +40,7 @@ struct Scene {
     Camera2D camera;
 
     Server local_server;
-    GameState offline_state; // fake server for local play
+    // GameState offline_state; // fake server for local play
     GameState predicted_state;
 
 

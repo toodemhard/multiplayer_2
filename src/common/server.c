@@ -223,6 +223,23 @@ void server_update(Server* s) {
             create_player(&s->state, client->id);
 
             printf ("A new client connected from %x:%u.\n", event.peer->address.host, event.peer->address.port);
+            
+            Stream stream = {
+                .slice = slice_create(u8, scratch.arena, sizeof(Entity) * 512),
+                .operation = Stream_Write,
+            };
+            serialize_state_init_message(&stream, &s->state.entities);
+
+
+            Packet packet = {
+                .flag = ENET_PACKET_FLAG_RELIABLE,
+                .peer = client->peer,
+                .data = stream.slice.data,
+                .size = stream.slice.length,
+            };
+
+            queue_packet(&s->packet_queue, packet);
+
         } break;
 
         case ENET_EVENT_TYPE_RECEIVE: {

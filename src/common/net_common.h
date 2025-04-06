@@ -13,6 +13,7 @@ typedef enum MessageType {
     MessageType_Test,
     MessageType_Input,
     MessageType_Snapshot,
+    MessageType_StateInit,
 } MessageType;
 
 typedef enum Channel {

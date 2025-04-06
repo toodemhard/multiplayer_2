@@ -165,7 +165,7 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
     ui_init(&s->ui, level_arena, sys->fonts_view, &sys->renderer);
 
     state_init(&s->predicted_state, level_arena);
-    state_init(&s->offline_state, level_arena);
+    // state_init(&s->offline_state, level_arena);
 
 
     if (!online) {
@@ -293,6 +293,8 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
 
     ENetEvent net_event;
     while (enet_host_service(s->client, &net_event, 0)) {
+        ArenaTemp scratch = scratch_get(0,0);
+        defer_loop(0, scratch_release(scratch)) {
         switch (net_event.type) {
         case ENET_EVENT_TYPE_CONNECT: {
             printf ("A new client connected from %x:%u.\n", 
@@ -336,20 +338,26 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
                 s->accumulator += acc_diff;
             }
 
-            ArenaTemp scratch = scratch_get(0,0);
-            defer_loop(0, scratch_release(scratch)) {
-
-                if (message_type == MessageType_Test) {
-                    TestMessage message = {};
-                    serialize_test_message(&stream, scratch.arena, &message);
-
-                    printf("%s", slice_str_to_cstr(scratch.arena, message.str));
+            if (message_type == MessageType_StateInit) {
+                Slice_Entity init_snapshot = slice_create(Entity, scratch.arena, 512);
+                serialize_state_init_message(&stream, &init_snapshot);
+                for (u32 i = 0; i < init_snapshot.length; i++) {
+                    create_entity(&s->predicted_state, slice_get(init_snapshot, i));
                 }
+            }
 
+
+            if (message_type == MessageType_Test) {
+                TestMessage message = {};
+                serialize_test_message(&stream, scratch.arena, &message);
+
+                printf("%s", slice_str_to_cstr(scratch.arena, message.str));
             }
 
             enet_packet_destroy (net_event.packet);
         } break;
+        }
+
         }
     }
 
@@ -662,7 +670,7 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
         // }
 
         // state_update(&s->offline_state, &s->tick_arena, inputs, s->current_tick, TICK_RATE);
-        // state_update(&s->predicted_state, &s->tick_arena, inputs, s->current_tick, TICK_RATE);
+        state_update(&s->predicted_state, inputs, s->current_tick, TICK_RATE);
 
         // ring_push_back(&s->prediction_history, (PredictionTick){});
         // PredictionTick* pushed = &s->prediction_history.data[s->prediction_history.end];
@@ -825,12 +833,12 @@ void scene_render(Scene* s, Arena* frame_arena) {
     System* sys = s->sys;
 
     // if (!s->online_mode) {
-    //     ArenaTemp scratch = scratch_get(0,0);
-    //     Slice_Ghost predict_ghosts = slice_create(Ghost, scratch.arena, 128);
-    //     entities_to_snapshot(&predict_ghosts, s->predicted_state.entities, s->current_tick, NULL);
-    //
-    //     render_ghosts(s->camera, predict_ghosts, false);
-    //     scratch_release(scratch);
+    ArenaTemp scratch = scratch_get(0,0);
+    Slice_Ghost predict_ghosts = slice_create(Ghost, scratch.arena, 128);
+    entities_to_snapshot(&predict_ghosts, s->predicted_state.entities, s->current_tick, NULL);
+
+    render_ghosts(s->camera, predict_ghosts, false);
+    scratch_release(scratch);
     // }
 
 
@@ -838,7 +846,7 @@ void scene_render(Scene* s, Arena* frame_arena) {
     // render_ghosts(s->camera, view, true);
 
 
-    render_ghosts(s->camera, s->latest_snapshot.ghosts, false);
+    // render_ghosts(s->camera, s->latest_snapshot.ghosts, false);
     
     // for (i32 i = 0; i < 4; i++) {
     //     Chunk* chunk = &chunks[i];
@@ -860,7 +868,7 @@ void scene_render(Scene* s, Arena* frame_arena) {
     // }
 
     if (s->debug_draw) {
-        b2World_Draw(s->offline_state.world_id, &s->m_debug_draw);
+        // b2World_Draw(s->offline_state.world_id, &s->m_debug_draw);
         b2World_Draw(s->predicted_state.world_id, &s->m_debug_draw);
     }
     // render_state(renderer, window, &s->state, s->current_tick, fixed_dt, s->camera);
