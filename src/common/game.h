@@ -211,7 +211,7 @@ struct GameState {
 
 
 void state_init(GameState* state, Arena* arena);
-void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_rate);
+// void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_rate);
 
 void create_box(GameState* state, float2 position);
 EntityHandle create_player(GameState* state, ClientID client_id);

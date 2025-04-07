@@ -148,7 +148,7 @@ void create_box(GameState* state, float2 position) {
     EntityHandle ent_handle = create_entity(state, ent);
 }
 
-void create_wall(GameState* state, float2 position, Dir8 direction) {
+void create_wall(Slice_Entity* create_list, float2 position, Dir8 direction) {
     Rect src = {0,0,64,64};
     bool flip_sprite = false;
     if (direction == Dir8_Up || direction == Dir8_Down) {
@@ -162,6 +162,7 @@ void create_wall(GameState* state, float2 position, Dir8 direction) {
     }
 
     Entity wall = {
+        .replication_type = ReplicationType_Predicted,
         .sprite = TextureID_ice_wall_png,
         .sprite_src = src,
         .flip_sprite = flip_sprite,
@@ -174,12 +175,13 @@ void create_wall(GameState* state, float2 position, Dir8 direction) {
         .collider = (ColliderDef) {1, 1},
     });
 
-    EntityHandle handle = create_entity(state, wall);
+    slice_push(create_list, wall);
 }
 
-void create_bullet(GameState* state, EntityHandle owner, float2 position, float2 direction, u32 current_tick, i32 tick_rate) {
+void create_bullet(Slice_Entity* create_list, EntityHandle owner, float2 position, float2 direction, u32 current_tick, i32 tick_rate) {
     Entity bullet = {
         .sprite = TextureID_bullet_png,
+        .replication_type = ReplicationType_Predicted,
         .type = EntityType_Bullet,
         .flags = EntityFlags_physics | EntityFlags_attack | EntityFlags_expires,
         .expire_tick = current_tick + (u32)(bullet_expire_duration * tick_rate),
@@ -194,7 +196,7 @@ void create_bullet(GameState* state, EntityHandle owner, float2 position, float2
         .is_sensor = true,
     });
 
-    create_entity(state, bullet);
+    slice_push(create_list, bullet);
 }
 
 void entity_list_remove(Slice_Entity* entity_list, EntityIndex index) {
@@ -258,7 +260,7 @@ float deg_to_rad(float deg) {
     return deg * deg_in_rads;
 }
 
-void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_rate) {
+void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_rate, bool modify_existences) {
     ArenaTemp scratch = scratch_get(0,0);
     defer_loop((void)0, scratch_release(scratch)) {
 
@@ -267,6 +269,8 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
     b2World_Step(state->world_id, dt, substep_count);
 
     Slice_EntityIndex delete_list = slice_create(EntityIndex, scratch.arena, 512);
+
+    Slice_Entity create_list = slice_create(Entity, scratch.arena, 128);
 
     b2SensorEvents sensorEvents = b2World_GetSensorEvents(state->world_id);
     for (int i = 0; i < sensorEvents.beginCount; ++i) {
@@ -401,7 +405,7 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
                 }
 
                 if (selected_spell == SpellType_Fireball) {
-                    create_bullet(state, handle, player_pos, direction, current_tick, tick_rate);
+                    create_bullet(&create_list, handle, player_pos, direction, current_tick, tick_rate);
                 }
 
                 if (selected_spell == SpellType_SpreadBolt) {
@@ -413,7 +417,7 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
 
                     for (i32 i = 0; i < projectile_count; i++) {
                         f32 dir_offset = lerp(range_start, range_end, (f32)i / (projectile_count - 1));
-                        create_bullet(state, handle, player_pos, rotate(direction, dir_offset), current_tick, tick_rate);
+                        create_bullet(&create_list, handle, player_pos, rotate(direction, dir_offset), current_tick, tick_rate);
                     }
                 }
 
@@ -426,7 +430,7 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
                     printf("%d\n", dir);
                     // i32 x = (pi - d - 1/8.0 * pi) / (2*pi) * 8;
                     // printf("%x\n", x);
-                    create_wall(state, float2_add(player_pos, float2_scale(direction, 2)), dir);
+                    create_wall(&create_list, float2_add(player_pos, float2_scale(direction, 2)), dir);
                 }
 
                 // if (selected)
@@ -434,8 +438,15 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
         }
     }
 
-    for (u32 i = 0; i < delete_list.length; i++) {
-        entity_list_remove(&state->entities, slice_get(delete_list, i));
+    if (modify_existences) {
+        for (u32 i = 0; i < delete_list.length; i++) {
+            entity_list_remove(&state->entities, slice_get(delete_list, i));
+        }
+
+        // for ()
+        for (u32 i = 0; i < create_list.length; i++) {
+            create_entity(state, slice_get(create_list, i));
+        }
     }
 
     }
