@@ -670,7 +670,7 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
         // }
 
         // state_update(&s->offline_state, &s->tick_arena, inputs, s->current_tick, TICK_RATE);
-        state_update(&s->predicted_state, inputs, s->current_tick, TICK_RATE);
+        state_update(&s->predicted_state, inputs, s->current_tick, TICK_RATE, false);
 
         // ring_push_back(&s->prediction_history, (PredictionTick){});
         // PredictionTick* pushed = &s->prediction_history.data[s->prediction_history.end];
@@ -766,9 +766,9 @@ bool float2_cmp(float2 a, float2 b) {
 void render_ghosts(Camera2D camera, Slice_Ghost ghosts, bool filter_predicted) {
     for (i32 i = 0; i < ghosts.length; i++) {
         const Ghost* ghost = slice_getp(ghosts, i);
-        if (filter_predicted && ghost->replication_type != ReplicationType_Snapshot) {
-            continue;
-        }
+        // if (filter_predicted && ghost->replication_type != ReplicationType_Snapshot) {
+        //     continue;
+        // }
 
         Rect world_rect = {
             .position = ghost->position,
@@ -796,7 +796,7 @@ void render_ghosts(Camera2D camera, Slice_Ghost ghosts, bool filter_predicted) {
         //
         // }
 
-        RGBA flash_color = {255,255,255,255};
+        RGBA mix_color = {255,255,255,255};
         f32 t = 0;
         if (ghost->hit_flash) {
             t = 1;
@@ -807,11 +807,21 @@ void render_ghosts(Camera2D camera, Slice_Ghost ghosts, bool filter_predicted) {
             world_rect.size.x *= -1;
         }
 
+        RGBA mult_color = {0};
+        if (filter_predicted && ghost->replication_type != ReplicationType_Snapshot) {
+            // mult_color = (RGBA) {255,255,255,128};
+            mix_color = (RGBA){255,0,0,255};
+            t = 1;
+            
+            // continue;
+        }
+
         if (ghost->sprite != TextureID_NULL) {
             draw_sprite_world(camera, world_rect, (SpriteProperties){
                 .texture_id = ghost->sprite,
                 .src_rect = ghost->sprite_src,
-                .mix_color = flash_color,
+                .mix_color = mix_color,
+                // .mult_color = mult_color,
                 .t = t,
             });
         }
@@ -832,6 +842,8 @@ void render_ghosts(Camera2D camera, Slice_Ghost ghosts, bool filter_predicted) {
 void scene_render(Scene* s, Arena* frame_arena) {
     System* sys = s->sys;
 
+    render_ghosts(s->camera, s->latest_snapshot.ghosts, true);
+
     // if (!s->online_mode) {
     ArenaTemp scratch = scratch_get(0,0);
     Slice_Ghost predict_ghosts = slice_create(Ghost, scratch.arena, 128);
@@ -842,8 +854,7 @@ void scene_render(Scene* s, Arena* frame_arena) {
     // }
 
 
-    // Slice_Ghost view = slice_create_view(Ghost, s->snapshot.ghosts, MAX_ENTITIES);
-    // render_ghosts(s->camera, view, true);
+    // Slice_Ghost view = slice_create_view(Ghost, s->latest_snapshot.ghosts, MaxEntities);
 
 
     // render_ghosts(s->camera, s->latest_snapshot.ghosts, false);

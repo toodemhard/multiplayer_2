@@ -322,7 +322,7 @@ void server_update(Server* s) {
             }
         }
 
-        state_update(&s->state, inputs, s->current_tick, TICK_RATE);
+        state_update(&s->state, inputs, s->current_tick, TICK_RATE, true);
 
 
 
