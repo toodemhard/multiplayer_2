@@ -275,6 +275,12 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
     slice_init(&s->latest_snapshot.ghosts, level_arena, MaxEntities);
 }
 
+void scene_end(Scene* s) {
+    if (s->local_server.server != NULL) {
+        enet_host_destroy(s->local_server.server);
+    }
+}
+
 void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
     // ZoneScoped;
 

@@ -383,6 +383,7 @@ DLL_EXPORT Signals update(void* memory) {
             state->active_scene = SceneType_Game;
         } break;
         case EventType_QuitScene: {
+            scene_end(&state->local_scene);
             state->active_scene = SceneType_Menu;
             arena_reset(&state->menu_arena);
             state->menu = menu_create(&state->menu_arena, sys);
