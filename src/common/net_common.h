@@ -53,9 +53,17 @@ struct TestMessage {
 typedef struct SnapshotMessage SnapshotMessage;
 struct SnapshotMessage {
     u8 input_buffer_size;
-    Slice_Ghost ghosts;
-    Entity* player;
+    u32 tick_index;
+    Slice_Entity ents;
 };
+
+// typedef struct EntCreateMessage {
+//     u32 tick;
+// } EntCreateMessage;
+//
+// typedef struct EntDeleteMessage {
+//     EntityHandle handle;
+// } EntDeleteMessage;
 
 #define serialize_var(stream, var_ptr) serialize_bytes( stream, (u8*)(var_ptr), sizeof(*(var_ptr)) )
 
@@ -69,7 +77,8 @@ void serialize_bytes(Stream* stream, u8* bytes, u64 size);
 // void serialize_string(Stream* stream, Arena* read_arena, String8* string);
 void serialize_test_message(Stream* stream, Arena* read_arena, TestMessage* message);
 
-void serialize_entity(Stream* stream, Entity* ent);
+void serialize_init_entity(Stream* stream, Entity* ent);
+void serialize_snapshot_entity(Stream* stream, Entity* ent);
 void serialize_input_message(Stream* stream, PlayerInput* input);
 
 void serialize_slice_raw(Stream* stream, void* data, u64 element_size, u64* length, u64 capacity);

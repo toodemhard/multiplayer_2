@@ -23,12 +23,14 @@ typedef struct Chunk {
     Tile tiles[ChunkSize];
 } Chunk;
 
-typedef struct Snapshot {
-    Ghost ghosts[MaxPredicted];
+typedef struct Tick {
+    Entity entities[MaxEntities];
+    u32 entity_count;
+    PlayerInput inputs[MaxPlayers];
+    u32 input_count;
     u32 tick;
-} Snapshot;
-
-ring_def(Snapshot);
+} Tick;
+ring_def(Tick);
 
 typedef struct Scene Scene;
 struct Scene {
@@ -46,7 +48,11 @@ struct Scene {
 
     // Ring_PredictionTick prediction_history;
 
-    Ring_Snapshot latency_buff;
+    Ring_Tick history;
+
+    ClientID client_id;
+
+    // Ring_Snapshot latency_buff;
 
     // u8 last_input_buffer_size;
 
@@ -68,9 +74,8 @@ struct Scene {
     double accumulator;
     u64 frame;
     double time;
-    int current_tick;
+    u32 current_tick;
 
-    EntityHandle player_handle;
 
     b2DebugDraw m_debug_draw;
 
@@ -81,7 +86,7 @@ struct Scene {
     bool move_submit;
 
     bool paused;
-    Entity player;
+    EntityHandle player_handle;
 
     Arena* level_arena;
     Arena tick_arena;

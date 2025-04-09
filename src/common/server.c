@@ -156,7 +156,7 @@ typedef struct Server {
 
 void server_init(Server* s, Arena* arena) {
     state_init(&s->state, arena);
-    create_box(&s->state, (float2){2,0});
+    create_box(&s->state, (float2){2,2});
     packet_queue_init(&s->packet_queue, arena, megabytes(1));
     s->clients = slice_create(Client, arena, MaxPlayers);
 }
@@ -228,8 +228,7 @@ void server_update(Server* s) {
                 .slice = slice_create(u8, scratch.arena, sizeof(Entity) * 512),
                 .operation = Stream_Write,
             };
-            serialize_state_init_message(&stream, &s->state.entities);
-
+            serialize_state_init_message(&stream, &s->state.entities, &client->id);
 
             Packet packet = {
                 .flag = ENET_PACKET_FLAG_RELIABLE,
@@ -328,8 +327,6 @@ void server_update(Server* s) {
 
         Slice_Entity* ents = &s->state.entities;
         Slice_pEntity players = slice_p_create(Entity, scratch.arena, MaxPlayers);
-        Slice_Ghost ghosts = slice_create(Ghost, scratch.arena, 1000);
-        entities_to_snapshot(&ghosts, s->state.entities, s->current_tick, &players);
 
         Stream stream = {
             .slice = slice_create(u8, scratch.arena, kilobytes(100)),
@@ -352,8 +349,8 @@ void server_update(Server* s) {
 
             SnapshotMessage msg = {
                 .input_buffer_size = (u8)client->input_ring.length,
-                .ghosts = ghosts,
-                .player = player,
+                .tick_index = s->current_tick,
+                .ents = s->state.entities,
             };
 
             stream_clear(&stream);

@@ -11,8 +11,12 @@ typedef enum PlayerAnimState {
     PlayerAnimState_Count,
 } PlayerAnimState;
 
+typedef u32 ClientID;
+slice_def(ClientID);
+
 typedef struct PlayerInput PlayerInput;
 struct PlayerInput {
+    ClientID client;
     bool up;
     bool down;
     bool left;
@@ -80,8 +84,6 @@ struct EntityHandle {
     u32 generation;
 };
 
-typedef u64 ClientID;
-slice_def(ClientID);
 
 typedef struct Inputs Inputs;
 struct Inputs {
@@ -91,21 +93,20 @@ struct Inputs {
 
 const i32 hotbar_length = 8;
 const i32 inventory_rows = 4;
-
-// visual copy on client idk wtf to call it
-typedef struct Ghost Ghost;
-struct Ghost {
-    ReplicationType replication_type;
-    TextureID sprite;
-    Rect sprite_src;
-    bool flip_sprite;
-
-    float2 position;
-    u16 health;
-    bool show_health;
-    bool hit_flash;
-};
-slice_def(Ghost);
+// // visual copy on client idk wtf to call it
+// typedef struct Ghost Ghost;
+// struct Ghost {
+//     ReplicationType replication_type;
+//     TextureID sprite;
+//     Rect sprite_src;
+//     bool flip_sprite;
+//
+//     float2 position;
+//     u16 health;
+//     bool show_health;
+//     bool hit_flash;
+// };
+// slice_def(Ghost);
 
 // store definition to recreate
 typedef struct ColliderDef {
@@ -116,7 +117,6 @@ typedef struct ColliderDef {
 typedef struct PhysicsComponent {
     ColliderDef collider;
     b2BodyType body_type;
-    float2 position;
     float2 linear_velocity;
     f32 linear_damping;
     bool is_sensor;
@@ -142,6 +142,7 @@ struct Entity {
     Rect sprite_src;
     bool flip_sprite;
 
+    float2 position;
     PhysicsComponent physics;
     // dont set
     b2BodyId body_id;
@@ -199,7 +200,6 @@ struct Box {
 typedef struct GameState GameState;
 struct GameState {
     Slice_Entity entities;
-    u32 serial;
 
     b2WorldId world_id;
     b2BodyId ground_id;

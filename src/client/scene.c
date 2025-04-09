@@ -151,6 +151,42 @@ void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void
 
 void scene_render(Scene* s, Arena* frame_arena);
 
+void rollback(Scene* s) {
+    bool found = false;
+    Slice_Entity* pred_ents;
+    for (i32 i = s->history.start; i != s->history.end; i = (i + 1) % s->history.capacity) {
+        if (s->history.data[i].tick == s->latest_snapshot.tick_index) {
+            found = true;
+
+
+        }
+
+
+    }
+
+    // latest_tick = slice_get_ref(s->history, s->history->end)
+
+
+
+    Slice_Entity* auth_ents = &s->latest_snapshot.ents;
+    for (i32 i = 0; i < auth_ents->length; i++) {
+        Entity* auth_ent = slice_getp(*auth_ents, i);
+        if (auth_ent->replication_type != ReplicationType_Predicted || !(auth_ent->flags & EntityFlags_player)) {
+            continue;
+        }
+
+        Entity* pred_ent = slice_getp(s->predicted_state.entities, auth_ent->index);
+        ASSERT(pred_ent->generation == auth_ent->generation);
+        ASSERT(pred_ent->client_id == auth_ent->client_id);
+
+        if (!vars_equal(&pred_ent->position, &auth_ent->position)) {
+            printf("disccccc\n");
+        }
+
+    }
+
+}
+
 void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 ip_address) {
     zero_struct(s);
     // *s = {0};
@@ -165,7 +201,6 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
     ui_init(&s->ui, level_arena, sys->fonts_view, &sys->renderer);
 
     state_init(&s->predicted_state, level_arena);
-    // state_init(&s->offline_state, level_arena);
 
 
     if (!online) {
@@ -178,55 +213,9 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
         server_connect(&s->local_server, host_address);
     }
 
-    s->latency_buff = ring_alloc(Snapshot, level_arena, 64);
-
     ArenaTemp scratch = scratch_get(0,0);
 
-    // if (!online) {
-    //     create_box(&s->offline_state, (float2){1, 1});
-    //
-    //     {
-    //         Entity ent = {0};
-    //         entity_add_physics_component(&ent, (PhysicsComponent) {
-    //             .collider = (ColliderDef) {0.5, 2},
-    //             .position = (float2) {2, 0},
-    //         });
-    //         create_entity(&s->offline_state, ent);
-    //     }
-    //
-    //     s->player_handle = create_player(&s->offline_state, 0);
-    //
-    //     Slice_Ghost replicate = slice_create(Ghost, scratch.arena, 128);
-    //
-    //     entities_to_snapshot(&replicate, s->offline_state.entities, s->current_tick, NULL);
-    //
-    //     Slice_u8 fake_network_buff = slice_create(u8, scratch.arena, sizeof(Entity) * 512);
-    //     Stream write_stream = {
-    //         .slice = fake_network_buff,
-    //         .operation = Stream_Write,
-    //     };
-    //
-    //     serialize_entity_list(&write_stream, &s->offline_state.entities);
-    //
-    //     Stream read_stream = {
-    //         .slice = fake_network_buff,
-    //         .operation = Stream_Read,
-    //     };
-    //
-    //     Slice_Entity init_snapshot = slice_create(Entity, scratch.arena, 512);
-    //     serialize_entity_list(&read_stream, &init_snapshot);
-    //
-    //     for (u32 i = 0; i < init_snapshot.length; i++) {
-    //         create_entity(&s->predicted_state, slice_get(init_snapshot, i));
-    //     }
-    //
-    //     
-    //     // create_player(&s->offline_state, 0);
-    // }
-
     scratch_release(scratch);
-
-
 
     b2DebugDraw* m_debug_draw = &s->m_debug_draw;
     *m_debug_draw = b2DefaultDebugDraw();
@@ -272,7 +261,9 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
 
     // snapshot needs to be reusable persistent memory because
     // packets can be received across frames
-    slice_init(&s->latest_snapshot.ghosts, level_arena, MaxEntities);
+    s->latest_snapshot.ents = slice_create(Entity, level_arena, MaxEntities);
+
+    s->player_handle.generation = -1;
 }
 
 void scene_end(Scene* s) {
@@ -332,12 +323,11 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
                 // printf("asdl %f\n", delta_time);
                 // serialize_slice(&stream, &s->latest_snapshot);
                 // u8 input_buffer_size;
-                slice_clear(&s->latest_snapshot.ghosts);
-                s->latest_snapshot.player = &s->player;
+                slice_clear(&s->latest_snapshot.ents);
                 serialize_snapshot_message(&stream, &s->latest_snapshot);
                 // s->player = *s->latest_snapshot.player;
                 // s->last_snapshot.input = input_buffer_size;
-                s->camera.position = s->player.physics.position;
+                // s->camera.position = s->player.physics.position;
 
                 f64 acc_diff = (target_input_buffer_size - s->latest_snapshot.input_buffer_size) / (f64)TICK_RATE * 0.05;
                 // printf("%f\n", acc_diff);
@@ -346,9 +336,25 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
 
             if (message_type == MessageType_StateInit) {
                 Slice_Entity init_snapshot = slice_create(Entity, scratch.arena, 512);
-                serialize_state_init_message(&stream, &init_snapshot);
+                serialize_state_init_message(&stream, &init_snapshot, &s->client_id);
                 for (u32 i = 0; i < init_snapshot.length; i++) {
                     create_entity(&s->predicted_state, slice_get(init_snapshot, i));
+                }
+
+                for (u32 i = 0; s->predicted_state.entities.length; i++) {
+                    Entity* ent = slice_getp(s->predicted_state.entities, i);
+                    if (!ent->active) {
+                        continue;
+                    }
+
+                    if (ent->flags & EntityFlags_player && ent->client_id == s->client_id) {
+                        s->player_handle = (EntityHandle) {
+                            .index = ent->index,
+                            .generation = ent->generation,
+                        };
+                        break;
+                    }
+
                 }
             }
 
@@ -392,11 +398,16 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
         .position = {position_offset_px(50), position_offset_px(50)},
     });
 
+    Entity* player = entity_list_get(s->predicted_state.entities, s->player_handle);
+    Entity zero = {0};
+    if (player == NULL) {
+        player = &zero;
+    }
 
     for (i32 i = 0; i < 8; i++) {
         ImageID image = {0};
         float4 color = {1,1,1,1};
-        if (s->player.selected_spell == i) {
+        if (player->selected_spell == i) {
             color = (float4){1,0.8,0,1};
         }
         UI_Key id = ui_push_row({
@@ -408,7 +419,7 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
         });
 
         if (s->inventory_open) {
-            if (ui_hover(id) && input_mouse_down(SDL_BUTTON_LEFT) && s->player.hotbar[i] != SpellType_NULL) {
+            if (ui_hover(id) && input_mouse_down(SDL_BUTTON_LEFT) && player->hotbar[i] != SpellType_NULL) {
                 s->moving_spell = true;
                 s->spell_move_src = i;
             }
@@ -419,7 +430,7 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
             }
         }
 
-        SpellType spell = s->player.hotbar[i];
+        SpellType spell = player->hotbar[i];
         Rect src = {0,0,16,16};
         if (spell != SpellType_NULL) {
             image = ImageID_spell_icons_png;
@@ -665,6 +676,11 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
             s->moving_spell = false;
         }
 
+        if (input_key_held(SDL_SCANCODE_2)) {
+            int x = 123;
+            printf("asddf\n");
+        }
+
 
         // int throttle_ticks{};
         // state_update(&s->state, &tick_arena, inputs, s->current_tick, tick_rate);
@@ -677,6 +693,12 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
 
         // state_update(&s->offline_state, &s->tick_arena, inputs, s->current_tick, TICK_RATE);
         state_update(&s->predicted_state, inputs, s->current_tick, TICK_RATE, false);
+
+        // Tick tick = {
+        //     .entity_count = 
+        // }
+        // memcpy ()
+        // s->history
 
         // ring_push_back(&s->prediction_history, (PredictionTick){});
         // PredictionTick* pushed = &s->prediction_history.data[s->prediction_history.end];
@@ -769,52 +791,34 @@ bool float2_cmp(float2 a, float2 b) {
     return a.x == b.x && a.y == b.y;
 }
 
-void render_ghosts(Camera2D camera, Slice_Ghost ghosts, bool filter_predicted) {
-    for (i32 i = 0; i < ghosts.length; i++) {
-        const Ghost* ghost = slice_getp(ghosts, i);
+void render_entities(Camera2D camera, Slice_Entity ents, u32 current_tick, bool filter_predicted) {
+    for (i32 i = 0; i < ents.length; i++) {
+        const Entity* ent = slice_getp(ents, i);
         // if (filter_predicted && ghost->replication_type != ReplicationType_Snapshot) {
         //     continue;
         // }
 
         Rect world_rect = {
-            .position = ghost->position,
-            .size = float2_scale(texture_dimensions(ghost->sprite), 1 / 16.0),
+            .position = ent->position,
+            .size = float2_scale(texture_dimensions(ent->sprite), 1 / 16.0),
         };
 
-        if (!float2_cmp(ghost->sprite_src.size, (float2){0,0})) {
-            world_rect.size = float2_scale(ghost->sprite_src.size, 1 / 16.0);
+        if (!float2_cmp(ent->sprite_src.size, (float2){0,0})) {
+            world_rect.size = float2_scale(ent->sprite_src.size, 1 / 16.0);
         }
-        // TextureID texture;
-        // texture = ghost->sprite;
-        // switch (ghost->type) {
-        // case EntityType::Player: {
-        //     world_rect.size = {2,2};
-        //     texture = TextureID_player_png;
-        // } break;
-        // case EntityType::Bullet: {adf
-        //     world_rect.size = {0.5,0.5};
-        //     texture = TextureID_bullet_png;
-        // } break;
-        // case EntityType::Box: {
-        //     world_rect.size = {1,1};
-        //     texture = TextureID_box_png;
-        // } break;
-        //
-        // }
 
         RGBA mix_color = {255,255,255,255};
         f32 t = 0;
-        if (ghost->hit_flash) {
+        if (ent->hit_flash_end_tick > current_tick) {
             t = 1;
         }
 
-
-        if (ghost->flip_sprite) {
+        if (ent->flip_sprite) {
             world_rect.size.x *= -1;
         }
 
         RGBA mult_color = {0};
-        if (filter_predicted && ghost->replication_type != ReplicationType_Snapshot) {
+        if (filter_predicted && ent->replication_type != ReplicationType_Snapshot) {
             // mult_color = (RGBA) {255,255,255,128};
             mix_color = (RGBA){255,0,0,255};
             t = 1;
@@ -822,17 +826,17 @@ void render_ghosts(Camera2D camera, Slice_Ghost ghosts, bool filter_predicted) {
             // continue;
         }
 
-        if (ghost->sprite != TextureID_NULL) {
+        if (ent->sprite != TextureID_NULL) {
             draw_sprite_world(camera, world_rect, (SpriteProperties){
-                .texture_id = ghost->sprite,
-                .src_rect = ghost->sprite_src,
+                .texture_id = ent->sprite,
+                .src_rect = ent->sprite_src,
                 .mix_color = mix_color,
                 // .mult_color = mult_color,
                 .t = t,
             });
         }
 
-        if (ghost->show_health) {
+        if (ent->flags & EntityFlags_hittable) {
             float2 pos = float2_sub(world_rect.position, (float2){0, -1});
             draw_world_rect(camera, (Rect){
                     .position = pos,
@@ -840,7 +844,7 @@ void render_ghosts(Camera2D camera, Slice_Ghost ghosts, bool filter_predicted) {
                 },
                 (float4){0.2, 0.2, 0.2, 1.0}
             );
-            draw_world_rect(camera, (Rect){.position=pos, .size={ghost->health / (float)box_health, 0.1}}, (float4){1, 0.2, 0.1, 1.0});
+            draw_world_rect(camera, (Rect){.position=pos, .size={ent->health / (float)box_health, 0.1}}, (float4){1, 0.2, 0.1, 1.0});
         }
     }
 }
@@ -848,22 +852,9 @@ void render_ghosts(Camera2D camera, Slice_Ghost ghosts, bool filter_predicted) {
 void scene_render(Scene* s, Arena* frame_arena) {
     System* sys = s->sys;
 
-    render_ghosts(s->camera, s->latest_snapshot.ghosts, true);
+    render_entities(s->camera, s->latest_snapshot.ents, s->latest_snapshot.tick_index, true);
 
-    // if (!s->online_mode) {
-    ArenaTemp scratch = scratch_get(0,0);
-    Slice_Ghost predict_ghosts = slice_create(Ghost, scratch.arena, 128);
-    entities_to_snapshot(&predict_ghosts, s->predicted_state.entities, s->current_tick, NULL);
-
-    render_ghosts(s->camera, predict_ghosts, false);
-    scratch_release(scratch);
-    // }
-
-
-    // Slice_Ghost view = slice_create_view(Ghost, s->latest_snapshot.ghosts, MaxEntities);
-
-
-    // render_ghosts(s->camera, s->latest_snapshot.ghosts, false);
+    render_entities(s->camera, s->predicted_state.entities, s->current_tick, false);
     
     // for (i32 i = 0; i < 4; i++) {
     //     Chunk* chunk = &chunks[i];
@@ -888,11 +879,6 @@ void scene_render(Scene* s, Arena* frame_arena) {
         // b2World_Draw(s->offline_state.world_id, &s->m_debug_draw);
         b2World_Draw(s->predicted_state.world_id, &s->m_debug_draw);
     }
-    // render_state(renderer, window, &s->state, s->current_tick, fixed_dt, s->camera);
-    // render_ghosts(s->camera, s->latest_snapshot);
-    // draw_world_rect(renderer, m_camera, {{-3.5, 0}, {1,1}}, color::red);
-    // draw_world_rect(renderer, m_camera, {{0.5, 1.5}, {0.5,0.5}}, RGBA{255,255,0,255});
-    // printf("%d\n", alignof(std::max_align_t);
 
     if (s->edit_mode) {
         i32 y_count = s->camera.size.y / GRID_STEP + 1;
@@ -916,15 +902,8 @@ void scene_render(Scene* s, Arena* frame_arena) {
 
         float2 pos = screen_to_world_pos(s->camera, sys->input.mouse_pos, sys->renderer.window_width, sys->renderer.window_height);
         
-
         i32 x = (i32) (floor(pos.x) / GRID_STEP);
-        // if (pos.x < 0) {
-        //     x -= 1;
-        // }
         i32 y = (i32) (floor(pos.y) / GRID_STEP);
-        // if (pos.y < 0) {
-        //     y -= 1;
-        // }
 
         float2 p2 = float2_add((float2){x * GRID_STEP, y * GRID_STEP}, float2_scale(float2_one, (GRID_STEP / 2)));
         draw_world_rect(s->camera, (Rect){p2,(float2){1,1}}, (float4){1,0,0,1});

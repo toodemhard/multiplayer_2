@@ -30,11 +30,12 @@ EntityIndex entity_ptr_to_index(Slice_Entity ent_list, Entity* ent_ptr) {
 }
 
 bool entity_is_valid(Slice_Entity entity_list, EntityHandle handle) {
-    if (!entity_list.data[handle.index].active) {
+    Entity* ent = slice_getp(entity_list, handle.index);
+    if (!ent->active) {
         return false;
     }
 
-    if (entity_list.data[handle.index].generation != handle.generation) {
+    if (ent->generation != handle.generation) {
         return false;
     }
 
@@ -45,7 +46,7 @@ Entity* entity_list_get(Slice_Entity entity_list, EntityHandle handle) {
     Entity* ret = NULL;
 
     Entity* ent = slice_getp(entity_list, handle.index);
-    if (ent->generation ==  handle.generation) {
+    if (ent->active && ent->generation == handle.generation) {
         ret = ent;
     }
 
@@ -67,7 +68,6 @@ EntityHandle create_entity(GameState* s, Entity entity) {
     Slice_Entity* entity_list = &s->entities;
 
     Entity* ent = NULL;
-    EntityIndex index;
     bool found_hole = false;
     for (u32 i = 0; i < entity_list->length; i++) {
         Entity* existing_ent = slice_getp(*entity_list, i);
@@ -76,27 +76,27 @@ EntityHandle create_entity(GameState* s, Entity entity) {
             *existing_ent = entity;
             ent = existing_ent;
             found_hole = true;
-            index = i;
+            ent->index = i;
             break;
         }
     }
 
     if (!found_hole) {
-        index = entity_list->length;
-        entity.generation = 0;
+        entity.generation = 1;
+        entity.index = entity_list->length;
         slice_push(entity_list, entity);
         ent = slice_back(*entity_list);
     }
 
-    s->serial += 1;
-    ent->net_id = s->serial;
+    // s->serial += 1;
+    // ent->net_id = s->serial;
 
     // initialize out of struct components like physics
     if (ent->flags & EntityFlags_physics) {
         PhysicsComponent* phys = &ent->physics;
         b2BodyDef body_def = b2DefaultBodyDef();
         body_def.type = phys->body_type;
-        body_def.position = phys->position.b2vec;
+        body_def.position = ent->position.b2vec;
         body_def.linearVelocity = phys->linear_velocity.b2vec;
         body_def.fixedRotation = true;
         body_def.linearDamping = phys->linear_damping;
@@ -111,8 +111,8 @@ EntityHandle create_entity(GameState* s, Entity entity) {
     }
 
     return (EntityHandle) {
-        .index = index,
-        .generation = slice_get(*entity_list, index).generation,
+        .index = ent->index,
+        .generation = ent->generation,
     };
 }
 
@@ -136,12 +136,12 @@ void create_box(GameState* state, float2 position) {
         .type = EntityType_Box,
         .flags = EntityFlags_physics | EntityFlags_hittable,
         .health = box_health,
+        .position = position,
     };
 
     entity_add_physics_component(&ent, (PhysicsComponent) {
         .collider = (ColliderDef) {0.5, 0.5},
         .body_type = b2_dynamicBody,
-        .position = position,
         .linear_damping = 4,
     });
 
@@ -168,10 +168,10 @@ void create_wall(Slice_Entity* create_list, float2 position, Dir8 direction) {
         .flip_sprite = flip_sprite,
         .flags = EntityFlags_physics | EntityFlags_hittable,
         .health = 50,
+        .position = position,
     };
 
     entity_add_physics_component(&wall, (PhysicsComponent) {
-        .position = position,
         .collider = (ColliderDef) {1, 1},
     });
 
@@ -186,11 +186,11 @@ void create_bullet(Slice_Entity* create_list, EntityHandle owner, float2 positio
         .flags = EntityFlags_physics | EntityFlags_attack | EntityFlags_expires,
         .expire_tick = current_tick + (u32)(bullet_expire_duration * tick_rate),
         .owner = owner,
+        .position = position,
     };
 
     entity_add_physics_component(&bullet, (PhysicsComponent) {
         .collider = (ColliderDef) {0.25, 0.25},
-        .position = position,
         .linear_velocity = float2_scale(direction, bullet_speed),
         .body_type = b2_dynamicBody,
         .is_sensor = true,
@@ -303,6 +303,10 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
 
         if (!ent->active) {
             continue;
+        }
+
+        if (ent->flags & EntityFlags_physics) {
+            ent->position.b2vec = b2Body_GetPosition(ent->body_id);
         }
 
         if (ent->flags & EntityFlags_expires && current_tick >= ent->expire_tick) {
@@ -466,12 +470,12 @@ EntityHandle create_player(GameState* state, ClientID client_id) {
         .client_id = client_id,
         // .hotbar = {SpellType_Bolt, SpellType_SpreadBolt},
         .health = 100,
+        .position = (float2){0.0, 1.0},
     };
 
     entity_add_physics_component(&player, (PhysicsComponent) {
         .collider = (ColliderDef){0.5, 0.5},
         .body_type = b2_dynamicBody,
-        .position = (float2){0.0, 1.0},
     });
 
     EntityHandle handle = create_entity(state, player);
@@ -487,27 +491,27 @@ EntityHandle create_player(GameState* state, ClientID client_id) {
 }
 
 // out params
-void entities_to_snapshot(Slice_Ghost* ghosts, Slice_Entity ents, u64 current_tick, Slice_pEntity* players) {
-    // Slice_Ghost ghosts = slice_create(Ghost, tick_arena, ents.length);
-
-    for (i32 i = 0; i < ents.length; i++) {
-        Entity* ent = slice_getp(ents, i);
-        if (ent->active) {
-            slice_push(ghosts, (Ghost){
-                .replication_type = ent->replication_type,
-                .sprite = ent->sprite,
-                .sprite_src = ent->sprite_src,
-                .flip_sprite = ent->flip_sprite,
-                .position = {.b2vec=b2Body_GetPosition(ent->body_id)},
-                .health = (u16)ent->health,
-                .show_health = (bool)(ent->flags & EntityFlags_hittable),
-                .hit_flash = ent->hit_flash_end_tick > current_tick,
-            });
-
-            if (players != NULL && ent->type == EntityType_Player) {
-                ent->physics.position.b2vec = b2Body_GetPosition(ent->body_id);
-                slice_push(players, ent);
-            }
-        }
-    }
-}
+// void entities_to_snapshot(Slice_Ghost* ghosts, Slice_Entity ents, u64 current_tick, Slice_pEntity* players) {
+//     // Slice_Ghost ghosts = slice_create(Ghost, tick_arena, ents.length);
+//
+//     for (i32 i = 0; i < ents.length; i++) {
+//         Entity* ent = slice_getp(ents, i);
+//         if (ent->active) {
+//             slice_push(ghosts, (Ghost){
+//                 .replication_type = ent->replication_type,
+//                 .sprite = ent->sprite,
+//                 .sprite_src = ent->sprite_src,
+//                 .flip_sprite = ent->flip_sprite,
+//                 .position = {.b2vec=b2Body_GetPosition(ent->body_id)},
+//                 .health = (u16)ent->health,
+//                 .show_health = (bool)(ent->flags & EntityFlags_hittable),
+//                 .hit_flash = ent->hit_flash_end_tick > current_tick,
+//             });
+//
+//             if (players != NULL && ent->type == EntityType_Player) {
+//                 ent->physics.position.b2vec = b2Body_GetPosition(ent->body_id);
+//                 slice_push(players, ent);
+//             }
+//         }
+//     }
+// }

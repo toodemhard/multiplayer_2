@@ -17,13 +17,45 @@ void stream_pos_reset(Stream* stream) {
 }
 
 void serialize_player(Stream* s, Entity* player) {
-    serialize_var(s, &player->physics.position);
+    serialize_var(s, &player->position);
     serialize_var(s, &player->hotbar);
     serialize_var(s, &player->selected_spell);
 }
 
+// void serialize_init_entities(Stream* stream, Slice_Entity* entities) {
+//     u32* count_ref = (u32*)slice_getp(stream->slice, stream->current);
+//
+//     u32 count = 0;
+//     serialize_var(stream, &count);
+//
+//     if (stream->operation == Stream_Write) {
+//         for (u32 i = 0; i < entities->length; i++) {
+//             Entity* ent = slice_getp(*entities, i);
+//
+//             if (ent->active && ent->replication_type == ReplicationType_Predicted) {
+//                 serialize_snapshot_entity(stream, ent);
+//                 count += 1;
+//             }
+//         }
+//
+//         *count_ref = count;
+//     }
+//
+//     if (stream->operation == Stream_Read) {
+//         for (u32 i = 0; i < count; i++) {
+//             slice_push(entities, (Entity){});
+//             Entity* ent = slice_back(*entities);
+//             serialize_init_entity(stream, ent);
+//         }
+//     }
+// }
 
-void serialize_entity_list(Stream* stream, Slice_Entity* entities) {
+typedef enum EntitySerializationType {
+    EntitySerializationType_Init,
+    EntitySerializationType_Update,
+} EntitySerializationType;
+
+void serialize_entities(Stream* stream, Slice_Entity* entities, EntitySerializationType serialization_type) {
     u32* count_ref = (u32*)slice_getp(stream->slice, stream->current);
 
     u32 count = 0;
@@ -33,26 +65,65 @@ void serialize_entity_list(Stream* stream, Slice_Entity* entities) {
         for (u32 i = 0; i < entities->length; i++) {
             Entity* ent = slice_getp(*entities, i);
 
-            if (ent->active && ent->replication_type == ReplicationType_Predicted) {
-                serialize_entity(stream, ent);
+            bool serialize = false;
+            if (ent->active) {
+                serialize = true;
+            }
+            if (serialize) {
+                if (serialization_type == EntitySerializationType_Init) {
+                    serialize_init_entity(stream, ent);
+                } else if (serialization_type == EntitySerializationType_Update) {
+                    serialize_snapshot_entity(stream, ent);
+                }
                 count += 1;
             }
         }
-
         *count_ref = count;
     }
 
     if (stream->operation == Stream_Read) {
         for (u32 i = 0; i < count; i++) {
-            slice_push(entities, (Entity){});
+            slice_push(entities, (Entity){0});
             Entity* ent = slice_back(*entities);
-            serialize_entity(stream, ent);
+            if (serialization_type == EntitySerializationType_Init) {
+                serialize_init_entity(stream, ent);
+            } else if (serialization_type == EntitySerializationType_Update) {
+                serialize_snapshot_entity(stream, ent);
+            }
         }
     }
 }
 
-void serialize_entity(Stream* stream, Entity* ent) {
+// only serialize rendering and stuff to check for rollback
+// position + linear velocity atm
+void serialize_snapshot_entity(Stream* stream, Entity* ent) {
+    serialize_var(stream, &ent->generation);
+    serialize_var(stream, &ent->index);
+    // serialize_var(stream, &ent->type);
+    serialize_var(stream, &ent->flags);
+    serialize_var(stream, &ent->replication_type);
 
+    serialize_var(stream, &ent->sprite);
+    serialize_var(stream, &ent->sprite_src);
+    serialize_var(stream, &ent->flip_sprite);
+
+    if (ent->flags & EntityFlags_physics) {
+        serialize_var(stream, &ent->position);
+        // serialize_var(stream, &ent->linear_velocity);
+    }
+
+    if (ent->flags & EntityFlags_hittable) {
+        serialize_var(stream, &ent->health);
+        serialize_var(stream, &ent->hit_flash_end_tick);
+    }
+
+    if (ent->flags & EntityFlags_expires) {
+        serialize_var(stream, &ent->expire_tick);
+    }
+}
+
+// serialize fully with all init config stuff for recreating
+void serialize_init_entity(Stream* stream, Entity* ent) {
     serialize_var(stream, &ent->type);
     serialize_var(stream, &ent->flags);
 
@@ -69,6 +140,7 @@ void serialize_entity(Stream* stream, Entity* ent) {
     }
 
     if (ent->flags & EntityFlags_physics) {
+        serialize_var(stream, &ent->position);
         serialize_var(stream, &ent->physics);
     }
 
@@ -82,29 +154,32 @@ void serialize_entity(Stream* stream, Entity* ent) {
     }
 }
 
-void serialize_state_init_message(Stream* stream, Slice_Entity* entities) {
+void serialize_state_init_message(Stream* stream, Slice_Entity* entities, ClientID* client_id) {
     MessageType message_type = MessageType_StateInit;
     serialize_var(stream, &message_type);
-    serialize_entity_list(stream, entities);
+    serialize_entities(stream, entities, EntitySerializationType_Init);
+    serialize_var(stream, client_id);
 }
 
 void serialize_snapshot_message(Stream* stream, SnapshotMessage* s) {
     MessageType message_type = MessageType_Snapshot;
     serialize_var(stream, &message_type);
+    serialize_var(stream, &s->tick_index);
     serialize_var(stream, &s->input_buffer_size);
-    serialize_slice(stream, &s->ghosts);
 
-    bool player_alive = false;
+    serialize_entities(stream, &s->ents, EntitySerializationType_Update);
 
-    if (s->player != NULL) {
-        player_alive = true;
-    }
-
-    serialize_bool(stream, &player_alive);
-
-    if (player_alive) {
-        serialize_player(stream, s->player);
-    }
+    // bool player_alive = false;
+    //
+    // // if (s->player != NULL) {
+    // //     player_alive = true;
+    // // }
+    //
+    // serialize_bool(stream, &player_alive);
+    //
+    // if (player_alive) {
+    //     serialize_player(stream, s->player);
+    // }
 }
 
 void serialize_input_message(Stream* stream, PlayerInput* input) {
