@@ -44,3 +44,11 @@ typedef double f64;
 #define defer_loop(begin, end) for(int _i_ = ((begin), 0); !_i_; _i_ += 1, (end))
 
 // #define defer_loop(begin, end) for(int _i_ = ((begin), 0); !_i_; _i_ += 1, (end))
+
+// #define memory_equals(a, b, size)\
+//     memcmp(a, b, )
+
+bool memory_equal(u8* a, u8* b, u64 size);
+
+#define vars_equal(a, b)\
+    memory_equal((u8*)(a), (u8*)(b), sizeof(*(a)))
