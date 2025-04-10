@@ -25,9 +25,11 @@ typedef struct Chunk {
 
 typedef struct Tick {
     Entity entities[MaxEntities];
-    u32 entity_count;
+    // u32 entity_count;
     PlayerInput inputs[MaxPlayers];
+    ClientID client_ids[MaxPlayers];
     u32 input_count;
+
     u32 tick;
 } Tick;
 ring_def(Tick);

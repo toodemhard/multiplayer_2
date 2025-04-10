@@ -213,6 +213,7 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
         server_connect(&s->local_server, host_address);
     }
 
+
     ArenaTemp scratch = scratch_get(0,0);
 
     scratch_release(scratch);
@@ -258,6 +259,8 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
     }
 
     // enet_peer_ping_interval(s->server, 10);
+
+    s->history = ring_alloc(Tick, level_arena, 30);
 
     // snapshot needs to be reusable persistent memory because
     // packets can be received across frames
@@ -328,6 +331,7 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
                 // s->player = *s->latest_snapshot.player;
                 // s->last_snapshot.input = input_buffer_size;
                 // s->camera.position = s->player.physics.position;
+                rollback(s);
 
                 f64 acc_diff = (target_input_buffer_size - s->latest_snapshot.input_buffer_size) / (f64)TICK_RATE * 0.05;
                 // printf("%f\n", acc_diff);
@@ -336,7 +340,7 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
 
             if (message_type == MessageType_StateInit) {
                 Slice_Entity init_snapshot = slice_create(Entity, scratch.arena, 512);
-                serialize_state_init_message(&stream, &init_snapshot, &s->client_id);
+                serialize_state_init_message(&stream, &init_snapshot, &s->client_id, &s->current_tick);
                 for (u32 i = 0; i < init_snapshot.length; i++) {
                     create_entity(&s->predicted_state, slice_get(init_snapshot, i));
                 }
@@ -505,7 +509,7 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
     // printf("%s", string.data);
 
 
-    if (s->online_mode) {
+    {
         s->acc_2 += delta_time;
 
         const f64 bw_poll = 1;
@@ -610,6 +614,7 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
     ui_end(frame_arena);
 
     while (s->accumulator >= FIXED_DT) {
+        printf("client: %d, server: %d\n", s->current_tick, s->local_server.current_tick);
         // printf("%d\n", s->latest_snapshot.input_buffer_size);
         arena_reset(&s->tick_arena);
         input_begin_frame(&s->tick_input);
@@ -664,7 +669,7 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
 
         // if (s->online_mode) {
             // enet_peer_ping(s->server);
-        serialize_input_message(&stream, &input);
+        serialize_input_message(&stream, &input, &s->current_tick);
 
         ENetPacket* packet = enet_packet_create(stream.slice.data, stream.slice.length, ENET_PACKET_FLAG_RELIABLE);
         enet_peer_send(s->server, Channel_Reliable, packet);
@@ -698,7 +703,20 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
         //     .entity_count = 
         // }
         // memcpy ()
-        // s->history
+        
+        if (s->history.length > 24) {
+            ASSERT(false);
+        }
+
+        // ring_push_back(&s->history, (Tick){
+        //     .inputs = {input},
+        //     .client_ids = {id},
+        //     .tick = s->current_tick,
+        // });
+        //
+        // Tick* history_tick = ring_back_ref(s->history);
+        // Slice_Entity* ents = &s->predicted_state.entities;
+        // memcpy(history_tick->entities, ents->data, slice_size_bytes(*ents));
 
         // ring_push_back(&s->prediction_history, (PredictionTick){});
         // PredictionTick* pushed = &s->prediction_history.data[s->prediction_history.end];

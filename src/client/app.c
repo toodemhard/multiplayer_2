@@ -80,7 +80,7 @@ bool init(void* memory) {
 
 
     arena_init(&state->temp_arena, arena_alloc(&god_allocator, megabytes(5)), megabytes(5));
-    arena_init(&state->level_arena, arena_alloc(&god_allocator, megabytes(5)), megabytes(5));
+    state->level_arena =  arena_suballoc(&god_allocator, megabytes(16));
     state->persistent_arena = arena_suballoc(&god_allocator, megabytes(1));
     state->menu_arena = arena_suballoc(&god_allocator, megabytes(2));
 
