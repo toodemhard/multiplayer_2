@@ -52,7 +52,7 @@ struct TestMessage {
 
 typedef struct SnapshotMessage SnapshotMessage;
 struct SnapshotMessage {
-    u8 input_buffer_size;
+    i32 input_buffer_size;
     u32 tick_index;
     Slice_Entity ents;
 };
@@ -79,6 +79,6 @@ void serialize_test_message(Stream* stream, Arena* read_arena, TestMessage* mess
 
 void serialize_init_entity(Stream* stream, Entity* ent);
 void serialize_snapshot_entity(Stream* stream, Entity* ent);
-void serialize_input_message(Stream* stream, PlayerInput* input);
+void serialize_input_message(Stream* stream, PlayerInput* input, u32* tick);
 
 void serialize_slice_raw(Stream* stream, void* data, u64 element_size, u64* length, u64 capacity);

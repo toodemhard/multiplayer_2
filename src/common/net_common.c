@@ -154,11 +154,12 @@ void serialize_init_entity(Stream* stream, Entity* ent) {
     }
 }
 
-void serialize_state_init_message(Stream* stream, Slice_Entity* entities, ClientID* client_id) {
+void serialize_state_init_message(Stream* stream, Slice_Entity* entities, ClientID* client_id, u32* tick) {
     MessageType message_type = MessageType_StateInit;
     serialize_var(stream, &message_type);
-    serialize_entities(stream, entities, EntitySerializationType_Init);
     serialize_var(stream, client_id);
+    serialize_var(stream, tick);
+    serialize_entities(stream, entities, EntitySerializationType_Init);
 }
 
 void serialize_snapshot_message(Stream* stream, SnapshotMessage* s) {
@@ -182,9 +183,12 @@ void serialize_snapshot_message(Stream* stream, SnapshotMessage* s) {
     // }
 }
 
-void serialize_input_message(Stream* stream, PlayerInput* input) {
+void serialize_input_message(Stream* stream, PlayerInput* input, u32* tick) {
     MessageType type = MessageType_Input;
     serialize_var(stream, &type);
+
+    serialize_var(stream, tick);
+
     serialize_bool(stream, &input->up);
     serialize_bool(stream, &input->down);
     serialize_bool(stream, &input->left);
