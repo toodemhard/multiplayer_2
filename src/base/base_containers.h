@@ -35,7 +35,7 @@ u64 bounds_check(u64 index, u64 capacity) {
     &(slice).data[bounds_check((index), (slice).capacity)]
 
 #define slice_size_bytes(slice)\
-    (slice).length * sizeof((slice).data[0]);
+    ((slice).length * sizeof((slice).data[0]))
 
 #define slice_create_view(type, _data, _length)\
     (Slice_##type) {\
@@ -247,6 +247,7 @@ typedef struct {\
     T* data;\
     u64 capacity;\
 } Ring_##T
+ring_def(u32);
 
 #define ring_alloc(T, arena, _capacity)\
     (Ring_##T) {\
@@ -274,6 +275,10 @@ do {\
     (r)->data[(r)->end] = __VA_ARGS__;\
     (r)->end = ((r)->end + 1) % (r)->capacity;\
 } while(0)
+
+#define ring_back_ref(r)\
+    &(r).data[((r).end - 1) % (r).capacity]
+
 
 // return index
 u64 ring_pop_raw(void* data, u64 capacity, u64* length, u64* start) {
