@@ -3,10 +3,12 @@
 // header for linked list queue thing
 typedef struct Packet Packet;
 struct Packet{
-    ENetPacketFlag flag;
-    ENetPeer* peer;
     u8* data;
     u64 size;
+    ENetPeer* peer;
+
+    // only for outgoing packets
+    ENetPacketFlag send_flag;
 
     // dont set
     f64 time;
@@ -31,6 +33,7 @@ void packet_queue_init(PacketQueue* queue, Arena* arena, u64 size) {
     queue->capacity = size;
 }
 
+// copies data reffed in packet
 void queue_packet(PacketQueue* queue, Packet packet) {
 
     // queue.buffer
@@ -86,22 +89,36 @@ void dequeue_packet(PacketQueue* queue) {
     }
 }
 
-void service_packets_out(PacketQueue* queue) {
+void service_packets_out(PacketQueue* queue, f64 latency) {
     // printf("%f\n", queue->size / (f64)queue->capacity);
 
     f64 now = os_now_seconds();
-    f64 latency = 0.2;
 
     while (queue->count > 0 && now >= queue->head->time + latency) {
         Packet* head = queue->head;
-        ENetPacket* packet = enet_packet_create((void*)head->data, head->size, head->flag);
+        ENetPacket* packet = enet_packet_create((void*)head->data, head->size, head->send_flag);
         Channel channel = Channel_Unreliable;
-        if (head->flag == ENET_PACKET_FLAG_RELIABLE) {
+        if (head->send_flag == ENET_PACKET_FLAG_RELIABLE) {
             channel = Channel_Reliable;
         }
         enet_peer_send(head->peer, channel, packet);
         dequeue_packet(queue);
     }
+}
+
+bool service_incoming_packets(PacketQueue* queue, f64 latency, Packet* packet) {
+    f64 now = os_now_seconds();
+
+    bool result = false;
+
+    if (queue->count > 0 && now >= queue->head->time + latency) {
+        *packet = *queue->head;
+
+        result = true;
+        dequeue_packet(queue);
+    }
+
+    return result;
 }
 
 
@@ -117,6 +134,7 @@ typedef struct Client {
     bool active;
     ClientID id;
     RingArray_PlayerInput input_ring;
+    u32 latest_tick;
     ENetPeer* peer;
 } Client;
 slice_def(Client);
@@ -139,7 +157,7 @@ typedef struct Server {
     f64 accumulator;
     f64 time;
     u64 frame;
-    u64 current_tick;
+    u32 current_tick;
     f64 last_time;
     
     EntityHandle player_handle;
@@ -147,7 +165,8 @@ typedef struct Server {
     PlayerInput inputs[MAX_PLAYER_COUNT];
     b2DebugDraw m_debug_draw;
 
-    PacketQueue packet_queue;
+    PacketQueue out_packet_queue;
+    PacketQueue in_packet_queue;
 
     bool first_frame;
 } Server;
@@ -157,7 +176,8 @@ typedef struct Server {
 void server_init(Server* s, Arena* arena) {
     state_init(&s->state, arena);
     create_box(&s->state, (float2){2,2});
-    packet_queue_init(&s->packet_queue, arena, megabytes(1));
+    packet_queue_init(&s->out_packet_queue, arena, megabytes(1));
+    packet_queue_init(&s->in_packet_queue, arena, megabytes(0.2));
     s->clients = slice_create(Client, arena, MaxPlayers);
 }
 
@@ -189,10 +209,44 @@ void server_update(Server* s) {
 
     ArenaTemp scratch = scratch_get(0,0);
 
-    service_packets_out(&s->packet_queue);
+    service_packets_out(&s->out_packet_queue, 0.1);
+
+    Packet packet;
+    while (service_incoming_packets(&s->in_packet_queue, 0.1, &packet)) {
+        Stream stream = {
+            .slice = slice_create_view(u8, packet.data, packet.size),
+            .operation = Stream_Read,
+        };
+
+        MessageType type;
+        serialize_var(&stream, &type);
+        stream_pos_reset(&stream);
+
+        // if (type == MessageType_Test) {
+        //     TestMessage message = {0};
+        //     serialize_test_message(&stream, scratch.arena, &message);
+        //     ENetPacket* packet = enet_packet_create(event.packet->data, event.packet->dataLength, ENET_PACKET_FLAG_RELIABLE);
+        // }
+
+        if (type == MessageType_Input) {
+            Client* client = (Client*)packet.peer->data;
+
+            PlayerInput input = {0};
+
+            u32 input_tick;
+            serialize_input_message(&stream, &input, &input_tick);
+            client->latest_tick = input_tick;
+
+            RingArray_PlayerInput* input_ring = &client->input_ring;
+            if (input_tick >= s->current_tick && input_ring->length < input_ring->capacity) {
+                ring_push_back(input_ring, input);
+            }
+        }
+
+    }
 
     ENetEvent event;
-    while (enet_host_service(s->server, & event, 0) > 0) {
+    while (enet_host_service(s->server, &event, 0) > 0) {
         switch (event.type) {
         case ENET_EVENT_TYPE_CONNECT: {
             bool found_hole = false;
@@ -228,59 +282,30 @@ void server_update(Server* s) {
                 .slice = slice_create(u8, scratch.arena, sizeof(Entity) * 512),
                 .operation = Stream_Write,
             };
-            serialize_state_init_message(&stream, &s->state.entities, &client->id);
+            serialize_state_init_message(&stream, &s->state.entities, &client->id, &s->current_tick);
 
             Packet packet = {
-                .flag = ENET_PACKET_FLAG_RELIABLE,
+                .send_flag = ENET_PACKET_FLAG_RELIABLE,
                 .peer = client->peer,
                 .data = stream.slice.data,
                 .size = stream.slice.length,
             };
 
-            queue_packet(&s->packet_queue, packet);
+            queue_packet(&s->out_packet_queue, packet);
 
         } break;
 
         case ENET_EVENT_TYPE_RECEIVE: {
-            Stream stream = {
-                .slice = slice_create_view(u8, event.packet->data, event.packet->dataLength),
-                .operation = Stream_Read,
+            Packet packet = {
+                .data = event.packet->data,
+                .size = event.packet->dataLength,
+                .peer = event.peer,
             };
 
-            MessageType type;
-            serialize_var(&stream, &type);
-            stream_pos_reset(&stream);
-
-            if (type == MessageType_Test) {
-                TestMessage message = {0};
-                serialize_test_message(&stream, scratch.arena, &message);
-                ENetPacket* packet = enet_packet_create(event.packet->data, event.packet->dataLength, ENET_PACKET_FLAG_RELIABLE);
-                // enet_peer_send(slice_get(clients, 1).peer, Channel_Reliable, packet);
-                // enet_host_flush(server);
-                // printf ("A packet of length %u containing %s was received from %s on channel %u.\n",
-                //     event.packet -> dataLength,
-                //     c_str(&temp_arena, message.str),
-                //     event.peer -> data,
-                //     event.channelID
-                // );
-
-            }
-
-            if (type == MessageType_Input) {
-                Client* client = (Client*)event.peer->data;
-
-                PlayerInput input = {0};
-                serialize_input_message(&stream, &input);
-
-                RingArray_PlayerInput* input_ring = &client->input_ring;
-                if (input_ring->length < input_ring->capacity){
-                    ring_push_back(input_ring, input);
-                }
-            }
+            queue_packet(&s->in_packet_queue, packet);
             enet_packet_destroy (event.packet);
-            break;
-        }
 
+        } break;
         case ENET_EVENT_TYPE_DISCONNECT: {
             Client* client = (Client*)event.peer->data;
             printf ("client id: %llu disconnected.\n", client->id);
@@ -347,8 +372,12 @@ void server_update(Server* s) {
                 }
             }
 
+            i32 input_buffer_size = client->input_ring.length;
+            if (input_buffer_size <= 0) {
+                input_buffer_size = client->latest_tick - s->current_tick;
+            }
             SnapshotMessage msg = {
-                .input_buffer_size = (u8)client->input_ring.length,
+                .input_buffer_size = input_buffer_size,
                 .tick_index = s->current_tick,
                 .ents = s->state.entities,
             };
@@ -357,13 +386,13 @@ void server_update(Server* s) {
             serialize_snapshot_message(&stream, &msg);
 
             Packet packet = {
-                .flag = ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT,
+                .send_flag = ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT,
                 .peer = client->peer,
                 .data = stream.slice.data,
                 .size = stream.slice.length,
             };
 
-            queue_packet(&s->packet_queue, packet);
+            queue_packet(&s->out_packet_queue, packet);
             // ENetPacket* packet = enet_packet_create((void*)stream.slice.data, stream.slice.length, ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT);
             // enet_peer_send(client->peer, Channel_Unreliable, packet);
             // enet_host_flush(s->server);
