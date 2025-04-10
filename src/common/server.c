@@ -165,6 +165,9 @@ typedef struct Server {
     PlayerInput inputs[MAX_PLAYER_COUNT];
     b2DebugDraw m_debug_draw;
 
+    f64 out_latency;
+    f64 in_latency;
+
     PacketQueue out_packet_queue;
     PacketQueue in_packet_queue;
 
@@ -209,10 +212,10 @@ void server_update(Server* s) {
 
     ArenaTemp scratch = scratch_get(0,0);
 
-    service_packets_out(&s->out_packet_queue, 0.1);
+    service_packets_out(&s->out_packet_queue, s->out_latency);
 
     Packet packet;
-    while (service_incoming_packets(&s->in_packet_queue, 0.1, &packet)) {
+    while (service_incoming_packets(&s->in_packet_queue, s->in_latency, &packet)) {
         Stream stream = {
             .slice = slice_create_view(u8, packet.data, packet.size),
             .operation = Stream_Read,
@@ -308,7 +311,7 @@ void server_update(Server* s) {
         } break;
         case ENET_EVENT_TYPE_DISCONNECT: {
             Client* client = (Client*)event.peer->data;
-            printf ("client id: %llu disconnected.\n", client->id);
+            printf ("client id: %u disconnected.\n", client->id);
 
             client->active = false;
 
