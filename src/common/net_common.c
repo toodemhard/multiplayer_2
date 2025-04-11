@@ -99,7 +99,7 @@ void serialize_entities(Stream* stream, Slice_Entity* entities, EntitySerializat
 void serialize_snapshot_entity(Stream* stream, Entity* ent) {
     serialize_var(stream, &ent->generation);
     serialize_var(stream, &ent->index);
-    // serialize_var(stream, &ent->type);
+
     serialize_var(stream, &ent->flags);
     serialize_var(stream, &ent->replication_type);
 
@@ -124,6 +124,9 @@ void serialize_snapshot_entity(Stream* stream, Entity* ent) {
 
 // serialize fully with all init config stuff for recreating
 void serialize_init_entity(Stream* stream, Entity* ent) {
+    serialize_var(stream, &ent->index);
+    serialize_var(stream, &ent->generation);
+
     serialize_var(stream, &ent->type);
     serialize_var(stream, &ent->flags);
 

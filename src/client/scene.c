@@ -154,15 +154,25 @@ void scene_render(Scene* s, Arena* frame_arena);
 void rollback(Scene* s) {
     bool found = false;
     Slice_Entity* pred_ents = NULL;
+    Tick* pred_tick = NULL;
     for (i32 i = s->history.start; i != s->history.end; i = (i + 1) % s->history.capacity) {
-        if (s->history.data[i].tick == s->latest_snapshot.tick_index) {
+        Tick* tick = &s->history.data[i];
+        if (tick->tick == s->latest_snapshot.tick_index) {
+            pred_tick = tick;
             found = true;
+            break;
         }
+
+        if (s->latest_snapshot.tick_index < tick->tick) {
+            break;
+        }
+
+        ring_pop_front(&s->history);
     }
 
     // latest_tick = slice_get_ref(s->history, s->history->end)
 
-
+    bool rollback = false;
 
     Slice_Entity* auth_ents = &s->latest_snapshot.ents;
     for (i32 i = 0; i < auth_ents->length; i++) {
@@ -171,15 +181,26 @@ void rollback(Scene* s) {
             continue;
         }
 
-        Entity* pred_ent = slice_getp(s->predicted_state.entities, auth_ent->index);
+        Entity* pred_ent = &pred_tick->entities[auth_ent->index];
         ASSERT(pred_ent->generation == auth_ent->generation);
         ASSERT(pred_ent->client_id == auth_ent->client_id);
 
         if (!vars_equal(&pred_ent->position, &auth_ent->position)) {
-            printf("disccccc\n");
-        }
+            rollback = true;
 
+            printf("disccccc\n");
+            break;
+        }
     }
+
+    // if (rollback) {
+    //     for (i32 i = 0; i < auth_ents->length; i++) {
+    //         state_update()
+    //         
+    //
+    //
+    //     }
+    // }
 
 }
 
@@ -342,8 +363,10 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
             if (message_type == MessageType_StateInit) {
                 Slice_Entity init_snapshot = slice_create(Entity, scratch.arena, 512);
                 serialize_state_init_message(&stream, &init_snapshot, &s->client_id, &s->current_tick);
+                // TODO: init should force index position
                 for (u32 i = 0; i < init_snapshot.length; i++) {
-                    create_entity(&s->predicted_state, slice_get(init_snapshot, i));
+                    Entity* ent = slice_getp(init_snapshot, i);
+                    create_entity(&s->predicted_state, *ent, true);
                 }
 
                 for (u32 i = 0; s->predicted_state.entities.length; i++) {
@@ -625,7 +648,7 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
     ui_end(frame_arena);
 
     while (s->finished_init_sync && s->accumulator >= FIXED_DT) {
-        printf("inbuf: %d, client: %d, server: %d\n", s->latest_snapshot.input_buffer_size, s->current_tick, s->local_server.current_tick);
+        // printf("inbuf: %d, client: %d, server: %d\n", s->latest_snapshot.input_buffer_size, s->current_tick, s->local_server.current_tick);
         // printf("%d\n", s->latest_snapshot.input_buffer_size);
         arena_reset(&s->tick_arena);
         input_begin_frame(&s->tick_input);
@@ -692,10 +715,10 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
             s->moving_spell = false;
         }
 
-        if (input_key_held(SDL_SCANCODE_2)) {
-            int x = 123;
-            printf("asddf\n");
-        }
+        // if (input_key_held(SDL_SCANCODE_2)) {
+        //     int x = 123;
+        //     printf("asddf\n");
+        // }
 
 
         state_update(&s->predicted_state, inputs, s->current_tick, TICK_RATE, false);
@@ -705,19 +728,19 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
         // }
         // memcpy ()
         
-        if (s->history.length > 24) {
-            ASSERT(false);
-        }
+        // if (s->history.length > 24) {
+        //     ASSERT(false);
+        // }
 
-        // ring_push_back(&s->history, (Tick){
-        //     .inputs = {input},
-        //     .client_ids = {id},
-        //     .tick = s->current_tick,
-        // });
-        //
-        // Tick* history_tick = ring_back_ref(s->history);
-        // Slice_Entity* ents = &s->predicted_state.entities;
-        // memcpy(history_tick->entities, ents->data, slice_size_bytes(*ents));
+        ring_push_back(&s->history, (Tick){
+            .inputs = {input},
+            .client_ids = {id},
+            .tick = s->current_tick,
+        });
+
+        Tick* history_tick = ring_back_ref(s->history);
+        Slice_Entity* ents = &s->predicted_state.entities;
+        memcpy(history_tick->entities, ents->data, slice_size_bytes(*ents));
 
         // ring_push_back(&s->prediction_history, (PredictionTick){});
         // PredictionTick* pushed = &s->prediction_history.data[s->prediction_history.end];

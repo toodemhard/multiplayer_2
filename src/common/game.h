@@ -217,6 +217,6 @@ void create_box(GameState* state, float2 position);
 EntityHandle create_player(GameState* state, ClientID client_id);
 
 Entity* entity_list_get(Slice_Entity entity_list, EntityHandle handle);
-EntityHandle create_entity(GameState* s, Entity entity);
+EntityHandle create_entity(GameState* s, Entity entity, bool force_handle);
 bool entity_is_valid(Slice_Entity entity_list, EntityHandle handle);
 // void entities_to_snapshot(Slice_Ghost* ghosts, Slice_Entity ents, u64 current_tick, Slice_pEntity* players);

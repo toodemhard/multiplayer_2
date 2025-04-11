@@ -62,30 +62,41 @@ void entity_add_physics_component(Entity* ent, PhysicsComponent physics) {
     ent->physics = physics;
 }
 
-EntityHandle create_entity(GameState* s, Entity entity) {
+EntityHandle create_entity(GameState* s, Entity entity, bool force_handle) {
     entity.active = true;
 
     Slice_Entity* entity_list = &s->entities;
 
     Entity* ent = NULL;
-    bool found_hole = false;
-    for (u32 i = 0; i < entity_list->length; i++) {
-        Entity* existing_ent = slice_getp(*entity_list, i);
-        if (existing_ent->active == false) {
-            entity.generation = existing_ent->generation + 1;
-            *existing_ent = entity;
-            ent = existing_ent;
-            found_hole = true;
-            ent->index = i;
-            break;
+
+    if (!force_handle) {
+        bool found_hole = false;
+        for (u32 i = 0; i < entity_list->length; i++) {
+            Entity* existing_ent = slice_getp(*entity_list, i);
+            if (existing_ent->active == false) {
+                entity.generation = existing_ent->generation + 1;
+                *existing_ent = entity;
+                ent = existing_ent;
+                found_hole = true;
+                ent->index = i;
+                break;
+            }
+        }
+
+        if (!found_hole) {
+            entity.generation = 1;
+            entity.index = entity_list->length;
+            slice_push(entity_list, entity);
+            ent = slice_back(*entity_list);
         }
     }
 
-    if (!found_hole) {
-        entity.generation = 1;
-        entity.index = entity_list->length;
-        slice_push(entity_list, entity);
-        ent = slice_back(*entity_list);
+    if (force_handle) {
+        ent = slice_getp(*entity_list, entity.index);
+        *ent = entity;
+
+        entity_list->length = max(entity.index + 1, entity_list->length);
+        ASSERT(entity_list->length <= entity_list->capacity);
     }
 
     // s->serial += 1;
@@ -145,7 +156,7 @@ void create_box(GameState* state, float2 position) {
         .linear_damping = 4,
     });
 
-    EntityHandle ent_handle = create_entity(state, ent);
+    EntityHandle ent_handle = create_entity(state, ent, false);
 }
 
 void create_wall(Slice_Entity* create_list, float2 position, Dir8 direction) {
@@ -269,7 +280,6 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
     b2World_Step(state->world_id, dt, substep_count);
 
     Slice_EntityIndex delete_list = slice_create(EntityIndex, scratch.arena, 512);
-
     Slice_Entity create_list = slice_create(Entity, scratch.arena, 128);
 
     b2SensorEvents sensorEvents = b2World_GetSensorEvents(state->world_id);
@@ -449,7 +459,7 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
 
         // for ()
         for (u32 i = 0; i < create_list.length; i++) {
-            create_entity(state, slice_get(create_list, i));
+            create_entity(state, slice_get(create_list, i), false);
         }
     }
 
@@ -478,7 +488,7 @@ EntityHandle create_player(GameState* state, ClientID client_id) {
         .body_type = b2_dynamicBody,
     });
 
-    EntityHandle handle = create_entity(state, player);
+    EntityHandle handle = create_entity(state, player, false);
 
     // b2Polygon polygon = b2MakeBox(0.5, 0.5);
     // b2ShapeDef shape_def = b2DefaultShapeDef();
