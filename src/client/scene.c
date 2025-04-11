@@ -210,6 +210,8 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
         };
 
         server_init(&s->local_server, level_arena);
+        s->local_server.out_latency = 0.1;
+        s->local_server.in_latency = 0.1;
         server_connect(&s->local_server, host_address);
     }
 
@@ -333,9 +335,12 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
                 // s->camera.position = s->player.physics.position;
                 rollback(s);
 
-                f64 acc_diff = (target_input_buffer_size - s->latest_snapshot.input_buffer_size) / (f64)TICK_RATE * 0.05;
+                if (s->finished_init_sync) {
+                    f64 acc_diff = (target_input_buffer_size - s->latest_snapshot.input_buffer_size) / (f64)TICK_RATE * 0.05;
+                    s->accumulator += acc_diff;
+                    // printf("acc\n");
+                }
                 // printf("%f\n", acc_diff);
-                s->accumulator += acc_diff;
             }
 
             if (message_type == MessageType_StateInit) {
@@ -358,8 +363,27 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
                         };
                         break;
                     }
-
                 }
+
+                f64 total_latency = s->server->roundTripTime / 1000.0;
+                if (!s->online_mode) {
+                    total_latency += s->local_server.out_latency + s->local_server.in_latency;
+                }
+
+                u32 simulate_ahead_ticks = (total_latency * TICK_RATE) / 2.0 + target_input_buffer_size;
+                // TODO
+                // need to fix client speeding up too much because input buffer initially 0
+                // the initial input buffer should be filled to target somehow
+                // update throttling should only start after handshake
+                // mostly a problem of it responding to latent buffer size, not rlly important rn
+                // also should switch this to real prediction using inputs
+                for (u32 i = 0; i < simulate_ahead_ticks; i++) {
+                    state_update(&s->predicted_state, (Inputs){0}, s->current_tick, TICK_RATE, false);
+                    s->current_tick++;
+                }
+
+                printf("ping: %d\n", s->server->roundTripTime);
+                s->finished_init_sync = true;
             }
 
 
@@ -613,8 +637,8 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
 
     ui_end(frame_arena);
 
-    while (s->accumulator >= FIXED_DT) {
-        printf("client: %d, server: %d\n", s->current_tick, s->local_server.current_tick);
+    while (s->finished_init_sync && s->accumulator >= FIXED_DT) {
+        printf("inbuf: %d, client: %d, server: %d\n", s->latest_snapshot.input_buffer_size, s->current_tick, s->local_server.current_tick);
         // printf("%d\n", s->latest_snapshot.input_buffer_size);
         arena_reset(&s->tick_arena);
         input_begin_frame(&s->tick_input);
@@ -687,16 +711,6 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
         }
 
 
-        // int throttle_ticks{};
-        // state_update(&s->state, &tick_arena, inputs, s->current_tick, tick_rate);
-
-
-        // float2 player_pos = {};
-        // if (entity_is_valid(&s->state.entities, s->player_handle)) {
-        //     player_pos = float2{.b2vec=b2Body_GetPosition(entity_list_get(&s->state.entities, s->player_handle)->body_id)};
-        // }
-
-        // state_update(&s->offline_state, &s->tick_arena, inputs, s->current_tick, TICK_RATE);
         state_update(&s->predicted_state, inputs, s->current_tick, TICK_RATE, false);
 
         // Tick tick = {
@@ -725,29 +739,6 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
 
         // history 
 
-        // if (!s->online_mode) {
-        //     Slice_pEntity players = slice_p_create(Entity, &s->tick_arena, 1);
-        //     s->latest_snapshot = slice_create(Ghost, &s->tick_arena, 512);
-        //
-        //     entities_to_snapshot(&s->latest_snapshot, s->offline_state.entities, s->current_tick, &players);
-        //     // ring_push_back(&s->latency_buff, (Snapshot){});
-        //     //
-        //     // Slice_Ghost packet = (Slice_Ghost){
-        //     //     .data = s->latency_buff.data[s->latency_buff.start].ghosts,
-        //     //     .capacity = MAX_ENTITIES,
-        //     // };
-        //     // entities_to_snapshot(&packet, s->offline_state.entities, s->current_tick, &players);
-        //     //
-        //     // if (s->latency_buff.length >= 60) {
-        //     //     s->snapshot = ring_pop_front(&s->latency_buff);
-        //     // }
-        //
-        //
-        //     if (players.length > 0) {
-        //         s->player = *slice_get(players, 0);
-        //         s->camera.position = s->player.physics.position;
-        //     }
-        // }
 
         // rollback
 
@@ -771,7 +762,6 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
 
         input_end_frame(&s->tick_input);
         s->current_tick++;
-
     }
 
     input_set_ctx(&sys->input);

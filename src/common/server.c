@@ -375,8 +375,10 @@ void server_update(Server* s) {
                 }
             }
 
+            // printf("latest tick: %d\n", client->latest_tick);
+
             i32 input_buffer_size = client->input_ring.length;
-            if (input_buffer_size <= 0) {
+            if (client->latest_tick > 0 && input_buffer_size <= 0) {
                 input_buffer_size = client->latest_tick - s->current_tick;
             }
             SnapshotMessage msg = {

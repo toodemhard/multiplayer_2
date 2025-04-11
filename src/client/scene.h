@@ -58,6 +58,8 @@ struct Scene {
 
     // u8 last_input_buffer_size;
 
+    bool finished_init_sync;
+
     // Snapshot snapshot;
     SnapshotMessage latest_snapshot;
 
