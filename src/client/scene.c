@@ -153,15 +153,11 @@ void scene_render(Scene* s, Arena* frame_arena);
 
 void rollback(Scene* s) {
     bool found = false;
-    Slice_Entity* pred_ents;
+    Slice_Entity* pred_ents = NULL;
     for (i32 i = s->history.start; i != s->history.end; i = (i + 1) % s->history.capacity) {
         if (s->history.data[i].tick == s->latest_snapshot.tick_index) {
             found = true;
-
-
         }
-
-
     }
 
     // latest_tick = slice_get_ref(s->history, s->history->end)
@@ -370,17 +366,8 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
                     total_latency += s->local_server.out_latency + s->local_server.in_latency;
                 }
 
-                u32 simulate_ahead_ticks = (total_latency * TICK_RATE) / 2.0 + target_input_buffer_size;
-                // TODO
-                // need to fix client speeding up too much because input buffer initially 0
-                // the initial input buffer should be filled to target somehow
-                // update throttling should only start after handshake
-                // mostly a problem of it responding to latent buffer size, not rlly important rn
-                // also should switch this to real prediction using inputs
-                for (u32 i = 0; i < simulate_ahead_ticks; i++) {
-                    state_update(&s->predicted_state, (Inputs){0}, s->current_tick, TICK_RATE, false);
-                    s->current_tick++;
-                }
+                // fast forward sim to be ahead of server instead of waiting for throttling to slowly do it
+                s->accumulator += total_latency / 2.0;
 
                 printf("ping: %d\n", s->server->roundTripTime);
                 s->finished_init_sync = true;
