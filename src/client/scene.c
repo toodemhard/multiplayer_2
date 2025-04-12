@@ -153,12 +153,11 @@ void scene_render(Scene* s, Arena* frame_arena);
 
 void rollback(Scene* s) {
     bool found = false;
-    Slice_Entity* pred_ents = NULL;
-    Tick* pred_tick = NULL;
+    Tick* past_tick = NULL;
     for (i32 i = s->history.start; i != s->history.end; i = (i + 1) % s->history.capacity) {
         Tick* tick = &s->history.data[i];
         if (tick->tick == s->latest_snapshot.tick_index) {
-            pred_tick = tick;
+            past_tick = tick;
             found = true;
             break;
         }
@@ -167,6 +166,7 @@ void rollback(Scene* s) {
             break;
         }
 
+        // printf("pop\n");
         ring_pop_front(&s->history);
     }
 
@@ -181,7 +181,7 @@ void rollback(Scene* s) {
             continue;
         }
 
-        Entity* pred_ent = &pred_tick->entities[auth_ent->index];
+        Entity* pred_ent = &past_tick->entities[auth_ent->index];
         ASSERT(pred_ent->generation == auth_ent->generation);
         ASSERT(pred_ent->client_id == auth_ent->client_id);
 
@@ -193,14 +193,45 @@ void rollback(Scene* s) {
         }
     }
 
-    // if (rollback) {
-    //     for (i32 i = 0; i < auth_ents->length; i++) {
-    //         state_update()
-    //         
-    //
-    //
-    //     }
-    // }
+    if (rollback) {
+        for (i32 i = 0; i < auth_ents->length; i++) {
+            Entity* auth_ent = slice_getp(*auth_ents, i);
+            if (auth_ent->replication_type != ReplicationType_Predicted || !(auth_ent->flags & EntityFlags_player)) {
+                continue;
+            }
+
+            Entity* pred_ent = &past_tick->entities[auth_ent->index];
+            ASSERT(pred_ent->generation == auth_ent->generation);
+            ASSERT(pred_ent->client_id == auth_ent->client_id);
+
+            pred_ent->position = auth_ent->position;
+            pred_ent->physics.linear_velocity = auth_ent->physics.linear_velocity;
+        }
+
+        Slice_Entity* pred_ents = &s->predicted_state.entities;
+        memcpy(pred_ents->data, past_tick->entities, sizeof(Entity) * MaxEntities);
+
+        for (i32 i = 0; i < s->predicted_state.entities.length; i++) {
+            Entity* ent = slice_getp(*pred_ents, i);
+            if (ent->active && (ent->flags & EntityFlags_physics)) {
+                b2Body_SetTransform(ent->body_id, ent->position.b2vec, b2Body_GetRotation(ent->body_id));
+                b2Body_SetLinearVelocity(ent->body_id, ent->physics.linear_velocity.b2vec);
+            }
+        }
+
+        // printf("rollback: %d\n", s->current_tick);
+        for (i32 i = s->history.start; i != s->history.end; i = (i + 1) % s->history.capacity) {
+            Tick* tick = &s->history.data[i];
+            Inputs inputs = {
+                .ids = slice_create_view(ClientID, tick->client_ids, tick->input_count),
+                .inputs = slice_create_view(PlayerInput, tick->inputs, tick->input_count),
+            };
+            state_update(&s->predicted_state, inputs, tick->tick, TICK_RATE, false);
+            memcpy(tick->entities, pred_ents->data, slice_size_bytes(*pred_ents));
+            Entity* player = entity_list_get(*pred_ents, s->player_handle);
+            // printf("%d: %f\n", tick->tick, player->position.x);
+        }
+    }
 
 }
 
@@ -566,8 +597,9 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
             ui_row({
                 .text=(char*)string.data,
             });
+            f64 ping = s->server->lastRoundTripTime + (s->local_server.out_latency + s->local_server.in_latency) * 1000.0;
             ui_row({
-                .text=(char*)string8_format(frame_arena, "ping: %dms", (int)s->server->lastRoundTripTime).data,
+                .text=(char*)string8_format(frame_arena, "ping: %.2fms", ping).data,
                 // .background_color={1,0,0,1},
             });
             ui_row({
@@ -735,6 +767,7 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
         ring_push_back(&s->history, (Tick){
             .inputs = {input},
             .client_ids = {id},
+            .input_count = 1,
             .tick = s->current_tick,
         });
 

@@ -202,7 +202,6 @@ struct GameState {
     Slice_Entity entities;
 
     b2WorldId world_id;
-    b2BodyId ground_id;
 };
 
 // constexpr EntityFlags etbf(EntityComponent component) {

@@ -223,7 +223,7 @@ void entity_list_remove(Slice_Entity* entity_list, EntityIndex index) {
 
 
 void state_init(GameState* state, Arena* arena) {
-    slice_init(&state->entities, arena, 512);
+    state->entities = slice_create_fixed(Entity, arena, MaxEntities);
 
     b2WorldDef world_def = b2DefaultWorldDef();
     world_def.gravity = (b2Vec2){0.0f, 0.0f};
@@ -317,6 +317,7 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
 
         if (ent->flags & EntityFlags_physics) {
             ent->position.b2vec = b2Body_GetPosition(ent->body_id);
+            ent->physics.linear_velocity.b2vec = b2Body_GetLinearVelocity(ent->body_id);
         }
 
         if (ent->flags & EntityFlags_expires && current_tick >= ent->expire_tick) {
