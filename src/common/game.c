@@ -6,6 +6,8 @@ const float bullet_expire_duration = 2;
 const int substep_count = 4;
 const float hit_flash_duration = 0.1;
 
+const float bullet_damage = 10;
+
 typedef enum Dir8 {
     Dir8_Up,
     Dir8_UpRight,
@@ -198,6 +200,7 @@ void create_bullet(Slice_Entity* create_list, EntityHandle owner, float2 positio
         .expire_tick = current_tick + (u32)(bullet_expire_duration * tick_rate),
         .owner = owner,
         .position = position,
+        .damage = bullet_damage,
     };
 
     entity_add_physics_component(&bullet, (PhysicsComponent) {
@@ -249,7 +252,6 @@ const float dash_distance = 3;
 
 #define dash_duration (dash_distance / dash_speed)
 
-const float bullet_damage = 10;
 
 float2 rotate(float2 vector, f32 angle) {
     float2x2 rotation_matrix = {
