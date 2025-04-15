@@ -155,6 +155,11 @@ void serialize_init_entity(Stream* stream, Entity* ent) {
     if (ent->flags & EntityFlags_expires) {
         serialize_var(stream, &ent->expire_tick);
     }
+
+    if (ent->flags & EntityFlags_attack){
+        serialize_var(stream, &ent->damage);
+        serialize_var(stream, &ent->owner);
+    }
 }
 
 void serialize_state_init_message(Stream* stream, Slice_Entity* entities, ClientID* client_id, u32* tick) {
@@ -265,4 +270,30 @@ void serialize_slice_raw(Stream* stream, void* data, u64 element_size, u64* leng
     ASSERT(*length <= capacity);
 
     serialize_bytes(stream, (u8*)data, element_size * *length);
+}
+
+typedef struct DeleteEntityMessage {
+    EntityIndex handle;
+} DeleteEntityMessage;
+
+typedef struct CreateEntityMessage {
+    Entity entity;
+
+} CreateEntityMessage;
+
+// typedef struct CreateDeleteEntitiesMessage {
+//     u32 tick
+//
+// } CreateDeleteEntitiesMessage;
+
+void serialize_create_entity_message(Stream* stream, Entity* entity) {
+    MessageType type = MessageType_CreateEntity;
+    serialize_var(stream, &type);
+    serialize_init_entity(stream, entity);
+}
+
+void serialize_delete_entity_message(Stream* stream, EntityIndex* index) {
+    MessageType type = MessageType_DeleteEntity;
+    serialize_var(stream, &type);
+    serialize_var(stream, index);
 }

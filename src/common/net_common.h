@@ -14,6 +14,8 @@ typedef enum MessageType {
     MessageType_Input,
     MessageType_Snapshot,
     MessageType_StateInit,
+    MessageType_CreateEntity,
+    MessageType_DeleteEntity,
 } MessageType;
 
 typedef enum Channel {
@@ -35,7 +37,7 @@ typedef enum StreamOperation {
 typedef struct Stream Stream;
 struct Stream {
     Slice_u8 slice;
-    u64 current;
+    u64 current;  // there's definitely somewhere where serialization is off by 1 because bit index extends past current
     u8 bit_index;
     StreamOperation operation;
 };

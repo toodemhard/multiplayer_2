@@ -34,6 +34,9 @@ u64 bounds_check(u64 index, u64 capacity) {
 #define slice_getp(slice, index)\
     &(slice).data[bounds_check((index), (slice).capacity)]
 
+#define slice_size(slice)\
+    ((slice).length * sizeof((slice).data[0]))
+
 #define slice_size_bytes(slice)\
     ((slice).length * sizeof((slice).data[0]))
 
@@ -290,6 +293,9 @@ u64 ring_pop_raw(void* data, u64 capacity, u64* length, u64* start) {
 
     return result;
 }
+
+#define ring_front(r)\
+    ( &(r).data[(r).start] )
 
 #define ring_pop_front(r)\
     ( (r)->data[ring_pop_raw((r)->data, (r)->capacity, &(r)->length, &(r)->start)] )

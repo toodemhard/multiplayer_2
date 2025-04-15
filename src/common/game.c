@@ -271,16 +271,22 @@ float deg_to_rad(float deg) {
     return deg * deg_in_rads;
 }
 
-void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_rate, bool modify_existences) {
-    ArenaTemp scratch = scratch_get(0,0);
-    defer_loop((void)0, scratch_release(scratch)) {
+typedef struct ModLists {
+    Slice_EntityIndex delete_list;
+    Slice_Entity create_list;
+} ModLists;
+
+// modified entities is out parameter so server can send mod messages to client for replication
+void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_rate, bool modify_existences, Arena* mod_lists_arena, ModLists* mod_lists) {
+    // ArenaTemp scratch = scratch_get(0,0);
+    // defer_loop((void)0, scratch_release(scratch)) {
 
     const f64 dt = 1.0 / tick_rate;
 
     b2World_Step(state->world_id, dt, substep_count);
 
-    Slice_EntityIndex delete_list = slice_create(EntityIndex, scratch.arena, 512);
-    Slice_Entity create_list = slice_create(Entity, scratch.arena, 128);
+    Slice_EntityIndex delete_list = slice_create(EntityIndex, mod_lists_arena, 512);
+    Slice_Entity create_list = slice_create(Entity, mod_lists_arena, 128);
 
     b2SensorEvents sensorEvents = b2World_GetSensorEvents(state->world_id);
     for (int i = 0; i < sensorEvents.beginCount; ++i) {
@@ -303,7 +309,7 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
             slice_push(&delete_list, entity_ptr_to_index(state->entities, sensor));
             // entity_list_remove(&state->entities, entity_ptr_to_index(&state->entities, sensor));
 
-            visitor->health -= bullet_damage;
+            visitor->health -= sensor->damage;
         }
     }
 
@@ -458,12 +464,14 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
             entity_list_remove(&state->entities, slice_get(delete_list, i));
         }
 
-        // for ()
         for (u32 i = 0; i < create_list.length; i++) {
             create_entity(state, slice_get(create_list, i), false);
         }
-    }
 
+        *mod_lists = (ModLists) {
+            .delete_list = delete_list,
+            .create_list = create_list,
+        };
     }
 }
 

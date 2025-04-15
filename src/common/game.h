@@ -17,6 +17,7 @@ slice_def(ClientID);
 typedef struct PlayerInput PlayerInput;
 struct PlayerInput {
     ClientID client;
+    u32 tick;
     bool up;
     bool down;
     bool left;
@@ -162,6 +163,8 @@ struct Entity {
     // expires
     u32 expire_tick;
 
+    // attack
+    i32 damage;
     EntityHandle owner;
 };
 slice_def(Entity);

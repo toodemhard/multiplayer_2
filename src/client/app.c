@@ -293,8 +293,10 @@ void menu_update(Menu* menu, Arena* temp_arena) {
     }
 }
 
+f64 frame_time = 0;
 
 DLL_EXPORT Signals update(void* memory) {
+    f64 frame_start = os_now_seconds();
     State* state = (State*)memory;
 
     bool quit = false;
@@ -413,7 +415,7 @@ DLL_EXPORT Signals update(void* memory) {
         }
 
         if (state->active_scene == SceneType_Game) {
-            scene_update(&state->local_scene, &state->temp_arena, delta_time);
+            scene_update(&state->local_scene, &state->temp_arena, delta_time, frame_time);
         }
         // //
         // // auto string = std::format("render: {:.3f}ms", last_render_duration * 1000.0);
@@ -436,8 +438,11 @@ DLL_EXPORT Signals update(void* memory) {
 
     is_reloaded = false;
 
+    frame_time = os_now_seconds() - frame_start;
+
     return (Signals) {
         .quit = quit,
         .reload = reload,
     };
+
 }

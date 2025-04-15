@@ -28,6 +28,131 @@
 //     },
 // };
 
+// typedef enum GameEventType {
+//     GameEventType_CreateEntity,
+//     GameEventType_DeleteEntity,
+// } GameEventType;
+//
+//
+// typedef struct GameEvent {
+//     GameEventType type;
+//     union {
+//         DeleteEntityEvent delete_entity;
+//         CreateEntityEvent create_entity;
+//     };
+// } GameEvent;
+
+// void tick_queue_init(TickQueue* queue, Arena* arena, u64 size) {
+//     queue->buffer = arena_alloc(arena, size);
+//     queue->capacity = size;
+// }
+//
+// #define move_slice_into_stream(stream, _slice)\
+// do {\
+//     u64 size = slice_size(*(_slice));\
+//     u8* data = (u8*)slice_getp((stream)->slice, (stream)->current);\
+//     serialize_bytes((stream), data, size);\
+//     *((u8**)&(_slice)->data) = data;\
+// } while(0)
+//
+// // copies data reffed in packet
+// void queue_tick(TickQueue* queue, Tick tick) {
+//     u64 chunk_size = sizeof(tick) + slice_size(tick.entities) + slice_size(tick.create_events) + slice_size(tick.delete_events);
+//     tick.total_size = chunk_size;
+//
+//     ASSERT(queue->size + chunk_size <= queue->capacity);
+//
+//     u64 pos = queue->end;
+//     if (pos + chunk_size > queue->capacity) {
+//         pos = 0;
+//         queue->end_should_be_less_than_start = true;
+//         ASSERT(chunk_size < queue->start);
+//     }
+//
+//     queue->end = pos + chunk_size;
+//     if (queue->end_should_be_less_than_start) {
+//         ASSERT(queue->end <= queue->start);
+//     }
+//     queue->size += chunk_size;
+//
+//     Tick* new_tail = (Tick*)&queue->buffer[pos];
+//
+//     if (queue->count == 0) {
+//         queue->head = new_tail;
+//     } else {
+//         queue->tail->next = new_tail;
+//     }
+//
+//     queue->tail = new_tail;
+//
+//     u8* data_dst = (u8*)(new_tail + 1); // skip header to data pos
+//     Stream stream = {
+//         .slice = slice_create_view(u8, data_dst, queue->capacity - (data_dst - queue->buffer)),
+//         .operation = Stream_Write,
+//     };
+//
+//     move_slice_into_stream(&stream, &tick.entities);
+//     move_slice_into_stream(&stream, &tick.delete_events);
+//     move_slice_into_stream(&stream, &tick.create_events);
+//
+//     *new_tail = tick;
+//
+//     queue->count += 1;
+// }
+//
+// void dequeue_tick(TickQueue* queue) {
+//     if (queue->tail == queue->head) {
+//         queue->tail = NULL;
+//     }
+//
+//     queue->size -= queue->head->total_size;
+//     queue->count -= 1;
+//
+//     queue->head = queue->head->next;
+//
+//     if (queue->count > 0) {
+//         queue->start = (u8*)queue->head - queue->buffer;
+//         if (queue->start == 0) { // if wrap
+//             queue->end_should_be_less_than_start = false;
+//         }
+//     } else {
+//         queue->start = 0;
+//         queue->end = 0;
+//     }
+// }
+
+// void service_packets_out(PacketQueue* queue, f64 latency) {
+//     // printf("%f\n", queue->size / (f64)queue->capacity);
+//
+//     f64 now = os_now_seconds();
+//
+//     while (queue->count > 0 && now >= queue->head->time + latency) {
+//         Packet* head = queue->head;
+//         ENetPacket* packet = enet_packet_create((void*)head->data, head->size, head->send_flag);
+//         Channel channel = Channel_Unreliable;
+//         if (head->send_flag == ENET_PACKET_FLAG_RELIABLE) {
+//             channel = Channel_Reliable;
+//         }
+//         enet_peer_send(head->peer, channel, packet);
+//         dequeue_packet(queue);
+//     }
+// }
+//
+// bool service_incoming_packets(PacketQueue* queue, f64 latency, Packet* packet) {
+//     f64 now = os_now_seconds();
+//
+//     bool result = false;
+//
+//     if (queue->count > 0 && now >= queue->head->time + latency) {
+//         *packet = *queue->head;
+//
+//         result = true;
+//         dequeue_packet(queue);
+//     }
+//
+//     return result;
+// }
+
 void end_input_events(Input* tick_inputs) {
     zero_struct(&tick_inputs->keyboard_up);
     zero_struct(&tick_inputs->keyboard_down);
@@ -151,7 +276,8 @@ void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void
 
 void scene_render(Scene* s, Arena* frame_arena);
 
-void rollback(Scene* s) {
+// checks if something mispredicted then rollback
+void rollback(Scene* s, bool force_rollback) {
     bool found = false;
     Tick* past_tick = NULL;
     for (i32 i = s->history.start; i != s->history.end; i = (i + 1) % s->history.capacity) {
@@ -173,27 +299,33 @@ void rollback(Scene* s) {
     // latest_tick = slice_get_ref(s->history, s->history->end)
 
     bool rollback = false;
+    if (force_rollback) {
+        rollback = true;
+    }
 
     Slice_Entity* auth_ents = &s->latest_snapshot.ents;
-    for (i32 i = 0; i < auth_ents->length; i++) {
-        Entity* auth_ent = slice_getp(*auth_ents, i);
-        if (auth_ent->replication_type != ReplicationType_Predicted || !(auth_ent->flags & EntityFlags_player)) {
-            continue;
-        }
+    if (past_tick != NULL) {
+        for (i32 i = 0; i < auth_ents->length; i++) {
+            Entity* auth_ent = slice_getp(*auth_ents, i);
+            if (auth_ent->replication_type != ReplicationType_Predicted || !(auth_ent->flags & EntityFlags_player)) {
+                continue;
+            }
 
-        Entity* pred_ent = &past_tick->entities[auth_ent->index];
-        ASSERT(pred_ent->generation == auth_ent->generation);
-        ASSERT(pred_ent->client_id == auth_ent->client_id);
+            Entity* pred_ent = &past_tick->entities[auth_ent->index];
+            ASSERT(pred_ent->generation == auth_ent->generation);
+            ASSERT(pred_ent->client_id == auth_ent->client_id);
 
-        if (!vars_equal(&pred_ent->position, &auth_ent->position)) {
-            rollback = true;
+            if (!vars_equal(&pred_ent->position, &auth_ent->position)) {
+                rollback = true;
 
-            printf("disccccc\n");
-            break;
+                printf("disccccc\n");
+                break;
+            }
         }
     }
 
-    if (rollback) {
+    if (past_tick && rollback) {
+        printf("rollback\n");
         for (i32 i = 0; i < auth_ents->length; i++) {
             Entity* auth_ent = slice_getp(*auth_ents, i);
             if (auth_ent->replication_type != ReplicationType_Predicted || !(auth_ent->flags & EntityFlags_player)) {
@@ -226,11 +358,16 @@ void rollback(Scene* s) {
                 .ids = slice_create_view(ClientID, tick->client_ids, tick->input_count),
                 .inputs = slice_create_view(PlayerInput, tick->inputs, tick->input_count),
             };
-            state_update(&s->predicted_state, inputs, tick->tick, TICK_RATE, false);
+
+            ArenaTemp scratch = scratch_get(0,0);
+            state_update(&s->predicted_state, inputs, tick->tick, TICK_RATE, false, scratch.arena, NULL);
+            scratch_release(scratch);
+
             memcpy(tick->entities, pred_ents->data, slice_size_bytes(*pred_ents));
             Entity* player = entity_list_get(*pred_ents, s->player_handle);
-            // printf("%d: %f\n", tick->tick, player->position.x);
+            printf("%d\n", tick->tick);
         }
+        printf("%d\n", s->current_tick);
     }
 
 }
@@ -258,8 +395,8 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
         };
 
         server_init(&s->local_server, level_arena);
-        s->local_server.out_latency = 0.1;
-        s->local_server.in_latency = 0.1;
+        s->local_server.out_latency = 0.05;
+        s->local_server.in_latency = 0.05;
         server_connect(&s->local_server, host_address);
     }
 
@@ -310,7 +447,7 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
 
     // enet_peer_ping_interval(s->server, 10);
 
-    s->history = ring_alloc(Tick, level_arena, 30);
+    s->history = ring_alloc(Tick, level_arena, 64);
 
     // snapshot needs to be reusable persistent memory because
     // packets can be received across frames
@@ -325,12 +462,15 @@ void scene_end(Scene* s) {
     }
 }
 
-void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
+void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_time) {
+    // printf("%d\n", s->paused);
     // ZoneScoped;
 
     System* sys = s->sys;
 
-    s->accumulator += delta_time;
+    if (delta_time < 0.25) {
+        s->accumulator += delta_time;
+    }
 
     // s->tick_input.keybindings = sys->input.keybindings;
     array_copy(s->tick_input.keybindings, sys->input.keybindings);
@@ -344,7 +484,7 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
     ENetEvent net_event;
     while (enet_host_service(s->client, &net_event, 0)) {
         ArenaTemp scratch = scratch_get(0,0);
-        defer_loop(0, scratch_release(scratch)) {
+        defer_loop((void)0, scratch_release(scratch)) {
         switch (net_event.type) {
         case ENET_EVENT_TYPE_CONNECT: {
             printf ("A new client connected from %x:%u.\n", 
@@ -352,17 +492,10 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
                 net_event.peer -> address.port
             );
 
-            /* Store any relevant client information here. */
             net_event.peer -> data = (void*)"Client information";
 
         } break;
         case ENET_EVENT_TYPE_RECEIVE: {
-            // printf ("A packet of length %zu containing %s was received from %s on channel %u.\n",
-            //     net_event.packet->dataLength,
-            //     net_event.packet->data,
-            //     (u8*)net_event.peer->data,
-            //     net_event.channelID
-            // );
 
             Stream stream = {
                 .slice = slice_create_view(u8, net_event.packet->data, net_event.packet->dataLength),
@@ -373,15 +506,20 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
             stream_pos_reset(&stream);
 
             if (message_type == MessageType_Snapshot) {
-                // printf("asdl %f\n", delta_time);
-                // serialize_slice(&stream, &s->latest_snapshot);
-                // u8 input_buffer_size;
-                slice_clear(&s->latest_snapshot.ents);
-                serialize_snapshot_message(&stream, &s->latest_snapshot);
-                // s->player = *s->latest_snapshot.player;
-                // s->last_snapshot.input = input_buffer_size;
-                // s->camera.position = s->player.physics.position;
-                rollback(s);
+                MessageType message_type;
+                serialize_var(&stream, &message_type);
+                u32 tick;
+                serialize_var(&stream, &tick);
+                stream_pos_reset(&stream);
+
+                if (tick > s->latest_snapshot.tick_index) {
+                    slice_clear(&s->latest_snapshot.ents);
+                    serialize_snapshot_message(&stream, &s->latest_snapshot);
+                    // s->player = *s->latest_snapshot.player;
+                    // s->last_snapshot.input = input_buffer_size;
+                    // s->camera.position = s->player.physics.position;
+                    rollback(s, false);
+                }
 
                 if (s->finished_init_sync) {
                     f64 acc_diff = (target_input_buffer_size - s->latest_snapshot.input_buffer_size) / (f64)TICK_RATE * 0.05;
@@ -425,6 +563,22 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
 
                 printf("ping: %d\n", s->server->roundTripTime);
                 s->finished_init_sync = true;
+            }
+
+            if (message_type == MessageType_CreateEntity) {
+                Entity ent = {0};
+                serialize_create_entity_message(&stream, &ent);
+                // create_entity(&s->predicted_state, ent, false);
+                //
+                // s->ents_modified_since_last_tick = true;;
+            }
+
+            if (message_type == MessageType_DeleteEntity) {
+                EntityIndex idx = {0};
+                serialize_delete_entity_message(&stream, &idx);
+                entity_list_remove(&s->predicted_state.entities, idx);
+
+                // s->ents_modified_since_last_tick = true;;
             }
 
 
@@ -566,6 +720,16 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
         s->debug_draw = !s->debug_draw;
     }
 
+    ui_row({
+        .stack_axis = Axis2_Y,
+        .position = pos_anchor2(0,1),
+        .padding = sides_px(ru(2)),
+    }) {
+        ui_row({
+            .text = string8_format(frame_arena, "frame time: %.2fms", last_frame_time * 1000.0).data,
+        });
+
+    }
 
     /* Slice<u8> string = */ 
     String8 string = string8_format(frame_arena, "inptbuff: %d", s->latest_snapshot.input_buffer_size);
@@ -594,6 +758,12 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
             .position=pos_anchor2(1,1),
             .padding=sides_px(ru(1)),
         }) {
+            ui_row({
+                .text=string8_format(frame_arena, "server tick:%d", s->local_server.current_tick).data,
+            });
+            ui_row({
+                .text=string8_format(frame_arena, "curtick:%d latest tick:%d", s->current_tick, s->latest_snapshot.tick_index).data,
+            });
             ui_row({
                 .text=(char*)string.data,
             });
@@ -680,6 +850,11 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
     ui_end(frame_arena);
 
     while (s->finished_init_sync && s->accumulator >= FIXED_DT) {
+
+        // if (s->ents_modified_since_last_tick) {
+        //     rollback(s, true);
+        //     s->ents_modified_since_last_tick = false;
+        // }
         // printf("inbuf: %d, client: %d, server: %d\n", s->latest_snapshot.input_buffer_size, s->current_tick, s->local_server.current_tick);
         // printf("%d\n", s->latest_snapshot.input_buffer_size);
         arena_reset(&s->tick_arena);
@@ -753,7 +928,12 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
         // }
 
 
-        state_update(&s->predicted_state, inputs, s->current_tick, TICK_RATE, false);
+
+        {
+            ArenaTemp scratch = scratch_get(0,0);
+            state_update(&s->predicted_state, inputs, s->current_tick, TICK_RATE, false, scratch.arena, NULL);
+            scratch_release(scratch);
+        }
 
         // Tick tick = {
         //     .entity_count = 
@@ -764,16 +944,21 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
         //     ASSERT(false);
         // }
 
-        ring_push_back(&s->history, (Tick){
-            .inputs = {input},
-            .client_ids = {id},
-            .input_count = 1,
-            .tick = s->current_tick,
-        });
+        if (s->history.length < 30) {
+            ring_push_back(&s->history, (Tick){
+                .inputs = {input},
+                .client_ids = {id},
+                .input_count = 1,
+                .tick = s->current_tick,
+            });
 
-        Tick* history_tick = ring_back_ref(s->history);
-        Slice_Entity* ents = &s->predicted_state.entities;
-        memcpy(history_tick->entities, ents->data, slice_size_bytes(*ents));
+            Tick* history_tick = ring_back_ref(s->history);
+            Slice_Entity* ents = &s->predicted_state.entities;
+            memcpy(history_tick->entities, ents->data, slice_size_bytes(*ents));
+        } else {
+            printf("history full %d\n", s->current_tick);
+            ring_pop_front(&s->history);
+        }
 
         // ring_push_back(&s->prediction_history, (PredictionTick){});
         // PredictionTick* pushed = &s->prediction_history.data[s->prediction_history.end];
@@ -836,6 +1021,8 @@ void scene_update(Scene* s, Arena* frame_arena, double delta_time) {
 
     s->frame++;
     scene_render(s, frame_arena);
+
+
 }
 
 bool float2_cmp(float2 a, float2 b) {

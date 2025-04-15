@@ -34,11 +34,11 @@ void packet_queue_init(PacketQueue* queue, Arena* arena, u64 size) {
 }
 
 // copies data reffed in packet
-void queue_packet(PacketQueue* queue, Packet packet) {
+void queue_packet(PacketQueue* queue, Packet packet, f64 time) {
 
     // queue.buffer
 
-    packet.time = os_now_seconds();
+    packet.time = time;
 
     u64 chunk_size = sizeof(Packet) + packet.size;
 
@@ -89,10 +89,10 @@ void dequeue_packet(PacketQueue* queue) {
     }
 }
 
-void service_packets_out(PacketQueue* queue, f64 latency) {
+void service_packets_out(PacketQueue* queue, f64 latency, f64 time) {
     // printf("%f\n", queue->size / (f64)queue->capacity);
 
-    f64 now = os_now_seconds();
+    f64 now = time;
 
     while (queue->count > 0 && now >= queue->head->time + latency) {
         Packet* head = queue->head;
@@ -174,7 +174,7 @@ typedef struct Server {
     bool first_frame;
 } Server;
 
-#define MaxPlayers 32
+#define MaxPlayers 16
 
 void server_init(Server* s, Arena* arena) {
     state_init(&s->state, arena);
@@ -202,17 +202,17 @@ void server_update(Server* s) {
     f64 dt = time - s->last_time;
     s->last_time = time;
 
-    // if (s->accumulator < 0.5) {
-    // }
-    
+    if (dt < 0.25) {
+        s->time += dt;
+    }
 
-    if (dt < 1) {
+    if (dt < 0.25) {
         s->accumulator += dt;
     }
 
     ArenaTemp scratch = scratch_get(0,0);
 
-    service_packets_out(&s->out_packet_queue, s->out_latency);
+    service_packets_out(&s->out_packet_queue, s->out_latency, s->time);
 
     Packet packet;
     while (service_incoming_packets(&s->in_packet_queue, s->in_latency, &packet)) {
@@ -239,6 +239,7 @@ void server_update(Server* s) {
             u32 input_tick;
             serialize_input_message(&stream, &input, &input_tick);
             client->latest_tick = input_tick;
+            input.tick = input_tick;
 
             RingArray_PlayerInput* input_ring = &client->input_ring;
             if (input_tick >= s->current_tick && input_ring->length < input_ring->capacity) {
@@ -294,7 +295,7 @@ void server_update(Server* s) {
                 .size = stream.slice.length,
             };
 
-            queue_packet(&s->out_packet_queue, packet);
+            queue_packet(&s->out_packet_queue, packet, s->time);
 
         } break;
 
@@ -305,7 +306,7 @@ void server_update(Server* s) {
                 .peer = event.peer,
             };
 
-            queue_packet(&s->in_packet_queue, packet);
+            queue_packet(&s->in_packet_queue, packet, s->time);
             enet_packet_destroy (event.packet);
 
         } break;
@@ -342,14 +343,61 @@ void server_update(Server* s) {
             if (client->active) {
                 slice_push(&inputs.ids, client->id);
                 PlayerInput input = {0};
-                if (client->input_ring.length > 0) {
+                if (client->input_ring.length > 0 && ring_front(client->input_ring)->tick <= s->current_tick) {
                     input = ring_pop_front(&client->input_ring);
                 }
                 slice_push(&inputs.inputs, input);
             }
         }
 
-        state_update(&s->state, inputs, s->current_tick, TICK_RATE, true);
+        ModLists mod_lists = {0};
+        state_update(&s->state, inputs, s->current_tick, TICK_RATE, true, scratch.arena, &mod_lists);
+
+        Slice_EntityIndex delete_list = mod_lists.delete_list;
+        Slice_Entity create_list = mod_lists.create_list;
+
+        {
+            Stream stream = {
+                .slice = slice_create(u8, scratch.arena, kilobytes(100)),
+                .operation = Stream_Write,
+            };
+
+            for (u32 i = 0; i < delete_list.length; i++) {
+                u64 packet_start = stream.current;
+                serialize_delete_entity_message(&stream, slice_getp(delete_list, i));
+
+                Packet packet = {
+                    .send_flag = ENET_PACKET_FLAG_RELIABLE,
+                    .data = stream.slice.data,
+                    .size = stream.slice.length - packet_start,
+                };
+
+                for (i32 i = 0; i < s->clients.length; i++) {
+                    Client* client = slice_getp(s->clients, i);
+                    packet.peer = client->peer;
+                    queue_packet(&s->out_packet_queue, packet, s->time);
+                }
+            }
+
+            for (u32 i = 0; i < create_list.length; i++) {
+                u64 packet_start = stream.current;
+                serialize_create_entity_message(&stream, slice_getp(create_list, i));
+
+                Packet packet = {
+                    .send_flag = ENET_PACKET_FLAG_RELIABLE,
+                    .data = stream.slice.data,
+                    .size = stream.slice.length - packet_start,
+                };
+
+                for (i32 i = 0; i < s->clients.length; i++) {
+                    Client* client = slice_getp(s->clients, i);
+                    packet.peer = client->peer;
+                    queue_packet(&s->out_packet_queue, packet, s->time);
+                }
+            }
+        }
+
+
 
 
 
@@ -378,9 +426,19 @@ void server_update(Server* s) {
             // printf("latest tick: %d\n", client->latest_tick);
 
             i32 input_buffer_size = client->input_ring.length;
+
+            // if client tick desync is out of input buffer range x < 0, x > 10
+            bool out_of_bounds_size = false;
             if (client->latest_tick > 0 && input_buffer_size <= 0) {
+                out_of_bounds_size = true;
+            }
+            if (client->latest_tick > s->current_tick + input_buffer_size) {
+                out_of_bounds_size = true;
+            }
+            if (out_of_bounds_size) {
                 input_buffer_size = client->latest_tick - s->current_tick;
             }
+
             SnapshotMessage msg = {
                 .input_buffer_size = input_buffer_size,
                 .tick_index = s->current_tick,
@@ -397,10 +455,7 @@ void server_update(Server* s) {
                 .size = stream.slice.length,
             };
 
-            queue_packet(&s->out_packet_queue, packet);
-            // ENetPacket* packet = enet_packet_create((void*)stream.slice.data, stream.slice.length, ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT);
-            // enet_peer_send(client->peer, Channel_Unreliable, packet);
-            // enet_host_flush(s->server);
+            queue_packet(&s->out_packet_queue, packet, s->time);
         }
 
         // printf("tick: %d", s->current_tick);
