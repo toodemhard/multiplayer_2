@@ -352,54 +352,40 @@ void server_update(Server* s) {
 
         ModLists mod_lists = {0};
         state_update(&s->state, inputs, s->current_tick, TICK_RATE, true, scratch.arena, &mod_lists);
+        // Entity* ent = slice_getp(s->state.entities, 2);
+        // if (ent->active) {
+        //     printf("%d, %f, %f\n", s->current_tick, ent->position.x, ent->position.y);
+        // }
 
         Slice_EntityIndex delete_list = mod_lists.delete_list;
         Slice_Entity create_list = mod_lists.create_list;
 
+        GameEventsMessage msg = {
+            .tick = s->current_tick,
+            .delete_list = delete_list,
+            .create_list = create_list,
+        };
+        if (delete_list.length > 0 || create_list.length > 0)
         {
             Stream stream = {
                 .slice = slice_create(u8, scratch.arena, kilobytes(100)),
                 .operation = Stream_Write,
             };
 
-            for (u32 i = 0; i < delete_list.length; i++) {
-                u64 packet_start = stream.current;
-                serialize_delete_entity_message(&stream, slice_getp(delete_list, i));
+            serialize_game_events(&stream, NULL, &msg);
 
-                Packet packet = {
-                    .send_flag = ENET_PACKET_FLAG_RELIABLE,
-                    .data = stream.slice.data,
-                    .size = stream.slice.length - packet_start,
-                };
+            Packet packet = {
+                .send_flag = ENET_PACKET_FLAG_RELIABLE,
+                .data = stream.slice.data,
+                .size = stream.slice.length,
+            };
 
-                for (i32 i = 0; i < s->clients.length; i++) {
-                    Client* client = slice_getp(s->clients, i);
-                    packet.peer = client->peer;
-                    queue_packet(&s->out_packet_queue, packet, s->time);
-                }
-            }
-
-            for (u32 i = 0; i < create_list.length; i++) {
-                u64 packet_start = stream.current;
-                serialize_create_entity_message(&stream, slice_getp(create_list, i));
-
-                Packet packet = {
-                    .send_flag = ENET_PACKET_FLAG_RELIABLE,
-                    .data = stream.slice.data,
-                    .size = stream.slice.length - packet_start,
-                };
-
-                for (i32 i = 0; i < s->clients.length; i++) {
-                    Client* client = slice_getp(s->clients, i);
-                    packet.peer = client->peer;
-                    queue_packet(&s->out_packet_queue, packet, s->time);
-                }
+            for (i32 i = 0; i < s->clients.length; i++) {
+                Client* client = slice_getp(s->clients, i);
+                packet.peer = client->peer;
+                queue_packet(&s->out_packet_queue, packet, s->time);
             }
         }
-
-
-
-
 
         Slice_Entity* ents = &s->state.entities;
         Slice_pEntity players = slice_p_create(Entity, scratch.arena, MaxPlayers);
@@ -432,9 +418,9 @@ void server_update(Server* s) {
             if (client->latest_tick > 0 && input_buffer_size <= 0) {
                 out_of_bounds_size = true;
             }
-            if (client->latest_tick > s->current_tick + input_buffer_size) {
-                out_of_bounds_size = true;
-            }
+            // if (client->latest_tick > s->current_tick + input_buffer_size) {
+            //     out_of_bounds_size = true;
+            // }
             if (out_of_bounds_size) {
                 input_buffer_size = client->latest_tick - s->current_tick;
             }

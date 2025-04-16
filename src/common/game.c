@@ -148,6 +148,7 @@ void create_box(GameState* state, float2 position) {
         .sprite = TextureID_box_png,
         .type = EntityType_Box,
         .flags = EntityFlags_physics | EntityFlags_hittable,
+        .replication_type = ReplicationType_Predicted,
         .health = box_health,
         .position = position,
     };

@@ -276,44 +276,60 @@ void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void
 
 void scene_render(Scene* s, Arena* frame_arena);
 
-// checks if something mispredicted then rollback
-void rollback(Scene* s, bool force_rollback) {
-    bool found = false;
+// Checks if something mispredicted then rollback
+// Defaults to doing check + rollback with latest snapshot in Scene*
+// If events != NULL then do rollback for running events at tick
+void rollback(Scene* s, GameEventsMessage* events) {
     Tick* past_tick = NULL;
-    for (i32 i = s->history.start; i != s->history.end; i = (i + 1) % s->history.capacity) {
+
+    u32 target_tick_index = s->latest_snapshot.tick_index;
+    if (events != NULL) {
+        target_tick_index = events->tick;
+    }
+
+    // Find matching tick in history
+    u32 past_tick_idx = 0;
+    for (i32 i = s->history.start, c = 0; c <= s->history.length; c++) {
         Tick* tick = &s->history.data[i];
-        if (tick->tick == s->latest_snapshot.tick_index) {
+        if (tick->tick == target_tick_index) {
             past_tick = tick;
-            found = true;
+            past_tick_idx = i;
             break;
         }
-
         if (s->latest_snapshot.tick_index < tick->tick) {
             break;
         }
-
-        // printf("pop\n");
-        ring_pop_front(&s->history);
+        i = (i + 1) % s->history.capacity;
     }
 
-    // latest_tick = slice_get_ref(s->history, s->history->end)
-
     bool rollback = false;
-    if (force_rollback) {
+    if (events != NULL) {
         rollback = true;
     }
 
+    // Check for mispredictions
     Slice_Entity* auth_ents = &s->latest_snapshot.ents;
-    if (past_tick != NULL) {
+    if (past_tick != NULL && rollback == false) {
         for (i32 i = 0; i < auth_ents->length; i++) {
             Entity* auth_ent = slice_getp(*auth_ents, i);
-            if (auth_ent->replication_type != ReplicationType_Predicted || !(auth_ent->flags & EntityFlags_player)) {
+            Entity* pred_ent = &past_tick->entities[auth_ent->index];
+
+            bool check_ent = true;
+            if (auth_ent->replication_type != ReplicationType_Predicted) {
+                check_ent = false;
+            }
+            if (pred_ent->active != auth_ent->active) {
+                check_ent = false;
+            }
+            if (pred_ent->generation != auth_ent->generation) {
+                check_ent = false;
+
+            }
+            ASSERT(pred_ent->client_id == auth_ent->client_id);
+
+            if (!check_ent) {
                 continue;
             }
-
-            Entity* pred_ent = &past_tick->entities[auth_ent->index];
-            ASSERT(pred_ent->generation == auth_ent->generation);
-            ASSERT(pred_ent->client_id == auth_ent->client_id);
 
             if (!vars_equal(&pred_ent->position, &auth_ent->position)) {
                 rollback = true;
@@ -326,23 +342,49 @@ void rollback(Scene* s, bool force_rollback) {
 
     if (past_tick && rollback) {
         printf("rollback\n");
-        for (i32 i = 0; i < auth_ents->length; i++) {
-            Entity* auth_ent = slice_getp(*auth_ents, i);
-            if (auth_ent->replication_type != ReplicationType_Predicted || !(auth_ent->flags & EntityFlags_player)) {
-                continue;
+        // printf("snapshot tick: %d\n", s->latest_snapshot.tick_index);
+
+        // Apply past tick to current state
+        Slice_Entity* pred_ents = &s->predicted_state.entities;
+        for (i32 i = 0; i < array_length(past_tick->entities); i++) {
+            Entity* past_ent = &past_tick->entities[i];
+            Entity* pred_ent = slice_getp(*pred_ents, i);
+
+            if (past_ent->active && pred_ent->active && pred_ent->generation == past_ent->generation) {
+                *pred_ent = *past_ent;
+
             }
-
-            Entity* pred_ent = &past_tick->entities[auth_ent->index];
-            ASSERT(pred_ent->generation == auth_ent->generation);
-            ASSERT(pred_ent->client_id == auth_ent->client_id);
-
-            pred_ent->position = auth_ent->position;
-            pred_ent->physics.linear_velocity = auth_ent->physics.linear_velocity;
+            // memcpy(pred_ents->data, past_tick->entities, sizeof(Entity) * MaxEntities);
         }
 
-        Slice_Entity* pred_ents = &s->predicted_state.entities;
-        memcpy(pred_ents->data, past_tick->entities, sizeof(Entity) * MaxEntities);
+        // Apply corrections of latest snapshot or events
+        if (!events) {
+            for (i32 i = 0; i < auth_ents->length; i++) {
+                Entity* auth_ent = slice_getp(*auth_ents, i);
+                if (auth_ent->replication_type != ReplicationType_Predicted || !(auth_ent->flags & EntityFlags_player)) {
+                    continue;
+                }
 
+                Entity* pred_ent = slice_getp(*pred_ents, auth_ent->index);
+                ASSERT(pred_ent->generation == auth_ent->generation);
+                ASSERT(pred_ent->client_id == auth_ent->client_id);
+
+                pred_ent->position = auth_ent->position;
+                pred_ent->physics.linear_velocity = auth_ent->physics.linear_velocity;
+            }
+        } else {
+            const Slice_EntityIndex delete_list = events->delete_list;
+            const Slice_Entity create_list = events->create_list;
+            GameState* state = &s->predicted_state;
+            for (u32 i = 0; i < delete_list.length; i++) {
+                entity_list_remove(&state->entities, slice_get(delete_list, i));
+            }
+            for (u32 i = 0; i < create_list.length; i++) {
+                create_entity(state, slice_get(create_list, i), false);
+            }
+        }
+
+        // Physics state needs to be applied
         for (i32 i = 0; i < s->predicted_state.entities.length; i++) {
             Entity* ent = slice_getp(*pred_ents, i);
             if (ent->active && (ent->flags & EntityFlags_physics)) {
@@ -352,8 +394,11 @@ void rollback(Scene* s, bool force_rollback) {
         }
 
         // printf("rollback: %d\n", s->current_tick);
-        for (i32 i = s->history.start; i != s->history.end; i = (i + 1) % s->history.capacity) {
-            Tick* tick = &s->history.data[i];
+        // Simulate forward
+        Tick* tick;
+        u32 i = past_tick_idx + 1; // the current predicted state is the corrected result of past tick update so simulate from the next tick
+        do {
+            tick = &s->history.data[i];
             Inputs inputs = {
                 .ids = slice_create_view(ClientID, tick->client_ids, tick->input_count),
                 .inputs = slice_create_view(PlayerInput, tick->inputs, tick->input_count),
@@ -361,13 +406,19 @@ void rollback(Scene* s, bool force_rollback) {
 
             ArenaTemp scratch = scratch_get(0,0);
             state_update(&s->predicted_state, inputs, tick->tick, TICK_RATE, false, scratch.arena, NULL);
+            // Entity* ent = slice_getp(s->predicted_state.entities, 2);
+            // if (ent->active) {
+            //     printf("%d, %f, %f\n", tick->tick, ent->position.x, ent->position.y);
+            // }
             scratch_release(scratch);
 
             memcpy(tick->entities, pred_ents->data, slice_size_bytes(*pred_ents));
             Entity* player = entity_list_get(*pred_ents, s->player_handle);
-            printf("%d\n", tick->tick);
-        }
-        printf("%d\n", s->current_tick);
+            // printf("%d\n", tick->tick);
+
+            i = (i + 1) % s->history.capacity;
+        } while (tick->tick != s->current_tick - 1);
+        // printf("%d\n", s->current_tick);
     }
 
 }
@@ -448,6 +499,8 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
     // enet_peer_ping_interval(s->server, 10);
 
     s->history = ring_alloc(Tick, level_arena, 64);
+    // s->pending_create_list = ring_alloc(CreateEntityMessage, level_arena, 64);
+    // s->pending_delete_list = ring_alloc(DeleteEntityMessage, level_arena, 64);
 
     // snapshot needs to be reusable persistent memory because
     // packets can be received across frames
@@ -515,10 +568,29 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
                 if (tick > s->latest_snapshot.tick_index) {
                     slice_clear(&s->latest_snapshot.ents);
                     serialize_snapshot_message(&stream, &s->latest_snapshot);
+
+                    // bool force_rollback = false;
+                    //
+                    // while (s->pending_delete_list.length > 0 && tick >= ring_front(s->pending_delete_list)->tick) {
+                    //     DeleteEntityMessage* msg = ring_front(s->pending_delete_list);
+                    //     entity_list_remove(&s->predicted_state.entities, msg->index);
+                    //     ring_pop_front(&s->pending_delete_list);
+                    //     printf("delete\n");
+                    //     force_rollback = true;
+                    // }
+                    //
+                    // while (s->pending_create_list.length > 0 && tick >= ring_front(s->pending_create_list)->tick) {
+                    //     CreateEntityMessage* msg = ring_front(s->pending_create_list);
+                    //     create_entity(&s->predicted_state, msg->entity, false);
+                    //     ring_pop_front(&s->pending_create_list);
+                    //     printf("create\n");
+                    //     force_rollback = true;
+                    // }
+
                     // s->player = *s->latest_snapshot.player;
                     // s->last_snapshot.input = input_buffer_size;
                     // s->camera.position = s->player.physics.position;
-                    rollback(s, false);
+                    rollback(s, NULL);
                 }
 
                 if (s->finished_init_sync) {
@@ -538,7 +610,7 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
                     create_entity(&s->predicted_state, *ent, true);
                 }
 
-                for (u32 i = 0; s->predicted_state.entities.length; i++) {
+                for (u32 i = 0; i < s->predicted_state.entities.length; i++) {
                     Entity* ent = slice_getp(s->predicted_state.entities, i);
                     if (!ent->active) {
                         continue;
@@ -565,22 +637,19 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
                 s->finished_init_sync = true;
             }
 
-            if (message_type == MessageType_CreateEntity) {
-                Entity ent = {0};
-                serialize_create_entity_message(&stream, &ent);
-                // create_entity(&s->predicted_state, ent, false);
-                //
-                // s->ents_modified_since_last_tick = true;;
+            if (message_type == MessageType_GameEvents) {
+                GameEventsMessage msg = {0};
+                ArenaTemp scratch = scratch_get(0, 0);
+                serialize_game_events(&stream, scratch.arena, &msg);
+
+                if (msg.create_list.length > 0) {
+                    Entity* ent = slice_getp(msg.create_list, 0);
+                    printf("event, %d, %f, %f\n", msg.tick, ent->position.x, ent->position.y);
+                }
+                rollback(s, &msg);
+
+                scratch_release(scratch);
             }
-
-            if (message_type == MessageType_DeleteEntity) {
-                EntityIndex idx = {0};
-                serialize_delete_entity_message(&stream, &idx);
-                entity_list_remove(&s->predicted_state.entities, idx);
-
-                // s->ents_modified_since_last_tick = true;;
-            }
-
 
             if (message_type == MessageType_Test) {
                 TestMessage message = {};
@@ -907,27 +976,15 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
             .operation = Stream_Write,
         };
 
-
-        // if (s->online_mode) {
-            // enet_peer_ping(s->server);
         serialize_input_message(&stream, &input, &s->current_tick);
 
         ENetPacket* packet = enet_packet_create(stream.slice.data, stream.slice.length, ENET_PACKET_FLAG_RELIABLE);
         enet_peer_send(s->server, Channel_Reliable, packet);
         enet_host_flush(s->client);
-        // }
-
 
         if (input_mouse_up(SDL_BUTTON_LEFT)) {
             s->moving_spell = false;
         }
-
-        // if (input_key_held(SDL_SCANCODE_2)) {
-        //     int x = 123;
-        //     printf("asddf\n");
-        // }
-
-
 
         {
             ArenaTemp scratch = scratch_get(0,0);
@@ -935,58 +992,22 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
             scratch_release(scratch);
         }
 
-        // Tick tick = {
-        //     .entity_count = 
-        // }
-        // memcpy ()
-        
-        // if (s->history.length > 24) {
-        //     ASSERT(false);
-        // }
-
-        if (s->history.length < 30) {
-            ring_push_back(&s->history, (Tick){
-                .inputs = {input},
-                .client_ids = {id},
-                .input_count = 1,
-                .tick = s->current_tick,
-            });
-
-            Tick* history_tick = ring_back_ref(s->history);
-            Slice_Entity* ents = &s->predicted_state.entities;
-            memcpy(history_tick->entities, ents->data, slice_size_bytes(*ents));
-        } else {
-            printf("history full %d\n", s->current_tick);
+        if (s->history.length >= s->history.capacity) {
             ring_pop_front(&s->history);
         }
 
-        // ring_push_back(&s->prediction_history, (PredictionTick){});
-        // PredictionTick* pushed = &s->prediction_history.data[s->prediction_history.end];
-        // memcpy(pushed->entities, s->predicted_state.entities.data, sizeof(pushed->entities));
-        // pushed->tick = s->current_tick;
+        ring_push_back(&s->history, (Tick){
+            .inputs = {input},
+            .client_ids = {id},
+            .input_count = 1,
+            .tick = s->current_tick,
+        });
 
-        // history 
-
-
-        // rollback
-
-        // PredictionTick* predicted_tick;
-        // for (i32 i = 0; i < s->prediction_history.length; i++) {
-        //     const i32 capacity = s->prediction_history.capacity;
-        //     i32 tick_index = (s->prediction_history.end - i + capacity) % capacity;
-        //     predicted_tick = ring_get_ref(s->prediction_history, tick_index);
-        //
-        //     if (predicted_tick.tick == s->latest_snapshot.tick) {
-        //         break;
-        //     }
-        // }
+        Tick* history_tick = ring_back_ref(s->history);
+        Slice_Entity* ents = &s->predicted_state.entities;
+        memcpy(history_tick->entities, ents->data, slice_size_bytes(*ents));
 
 
-        // for (i32 i = 0; i < s->latest_snapshot.length; i++) {
-        //     Ghost* ghost = slice_getp(s->latest_snapshot, i);
-        //
-        //     for (i32 ent_idx = 0; i < array_length(s->))
-        // }
 
         input_end_frame(&s->tick_input);
         s->current_tick++;
@@ -1032,6 +1053,10 @@ bool float2_cmp(float2 a, float2 b) {
 void render_entities(Camera2D camera, Slice_Entity ents, u32 current_tick, bool filter_predicted) {
     for (i32 i = 0; i < ents.length; i++) {
         const Entity* ent = slice_getp(ents, i);
+
+        if (!ent->active) {
+            continue;
+        }
         // if (filter_predicted && ghost->replication_type != ReplicationType_Snapshot) {
         //     continue;
         // }
@@ -1091,8 +1116,8 @@ void scene_render(Scene* s, Arena* frame_arena) {
     System* sys = s->sys;
 
     render_entities(s->camera, s->latest_snapshot.ents, s->latest_snapshot.tick_index, true);
-
     render_entities(s->camera, s->predicted_state.entities, s->current_tick, false);
+
     
     // for (i32 i = 0; i < 4; i++) {
     //     Chunk* chunk = &chunks[i];

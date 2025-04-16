@@ -14,8 +14,7 @@ typedef enum MessageType {
     MessageType_Input,
     MessageType_Snapshot,
     MessageType_StateInit,
-    MessageType_CreateEntity,
-    MessageType_DeleteEntity,
+    MessageType_GameEvents,
 } MessageType;
 
 typedef enum Channel {
@@ -72,6 +71,17 @@ struct SnapshotMessage {
 
 #define serialize_slice(stream, slice)\
     serialize_slice_raw( (stream), (slice)->data, sizeof((slice)->data[0]), &(slice)->length, (slice)->capacity )
+
+#define serialize_slice_alloc(stream, arena, slice)\
+do {\
+    serialize_var((stream), &(slice)->length);\
+    u64 size = (slice)->length * sizeof((slice)->data[0]);\
+    if (stream->operation == Stream_Read) {\
+        (slice)->data = arena_alloc((arena), size);\
+        (slice)->capacity = (slice)->length;\
+    }\
+    serialize_bytes((stream), (u8*)(slice)->data, size);\
+} while (0)
 
 void serialize_bool(Stream* stream, bool* value);
 void serialize_int(Stream* stream, i32* num);

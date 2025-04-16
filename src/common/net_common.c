@@ -89,6 +89,7 @@ void serialize_entities(Stream* stream, Slice_Entity* entities, EntitySerializat
                 serialize_init_entity(stream, ent);
             } else if (serialization_type == EntitySerializationType_Update) {
                 serialize_snapshot_entity(stream, ent);
+                ent->active = true;
             }
         }
     }
@@ -272,28 +273,41 @@ void serialize_slice_raw(Stream* stream, void* data, u64 element_size, u64* leng
     serialize_bytes(stream, (u8*)data, element_size * *length);
 }
 
-typedef struct DeleteEntityMessage {
-    EntityIndex handle;
-} DeleteEntityMessage;
-
-typedef struct CreateEntityMessage {
-    Entity entity;
-
-} CreateEntityMessage;
-
-// typedef struct CreateDeleteEntitiesMessage {
-//     u32 tick
+// typedef struct DeleteEntityMessage {
+//     EntityIndex index;
+//     u32 tick;
+// } DeleteEntityMessage;
+// ring_def(DeleteEntityMessage);
 //
-// } CreateDeleteEntitiesMessage;
+// typedef struct CreateEntityMessage {
+//     Entity entity;
+//     u32 tick;
+// } CreateEntityMessage;
+// ring_def(CreateEntityMessage);
 
-void serialize_create_entity_message(Stream* stream, Entity* entity) {
-    MessageType type = MessageType_CreateEntity;
+typedef struct GameEventsMessage {
+    u32 tick;
+    Slice_Entity create_list;
+    Slice_EntityIndex delete_list;
+} GameEventsMessage;
+
+void serialize_game_events(Stream* stream, Arena* arena, GameEventsMessage* message) {
+    MessageType type = MessageType_GameEvents;
     serialize_var(stream, &type);
-    serialize_init_entity(stream, entity);
+    serialize_var(stream, &message->tick);
+    serialize_slice_alloc(stream, arena, &message->create_list);
+    serialize_slice_alloc(stream, arena, &message->delete_list);
 }
 
-void serialize_delete_entity_message(Stream* stream, EntityIndex* index) {
-    MessageType type = MessageType_DeleteEntity;
-    serialize_var(stream, &type);
-    serialize_var(stream, index);
-}
+// void serialize_create_entity_message(Stream* stream, CreateEntityMessage* message) {
+//     MessageType type = MessageType_CreateEntity;
+//     serialize_var(stream, &type);
+//     serialize_init_entity(stream, &message->entity);
+//     serialize_var(stream, &message->tick);
+// }
+//
+// void serialize_delete_entity_message(Stream* stream, DeleteEntityMessage* message) {
+//     MessageType type = MessageType_DeleteEntity;
+//     serialize_var(stream, &type);
+//     serialize_var(stream, message);
+// }

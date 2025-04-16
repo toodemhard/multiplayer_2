@@ -189,17 +189,6 @@ struct Box {
 #define MaxEntities 256
 #define MaxPredicted 128
 
-// typedef struct PredictionTick {
-//     u32 tick;
-//     Entity entities[MAX_ENTITIES];
-// } PredictionTick;
-// ring_def(PredictionTick);
-
-// typedef struct GameHistory {
-//
-//     Ring_Slice_Entity history;
-// } GameHistory;
-
 typedef struct GameState GameState;
 struct GameState {
     Slice_Entity entities;

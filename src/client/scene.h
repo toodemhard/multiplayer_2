@@ -23,15 +23,6 @@ typedef struct Chunk {
     Tile tiles[ChunkSize];
 } Chunk;
 
-typedef struct DeleteEntityEvent {
-    EntityIndex handle;
-} DeleteEntityEvent;
-slice_def(DeleteEntityEvent);
-
-typedef struct CreateEntityEvent {
-    Entity entity;
-} CreateEntityEvent;
-slice_def(CreateEntityEvent);
 
 #define MaxTickEvents 64
 
@@ -41,10 +32,10 @@ struct Tick {
     PlayerInput inputs[MaxPlayers];
     u32 input_count;
     ClientID client_ids[MaxPlayers];
-    CreateEntityEvent create_events[MaxTickEvents];
-    u32 create_event_count;
-    DeleteEntityEvent delete_events;
-    u32 delete_event_count;
+    // Entity create_events[MaxTickEvents];
+    // u32 create_event_count;
+    // EntityIndex delete_events[MaxTickEvents];
+    // u32 delete_event_count;
     u32 tick;
     u64 total_size; // header + slice data
 };
@@ -84,8 +75,8 @@ struct Scene {
 
     bool finished_init_sync;
 
-    // Slice_EntityIndex pending_delete_list;
-    // Slice_Entity pending_create_list;
+    // Ring_DeleteEntityMessage pending_delete_list;
+    // Ring_CreateEntityMessage pending_create_list;
     SnapshotMessage latest_snapshot;
 
     u32 last_total_sent_data;
