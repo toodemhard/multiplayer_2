@@ -325,7 +325,7 @@ void rollback(Scene* s, GameEventsMessage* events) {
                 check_ent = false;
 
             }
-            ASSERT(pred_ent->client_id == auth_ent->client_id);
+            // ASSERT(pred_ent->client_id == auth_ent->client_id);
 
             if (!check_ent) {
                 continue;
@@ -388,7 +388,7 @@ void rollback(Scene* s, GameEventsMessage* events) {
                 entity_list_remove(&state->entities, slice_get(delete_list, i));
             }
             for (u32 i = 0; i < create_list.length; i++) {
-                create_entity(state, slice_get(create_list, i), false);
+                create_entity(state, slice_get(create_list, i));
             }
         }
 
@@ -412,13 +412,12 @@ void rollback(Scene* s, GameEventsMessage* events) {
                 .inputs = slice_create_view(PlayerInput, tick->inputs, tick->input_count),
             };
 
-            ArenaTemp scratch = scratch_get(0,0);
-            state_update(&s->predicted_state, inputs, tick->tick, TICK_RATE, false, scratch.arena, NULL);
+            state_update(&s->predicted_state, inputs, tick->tick, TICK_RATE, false);
+            mod_lists_clear(&s->predicted_state);
             // Entity* ent = slice_getp(s->predicted_state.entities, 1);
             // if (ent->active) {
             //     printf("%d, %f, %f\n", tick->tick, ent->position.x, ent->position.y);
             // }
-            scratch_release(scratch);
 
             memcpy(tick->entities, pred_ents->data, slice_size_bytes(*pred_ents));
             Entity* player = entity_list_get(*pred_ents, s->player_handle);
@@ -445,6 +444,8 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
     ui_init(&s->ui, level_arena, sys->fonts_view, &sys->renderer);
 
     state_init(&s->predicted_state, level_arena);
+    s->create_list = slice_create(Entity, level_arena, MaxEntities);
+    s->delete_list = slice_create(EntityIndex, level_arena, MaxEntities);
 
 
     if (!online) {
@@ -514,7 +515,7 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
     // packets can be received across frames
     s->latest_snapshot.ents = slice_create(Entity, level_arena, MaxEntities);
 
-    s->player_handle.generation = -1;
+    // s->player_handle.generation = -1;
 }
 
 void scene_end(Scene* s) {
@@ -615,23 +616,9 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
                 // TODO: init should force index position
                 for (u32 i = 0; i < init_snapshot.length; i++) {
                     Entity* ent = slice_getp(init_snapshot, i);
-                    create_entity(&s->predicted_state, *ent, true);
+                    create_entity(&s->predicted_state, *ent);
                 }
 
-                for (u32 i = 0; i < s->predicted_state.entities.length; i++) {
-                    Entity* ent = slice_getp(s->predicted_state.entities, i);
-                    if (!ent->active) {
-                        continue;
-                    }
-
-                    if (ent->flags & EntityFlags_player && ent->client_id == s->client_id) {
-                        s->player_handle = (EntityHandle) {
-                            .index = ent->index,
-                            .generation = ent->generation,
-                        };
-                        break;
-                    }
-                }
 
                 f64 total_latency = s->server->roundTripTime / 1000.0;
                 if (!s->online_mode) {
@@ -955,7 +942,7 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
             s->accumulator -= FIXED_DT;
         }
 
-        ClientID id = 0;
+        // ClientID id = 0;
         PlayerInput input = input_state(s->camera, (float2){(f32)sys->renderer.window_width, (f32)sys->renderer.window_height});
 
         if (s->move_submit) {
@@ -966,7 +953,7 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
         }
 
         Inputs inputs = {
-            .ids = slice_create_view(ClientID, &id, 1),
+            .ids = slice_create_view(ClientID, &s->client_id, 1),
             .inputs = slice_create_view(PlayerInput, &input, 1),
         };
 
@@ -999,10 +986,26 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
             s->moving_spell = false;
         }
 
+        if (s->player_handle.generation == 0) {
+            for (u32 i = 0; i < s->predicted_state.entities.length; i++) {
+                Entity* ent = slice_getp(s->predicted_state.entities, i);
+                if (!ent->active) {
+                    continue;
+                }
+
+                if (ent->flags & EntityFlags_player && ent->client_id == s->client_id) {
+                    s->player_handle = (EntityHandle) {
+                        .index = ent->index,
+                        .generation = ent->generation,
+                    };
+                    break;
+                }
+            }
+        }
+
         {
-            ArenaTemp scratch = scratch_get(0,0);
-            state_update(&s->predicted_state, inputs, s->current_tick, TICK_RATE, false, scratch.arena, NULL);
-            scratch_release(scratch);
+            state_update(&s->predicted_state, inputs, s->current_tick, TICK_RATE, false);
+            mod_lists_clear(&s->predicted_state);
         }
 
         if (s->history.length >= s->history.capacity) {
@@ -1011,7 +1014,7 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
 
         ring_push_back(&s->history, (Tick){
             .inputs = {input},
-            .client_ids = {id},
+            .client_ids = {s->client_id},
             .input_count = 1,
             .tick = s->current_tick,
         });

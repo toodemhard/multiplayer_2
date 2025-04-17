@@ -178,7 +178,8 @@ typedef struct Server {
 
 void server_init(Server* s, Arena* arena) {
     state_init(&s->state, arena);
-    create_box(&s->state, (float2){2,2});
+
+    create_box(&s->state.create_list, (float2){2,2});
     packet_queue_init(&s->out_packet_queue, arena, megabytes(1));
     packet_queue_init(&s->in_packet_queue, arena, megabytes(0.2));
     s->clients = slice_create(Client, arena, MaxPlayers);
@@ -278,7 +279,7 @@ void server_update(Server* s) {
             event.peer->data = client;
             s->client_serial += 1;
 
-            create_player(&s->state, client->id);
+            create_player(&s->state.create_list, client->id);
 
             printf ("A new client connected from %x:%u.\n", event.peer->address.host, event.peer->address.port);
             
@@ -350,23 +351,21 @@ void server_update(Server* s) {
             }
         }
 
-        ModLists mod_lists = {0};
-        state_update(&s->state, inputs, s->current_tick, TICK_RATE, true, scratch.arena, &mod_lists);
+        state_update(&s->state, inputs, s->current_tick, TICK_RATE, true);
         // Entity* ent = slice_getp(s->state.entities, 2);
         // if (ent->active) {
         //     printf("%d, %f, %f\n", s->current_tick, ent->position.x, ent->position.y);
         // }
 
-        Slice_EntityIndex delete_list = mod_lists.delete_list;
-        Slice_Entity create_list = mod_lists.create_list;
+        // Slice_EntityIndex delete_list = mod_lists.delete_list;
+        // Slice_Entity create_list = mod_lists.create_list;
 
         GameEventsMessage msg = {
             .tick = s->current_tick,
-            .delete_list = delete_list,
-            .create_list = create_list,
+            .delete_list = s->state.delete_list,
+            .create_list = s->state.create_list,
         };
-        if (delete_list.length > 0 || create_list.length > 0)
-        {
+        if (s->state.delete_list.length > 0 || s->state.create_list.length > 0) {
             Stream stream = {
                 .slice = slice_create(u8, scratch.arena, kilobytes(100)),
                 .operation = Stream_Write,
@@ -443,6 +442,8 @@ void server_update(Server* s) {
 
             queue_packet(&s->out_packet_queue, packet, s->time);
         }
+
+        mod_lists_clear(&s->state);
 
         // printf("tick: %d", s->current_tick);
         s->current_tick++;

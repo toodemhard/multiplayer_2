@@ -193,6 +193,9 @@ typedef struct GameState GameState;
 struct GameState {
     Slice_Entity entities;
 
+    Slice_Entity create_list;
+    Slice_EntityIndex delete_list;
+
     b2WorldId world_id;
 };
 
@@ -204,10 +207,8 @@ struct GameState {
 void state_init(GameState* state, Arena* arena);
 // void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_rate);
 
-void create_box(GameState* state, float2 position);
-EntityHandle create_player(GameState* state, ClientID client_id);
+// EntityHandle create_player(GameState* state, ClientID client_id);
 
 Entity* entity_list_get(Slice_Entity entity_list, EntityHandle handle);
-EntityHandle create_entity(GameState* s, Entity entity, bool force_handle);
 bool entity_is_valid(Slice_Entity entity_list, EntityHandle handle);
 // void entities_to_snapshot(Slice_Ghost* ghosts, Slice_Entity ents, u64 current_tick, Slice_pEntity* players);

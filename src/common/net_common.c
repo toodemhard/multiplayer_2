@@ -141,6 +141,7 @@ void serialize_init_entity(Stream* stream, Entity* ent) {
         serialize_var(stream, &ent->dash_direction);
         serialize_var(stream, &ent->dash_end_tick);
         serialize_var(stream, &ent->selected_spell);
+        serialize_var(stream, &ent->client_id);
     }
 
     if (ent->flags & EntityFlags_physics) {
