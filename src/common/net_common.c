@@ -110,7 +110,7 @@ void serialize_snapshot_entity(Stream* stream, Entity* ent) {
 
     if (ent->flags & EntityFlags_physics) {
         serialize_var(stream, &ent->position);
-        // serialize_var(stream, &ent->linear_velocity);
+        serialize_var(stream, &ent->physics.linear_velocity);
     }
 
     if (ent->flags & EntityFlags_hittable) {

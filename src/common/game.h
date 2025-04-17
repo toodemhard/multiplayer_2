@@ -186,7 +186,7 @@ struct Box {
     int health;
 };
 
-#define MaxEntities 256
+#define MaxEntities 128
 #define MaxPredicted 128
 
 typedef struct GameState GameState;

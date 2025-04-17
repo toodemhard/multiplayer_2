@@ -341,7 +341,7 @@ void rollback(Scene* s, GameEventsMessage* events) {
     }
 
     if (past_tick && rollback) {
-        printf("rollback\n");
+        // printf("rollback\n");
         // printf("snapshot tick: %d\n", s->latest_snapshot.tick_index);
 
         // Apply past tick to current state
@@ -361,7 +361,7 @@ void rollback(Scene* s, GameEventsMessage* events) {
         if (!events) {
             for (i32 i = 0; i < auth_ents->length; i++) {
                 Entity* auth_ent = slice_getp(*auth_ents, i);
-                if (auth_ent->replication_type != ReplicationType_Predicted || !(auth_ent->flags & EntityFlags_player)) {
+                if (auth_ent->replication_type != ReplicationType_Predicted) {
                     continue;
                 }
 
@@ -393,7 +393,7 @@ void rollback(Scene* s, GameEventsMessage* events) {
             }
         }
 
-        // printf("rollback: %d\n", s->current_tick);
+        printf("rollback: %d\n", s->current_tick);
         // Simulate forward
         Tick* tick;
         u32 i = past_tick_idx + 1; // the current predicted state is the corrected result of past tick update so simulate from the next tick
@@ -406,10 +406,10 @@ void rollback(Scene* s, GameEventsMessage* events) {
 
             ArenaTemp scratch = scratch_get(0,0);
             state_update(&s->predicted_state, inputs, tick->tick, TICK_RATE, false, scratch.arena, NULL);
-            // Entity* ent = slice_getp(s->predicted_state.entities, 2);
-            // if (ent->active) {
-            //     printf("%d, %f, %f\n", tick->tick, ent->position.x, ent->position.y);
-            // }
+            Entity* ent = slice_getp(s->predicted_state.entities, 1);
+            if (ent->active) {
+                printf("%d, %f, %f\n", tick->tick, ent->position.x, ent->position.y);
+            }
             scratch_release(scratch);
 
             memcpy(tick->entities, pred_ents->data, slice_size_bytes(*pred_ents));
@@ -789,6 +789,11 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
         s->debug_draw = !s->debug_draw;
     }
 
+    if (input_key_down(SDL_SCANCODE_F)) {
+        Entity* ent = slice_getp(s->predicted_state.entities, 1);
+        b2Body_SetTransform(ent->body_id, float2_add(ent->position, (float2){-1,0}).b2vec, b2Body_GetTransform(ent->body_id).q);
+    }
+
     ui_row({
         .stack_axis = Axis2_Y,
         .position = pos_anchor2(0,1),
@@ -957,19 +962,19 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
             .inputs = slice_create_view(PlayerInput, &input, 1),
         };
 
-        if (input_key_down(SDL_SCANCODE_F)) {
-            Stream stream = {
-                .slice = slice_create(u8, &s->tick_arena, kilobytes(2)),
-                .operation = Stream_Write,
-            };
-            TestMessage msg = {
-                .str = slice_str_literal("KYS!!!"),
-            };
-            serialize_test_message(&stream, NULL, &msg);
-            ENetPacket* packet = enet_packet_create(stream.slice.data, stream.slice.length, ENET_PACKET_FLAG_RELIABLE);
-            enet_peer_send(s->server, Channel_Reliable, packet);
-            enet_host_flush(s->client);
-        }
+        // if (input_key_down(SDL_SCANCODE_F)) {
+        //     Stream stream = {
+        //         .slice = slice_create(u8, &s->tick_arena, kilobytes(2)),
+        //         .operation = Stream_Write,
+        //     };
+        //     TestMessage msg = {
+        //         .str = slice_str_literal("KYS!!!"),
+        //     };
+        //     serialize_test_message(&stream, NULL, &msg);
+        //     ENetPacket* packet = enet_packet_create(stream.slice.data, stream.slice.length, ENET_PACKET_FLAG_RELIABLE);
+        //     enet_peer_send(s->server, Channel_Reliable, packet);
+        //     enet_host_flush(s->client);
+        // }
 
         Stream stream = {
             .slice = slice_create(u8, &s->tick_arena, sizeof(PlayerInput)),
