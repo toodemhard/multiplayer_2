@@ -444,8 +444,6 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
     ui_init(&s->ui, level_arena, sys->fonts_view, &sys->renderer);
 
     state_init(&s->predicted_state, level_arena);
-    s->create_list = slice_create(Entity, level_arena, MaxEntities);
-    s->delete_list = slice_create(EntityIndex, level_arena, MaxEntities);
 
 
     if (!online) {

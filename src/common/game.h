@@ -16,7 +16,6 @@ slice_def(ClientID);
 
 typedef struct PlayerInput PlayerInput;
 struct PlayerInput {
-    ClientID client;
     u32 tick;
     bool up;
     bool down;
