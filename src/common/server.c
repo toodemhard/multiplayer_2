@@ -183,6 +183,7 @@ void server_init(Server* s, Arena* arena) {
     packet_queue_init(&s->out_packet_queue, arena, megabytes(1));
     packet_queue_init(&s->in_packet_queue, arena, megabytes(0.2));
     s->clients = slice_create(Client, arena, MaxPlayers);
+    s->client_serial = 1;
 }
 
 void server_connect(Server* s, ENetAddress address) {
@@ -364,8 +365,13 @@ void server_update(Server* s) {
             .tick = s->current_tick,
             .delete_list = s->state.delete_list,
             .create_list = s->state.create_list,
+            .clients = inputs.ids,
+            .inputs = inputs.inputs,
         };
-        if (s->state.delete_list.length > 0 || s->state.create_list.length > 0) {
+        {
+            for (u32 i = 0; i < msg.create_list.length; i++) {
+                slice_getp(msg.create_list, i)->active = true;
+            }
             Stream stream = {
                 .slice = slice_create(u8, scratch.arena, kilobytes(100)),
                 .operation = Stream_Write,

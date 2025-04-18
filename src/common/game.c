@@ -323,11 +323,6 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
             continue;
         }
 
-        if (ent->flags & EntityFlags_physics) {
-            ent->position.b2vec = b2Body_GetPosition(ent->body_id);
-            ent->physics.linear_velocity.b2vec = b2Body_GetLinearVelocity(ent->body_id);
-        }
-
         if (ent->flags & EntityFlags_expires && current_tick >= ent->expire_tick) {
             slice_push(delete_list, i);
         }
@@ -458,6 +453,11 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
 
                 // if (selected)
             }
+        }
+
+        if (ent->flags & EntityFlags_physics) {
+            ent->position.b2vec = b2Body_GetPosition(ent->body_id);
+            ent->physics.linear_velocity.b2vec = b2Body_GetLinearVelocity(ent->body_id);
         }
     }
 

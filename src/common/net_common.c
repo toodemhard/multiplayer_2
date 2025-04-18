@@ -290,14 +290,38 @@ typedef struct GameEventsMessage {
     u32 tick;
     Slice_Entity create_list;
     Slice_EntityIndex delete_list;
+
+    Slice_ClientID clients;
+    Slice_PlayerInput inputs;
 } GameEventsMessage;
 
 void serialize_game_events(Stream* stream, Arena* arena, GameEventsMessage* message) {
     MessageType type = MessageType_GameEvents;
     serialize_var(stream, &type);
     serialize_var(stream, &message->tick);
-    serialize_slice_alloc(stream, arena, &message->create_list);
+
+    // serialize_entities(stream, &message->create_list, EntitySerializationType_Init);
+    // u32* count_ref = (u32*)slice_getp(stream->slice, stream->current);
+
+    // u32 count = 0;
+
+    Slice_Entity* entities = &message->create_list;
+    serialize_var(stream, &entities->length);
+
+    if (stream->operation == Stream_Read) {
+        u32 capacity = entities->length;
+        *entities = slice_create_fixed(Entity, arena, capacity);
+    }
+
+    for (u32 i = 0; i < entities->length; i++) {
+        Entity* ent = slice_getp(*entities, i);
+        serialize_init_entity(stream, ent);
+    }
+
     serialize_slice_alloc(stream, arena, &message->delete_list);
+
+    serialize_slice_alloc(stream, arena, &message->clients);
+    serialize_slice_alloc(stream, arena, &message->inputs);
 }
 
 // void serialize_create_entity_message(Stream* stream, CreateEntityMessage* message) {

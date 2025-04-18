@@ -29,8 +29,8 @@ typedef struct Chunk {
 typedef struct Tick Tick;
 struct Tick {
     Entity entities[MaxEntities];
-    PlayerInput inputs[MaxPlayers];
     u32 input_count;
+    PlayerInput inputs[MaxPlayers];
     ClientID client_ids[MaxPlayers];
     // Entity create_events[MaxTickEvents];
     // u32 create_event_count;
@@ -69,6 +69,8 @@ struct Scene {
 
 
     Ring_Tick history;
+    u32 latest_rollback_tick;
+    u32 latest_snapshot_rollback_tick;
 
     ClientID client_id;
 

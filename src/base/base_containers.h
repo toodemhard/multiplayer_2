@@ -32,7 +32,7 @@ u64 bounds_check(u64 index, u64 capacity) {
     (slice).data[bounds_check((index), (slice).capacity)]
 
 #define slice_getp(slice, index)\
-    &(slice).data[bounds_check((index), (slice).capacity)]
+    (&(slice).data[bounds_check((index), (slice).capacity)])
 
 #define slice_size(slice)\
     ((slice).length * sizeof((slice).data[0]))
@@ -265,7 +265,7 @@ ring_def(u32);
     }
 
 #define ring_get_ref(r, idx)\
-    &(r).data[(idx)]
+    (&(r).data[(idx)])
 
 #define ring_push_back(r, ...)\
 do {\
