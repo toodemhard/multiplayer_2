@@ -80,6 +80,7 @@ struct Scene {
     // Ring_DeleteEntityMessage pending_delete_list;
     // Ring_CreateEntityMessage pending_create_list;
     SnapshotMessage latest_snapshot;
+    bool snapshot_applied;
 
     u32 last_total_sent_data;
     u32 last_total_received_data;

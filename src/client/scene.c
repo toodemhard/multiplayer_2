@@ -276,23 +276,97 @@ void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void
 
 void scene_render(Scene* s, Arena* frame_arena);
 
+
+bool state_diff(const Slice_Entity auth_ents, const Slice_Entity past_ents) {
+    bool diff = false;
+    for (i32 i = 0; i < auth_ents.length; i++) {
+        Entity* auth_ent = slice_getp(auth_ents, i);
+        Entity* pred_ent = slice_getp(past_ents, auth_ent->index);
+
+        bool check_ent = true;
+        // if (auth_ent->replication_type != ReplicationType_Predicted) {
+        //     check_ent = false;
+        // }
+        if (pred_ent->active != auth_ent->active) {
+            check_ent = false;
+        }
+        if (pred_ent->generation != auth_ent->generation) {
+            check_ent = false;
+
+        }
+        // ASSERT(pred_ent->client_id == auth_ent->client_id);
+
+        if (!check_ent) {
+            continue;
+        }
+
+        if (!vars_equal(&pred_ent->position, &auth_ent->position)) {
+            diff = true;
+            printf("disccccc\n");
+            break;
+        }
+    }
+
+    return diff;
+}
+
+void apply_snapshot(Slice_Entity snapshot, GameState predicted_state) {
+    Slice_Entity auth_ents = snapshot;
+    Slice_Entity pred_ents = predicted_state.entities;
+    state_diff(auth_ents, pred_ents);
+    for (i32 i = 0; i < auth_ents.length; i++) {
+        Entity* auth_ent = slice_getp(auth_ents, i);
+        Entity* pred_ent = slice_getp(pred_ents, auth_ent->index);
+
+        bool skip = false;
+        if (pred_ent->generation != auth_ent->generation) {
+            skip = true;
+        }
+
+        // ASSERT(pred_ent->client_id == auth_ent->client_id);
+
+        if (skip) {
+            continue;
+        }
+
+        pred_ent->position = auth_ent->position;
+        pred_ent->physics.linear_velocity = auth_ent->physics.linear_velocity;
+    }
+    // Physics state needs to be applied
+    for (i32 i = 0; i < predicted_state.entities.length; i++) {
+        Entity* ent = slice_getp(pred_ents, i);
+        if (ent->active && (ent->flags & EntityFlags_physics)) {
+            b2Body_SetTransform(ent->body_id, ent->position.b2vec, b2Body_GetRotation(ent->body_id));
+            b2Body_SetLinearVelocity(ent->body_id, ent->physics.linear_velocity.b2vec);
+        }
+    }
+}
+
 // Checks if something mispredicted then rollback
 // Defaults to doing check + rollback with latest snapshot in Scene*
 // If events != NULL then do rollback for running events at tick
 void rollback(Scene* s, GameEventsMessage* events) {
     Tick* past_tick = NULL;
 
-    Entity* ent = slice_getp(s->predicted_state.entities, 1);
-    f32 kys = ent->position.x;
+    Entity* ent = slice_getp(s->predicted_state.entities, 0);
+    f32 kys = ent->health;
+
+    // if (events) {
+    //     printf("%d event rollback\n", events->tick);
+    // } else {
+    //     printf("%d snapshot rollback\n", s->latest_snapshot.tick_index);
+    // }
+
 
     u32 target_tick_index = 0;
     if (events != NULL && events->tick != 0) {
         target_tick_index = events->tick - 1;
     }
-
-    if (events == NULL) {
+    if (!s->snapshot_applied && s->latest_snapshot.tick_index < events->tick) {
         target_tick_index = s->latest_snapshot.tick_index;
     }
+
+    // printf("start tick: %d\n", target_tick_index);
 
     // Find matching tick in history
     u32 past_tick_idx = 0;
@@ -309,43 +383,11 @@ void rollback(Scene* s, GameEventsMessage* events) {
         i = (i + 1) % s->history.capacity;
     }
 
-    bool rollback = false;
-    if (events != NULL) {
-        rollback = true;
-    }
 
     // Check for mispredictions
     Slice_Entity* auth_ents = &s->latest_snapshot.ents;
-    if (events == NULL && past_tick != NULL && rollback == false) {
-        for (i32 i = 0; i < auth_ents->length; i++) {
-            Entity* auth_ent = slice_getp(*auth_ents, i);
-            Entity* pred_ent = &past_tick->entities[auth_ent->index];
-
-            bool check_ent = true;
-            // if (auth_ent->replication_type != ReplicationType_Predicted) {
-            //     check_ent = false;
-            // }
-            if (pred_ent->active != auth_ent->active) {
-                check_ent = false;
-            }
-            if (pred_ent->generation != auth_ent->generation) {
-                check_ent = false;
-
-            }
-            // ASSERT(pred_ent->client_id == auth_ent->client_id);
-
-            if (!check_ent) {
-                continue;
-            }
-
-            if (!vars_equal(&pred_ent->position, &auth_ent->position)) {
-                rollback = true;
-
-                printf("disccccc\n");
-                break;
-            }
-        }
-    }
+    // if (events == NULL && past_tick != NULL && rollback == false) {
+    // }
 
     bool hack_create = false;
     if (events && (!past_tick || past_tick->tick == 0)) {
@@ -362,7 +404,7 @@ void rollback(Scene* s, GameEventsMessage* events) {
         hack_create = true;
     }
 
-    if (past_tick && rollback) {
+    if (past_tick) {
         // printf("rollback\n");
         // printf("snapshot tick: %d\n", s->latest_snapshot.tick_index);
 
@@ -378,30 +420,6 @@ void rollback(Scene* s, GameEventsMessage* events) {
             // memcpy(pred_ents->data, past_tick->entities, sizeof(Entity) * MaxEntities);
         }
 
-        // Apply corrections of latest snapshot or events
-        if (!events) {
-            for (i32 i = 0; i < auth_ents->length; i++) {
-                Entity* auth_ent = slice_getp(*auth_ents, i);
-                Entity* pred_ent = slice_getp(*pred_ents, auth_ent->index);
-
-                bool skip = false;
-                // if (auth_ent->replication_type != ReplicationType_Predicted) {
-                //     skip = true;
-                // }
-                if (pred_ent->generation != auth_ent->generation) {
-                    skip = true;
-                }
-
-                // ASSERT(pred_ent->client_id == auth_ent->client_id);
-
-                if (skip) {
-                    continue;
-                }
-
-                pred_ent->position = auth_ent->position;
-                pred_ent->physics.linear_velocity = auth_ent->physics.linear_velocity;
-            }
-        }
 
         // Physics state needs to be applied
         for (i32 i = 0; i < s->predicted_state.entities.length; i++) {
@@ -418,23 +436,37 @@ void rollback(Scene* s, GameEventsMessage* events) {
         Tick* tick;
         u32 i = past_tick_idx; 
         i = (i + 1) % s->history.capacity;
-        if (!events) {
-        //     i += 1; // the current predicted state is the corrected result of past tick update so simulate from the next tick
-        //     s->latest_snapshot_rollback_tick = ring_get_ref(s->history, i)->tick;
-        } else {
-            s->latest_rollback_tick = ring_get_ref(s->history, i)->tick;
-        }
+        s->latest_rollback_tick = ring_get_ref(s->history, i)->tick;
 
         // printf("rollback: %d\n", past_tick->tick);
-        Entity* ent = slice_getp(s->predicted_state.entities, 1);
-        if (ent->active) {
-            // printf("%d, %f, %f\n", target_tick_index, ent->position.x, ent->position.y);
-        }
+        // Entity* ent = slice_getp(s->predicted_state.entities, 0);
+        // if (ent->active) {
+        //     printf("%d, %f, %f\n", target_tick_index, ent->position.x, ent->position.y);
+        // }
+
+
+        // Rollback tick order:
+        // 1. apply previous tick snapshot
+        // 2. grab this tick inputs
+        // 3. run update
+        // 4. save output as this tick state
+
+        // if snapshot and event for same tick arrive
+
+        // tick 0 | tick 1 | tick 2
+        // NULL | apply event | apply snapshot
+
         do {
             tick = &s->history.data[i];
             bool event_tick = false;
             if (events != NULL && tick->tick == events->tick) {
                 event_tick = true;
+            }
+
+            // Apply corrections of latest snapshot from previous tick
+            if (!s->snapshot_applied && tick->tick == s->latest_snapshot.tick_index + 1) {
+                apply_snapshot(s->latest_snapshot.ents, s->predicted_state);
+                s->snapshot_applied = true;
             }
 
             if (event_tick) {
@@ -443,11 +475,11 @@ void rollback(Scene* s, GameEventsMessage* events) {
                 memcpy(tick->inputs, events->inputs.data, slice_size(events->inputs));
                 tick->input_count = events->clients.length;
 
-                for (u32 i = 0; i < past_tick->input_count; i++) {
-                    if (past_tick->client_ids[i] == 2 && past_tick->inputs[i].right) {
-                        printf("adsklfjh\n");
-                    }
-                }
+                // for (u32 i = 0; i < past_tick->input_count; i++) {
+                //     if (past_tick->client_ids[i] == 2 && past_tick->inputs[i].right) {
+                //         printf("adsklfjh\n");
+                //     }
+                // }
             }
 
             Inputs inputs = {
@@ -456,10 +488,10 @@ void rollback(Scene* s, GameEventsMessage* events) {
             };
 
             state_update(&s->predicted_state, inputs, tick->tick, TICK_RATE, false);
-            Entity* ent = slice_getp(s->predicted_state.entities, 1);
-            if (ent->active) {
-                // printf("%d, %f, %f\n", tick->tick, ent->position.x, ent->position.y);
-            }
+            // Entity* ent = slice_getp(s->predicted_state.entities, 1);
+            // if (ent->active) {
+            //     printf("%d, %f, %f\n", tick->tick, ent->position.x, ent->position.y);
+            // }
 
             if (event_tick && !hack_create) {
                 const Slice_EntityIndex delete_list = events->delete_list;
@@ -483,10 +515,10 @@ void rollback(Scene* s, GameEventsMessage* events) {
         // printf("%d\n", s->current_tick);
     }
 
-    // ent = slice_getp(s->predicted_state.entities, 1);
-    // if (kys > ent->position.x) {
-    //     printf("adfhsfkjadshfkjldhs\n");
-    // }
+    ent = slice_getp(s->predicted_state.entities, 0);
+    if (kys < ent->health) {
+        printf("adfhsfkjadshfkjldhs\n");
+    }
 
 }
 
@@ -635,6 +667,7 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
                 if (tick > s->latest_snapshot.tick_index) {
                     slice_clear(&s->latest_snapshot.ents);
                     serialize_snapshot_message(&stream, &s->latest_snapshot);
+                    s->snapshot_applied = false;
 
                     // bool force_rollback = false;
                     //
@@ -657,7 +690,7 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
                     // s->player = *s->latest_snapshot.player;
                     // s->last_snapshot.input = input_buffer_size;
                     // s->camera.position = s->player.physics.position;
-                    rollback(s, NULL);
+                    // rollback(s, NULL);
                 }
 
                 if (s->finished_init_sync) {
@@ -1204,7 +1237,7 @@ void render_entities(Camera2D camera, Slice_Entity ents, u32 current_tick, bool 
             });
         }
 
-        if (ent->flags & EntityFlags_hittable) {
+        if (!filter_predicted && ent->flags & EntityFlags_hittable) {
             float2 pos = float2_sub(world_rect.position, (float2){0, -1});
             draw_world_rect(camera, (Rect){
                     .position = pos,
@@ -1219,6 +1252,11 @@ void render_entities(Camera2D camera, Slice_Entity ents, u32 current_tick, bool 
 
 void scene_render(Scene* s, Arena* frame_arena) {
     System* sys = s->sys;
+
+    // Entity* player = entity_list_get(s->predicted_state.entities, s->player_handle);
+    // if (player) {
+    //     s->camera.position = player->position;
+    // }
 
     render_entities(s->camera, s->latest_snapshot.ents, s->latest_snapshot.tick_index, true);
     render_entities(s->camera, s->predicted_state.entities, s->current_tick, false);
