@@ -438,14 +438,16 @@ float2 f32arr_to_float2(f32 vec[2]) {
     return (float2){vec[0], vec[1]};
 }
 
-void ui_draw(UI* ui_ctx, Arena* temp_arena) {
+void ui_draw(UI* ui_ctx) {
     // ArenaTemp checkpoint = arena_begin_temp_allocs(temp_arena);
     // defer(arena_end_temp_allocs(checkpoint));
 
     UI_Frame* ui = &ui_ctx->frame_buffer[ui_ctx->active_frame];
 
-    Slice_pUI_Element pre_stack = slice_p_create(UI_Element, temp_arena, 512);
-    Slice_pUI_Element post_stack = slice_p_create(UI_Element, temp_arena, 512);
+    ArenaTemp scratch = scratch_get(0, 0);
+
+    Slice_pUI_Element pre_stack = slice_p_create(UI_Element, scratch.arena, 512);
+    Slice_pUI_Element post_stack = slice_p_create(UI_Element, scratch.arena, 512);
 
     if (ui->elements.length > 0) {
         slice_push(&pre_stack, slice_getp(ui->elements, 0));
@@ -508,4 +510,6 @@ void ui_draw(UI* ui_ctx, Arena* temp_arena) {
         UI_Element* current = *slice_back(post_stack);
         slice_pop(&post_stack);
     }
+
+    scratch_release(scratch);
 }

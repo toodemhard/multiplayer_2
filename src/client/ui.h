@@ -131,7 +131,7 @@ UI_Element* ui_get(UI_Key index);
 bool ui_hover(UI_Key index);
 void ui_set_ctx(UI* _ui);
 void ui_init(UI* ui, Arena* arena, Slice_Font fonts, Renderer* renderer);
-void ui_draw(UI* ui_ctx, Arena* temp_arena);
+void ui_draw(UI* ui_ctx);
 UI_Key ui_push_row_internal(UI_Element element, const char* file, i32 line);
 UI_Key ui_pop_row();
 void ui_begin();

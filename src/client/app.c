@@ -288,7 +288,7 @@ void menu_update(Menu* menu, Arena* temp_arena) {
 
     ui_end(temp_arena);
 
-    ui_draw(&menu->ui, temp_arena);
+    ui_draw(&menu->ui);
 
     }
 }

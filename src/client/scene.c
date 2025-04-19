@@ -1,5 +1,7 @@
 #define GRID_STEP 1.0
 
+void scene_render(Scene* s);
+
 // Chunk chunks[4] = {
 //     {
 //         .position = {-chunk_width, chunk_width},
@@ -274,7 +276,7 @@ void DrawPolygon(const b2Vec2* vertices, int vertexCount, b2HexColor color, void
     draw_world_polygon(*renderer->active_camera, (float2*)vertices, vertexCount, hex_to_rgban(color));
 }
 
-void scene_render(Scene* s, Arena* frame_arena);
+// void scene_render(Scene* s, Arena* frame_arena);
 
 
 bool state_diff(const Slice_Entity auth_ents, const Slice_Entity past_ents) {
@@ -1179,9 +1181,7 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
     // }
 
     s->frame++;
-    scene_render(s, frame_arena);
-
-
+    scene_render(s);
 }
 
 bool float2_cmp(float2 a, float2 b) {
@@ -1250,7 +1250,7 @@ void render_entities(Camera2D camera, Slice_Entity ents, u32 current_tick, bool 
     }
 }
 
-void scene_render(Scene* s, Arena* frame_arena) {
+void scene_render(Scene* s) {
     System* sys = s->sys;
 
     // Entity* player = entity_list_get(s->predicted_state.entities, s->player_handle);
@@ -1315,5 +1315,5 @@ void scene_render(Scene* s, Arena* frame_arena) {
         draw_world_rect(s->camera, (Rect){p2,(float2){1,1}}, (float4){1,0,0,1});
     }
 
-    ui_draw(&s->ui, frame_arena);
+    ui_draw(&s->ui);
 }
