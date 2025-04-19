@@ -346,6 +346,8 @@ void rollback(Scene* s, GameEventsMessage* events) {
             }
         }
     }
+
+    bool hack_create = false;
     if (events && (!past_tick || past_tick->tick == 0)) {
         const Slice_EntityIndex delete_list = events->delete_list;
         const Slice_Entity create_list = events->create_list;
@@ -355,7 +357,9 @@ void rollback(Scene* s, GameEventsMessage* events) {
         }
         for (u32 i = 0; i < create_list.length; i++) {
             create_entity(state, slice_get(create_list, i));
+            // printf("%d create\n", s->current_tick);
         }
+        hack_create = true;
     }
 
     if (past_tick && rollback) {
@@ -457,7 +461,7 @@ void rollback(Scene* s, GameEventsMessage* events) {
                 // printf("%d, %f, %f\n", tick->tick, ent->position.x, ent->position.y);
             }
 
-            if (event_tick) {
+            if (event_tick && !hack_create) {
                 const Slice_EntityIndex delete_list = events->delete_list;
                 const Slice_Entity create_list = events->create_list;
                 GameState* state = &s->predicted_state;
@@ -466,6 +470,7 @@ void rollback(Scene* s, GameEventsMessage* events) {
                 }
                 for (u32 i = 0; i < create_list.length; i++) {
                     create_entity(state, slice_get(create_list, i));
+                    // printf("adsfhkjh create\n", s->current_tick);
                 }
             }
 
