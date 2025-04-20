@@ -23,8 +23,8 @@ bool entity_handle_equals(EntityHandle a, EntityHandle b) {
     return a.index == b.index && a.generation == b.generation;
 }
 
-EntityHandle entity_ptr_to_handle(Slice_Entity ent_list, Entity* ent_ptr) {
-    return (EntityHandle){ent_ptr - ent_list.data, ent_ptr->generation};
+EntityHandle entity_ptr_to_handle(Entity* ent_ptr) {
+    return (EntityHandle){ent_ptr->index , ent_ptr->generation};
 }
 
 EntityIndex entity_ptr_to_index(Slice_Entity ent_list, Entity* ent_ptr) {
@@ -223,7 +223,7 @@ void entity_list_remove(Slice_Entity* entity_list, EntityIndex index) {
     if (ent->active) {
         ent->active = false;
 
-        if (b2Body_IsValid(ent->body_id)) {
+        if (ent->flags & EntityFlags_physics && b2Body_IsValid(ent->body_id)) {
             b2DestroyBody(ent->body_id);
         }
     }
@@ -299,8 +299,12 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
         if (visitor == NULL) {
             continue;
         }
+        if (entity_handle_equals(entity_ptr_to_handle(sensor), visitor->last_tick_sensor)) {
+            printf("double enter skip\n");
+            continue;
+        }
 
-        bool skip_owner = !(sensor->flags & EntityFlags_damage_owner) && entity_handle_equals(sensor->owner, entity_ptr_to_handle(state->entities, visitor));
+        bool skip_owner = !(sensor->flags & EntityFlags_damage_owner) && entity_handle_equals(sensor->owner, entity_ptr_to_handle(visitor));
 
         if (!skip_owner && visitor != NULL && visitor->flags & EntityFlags_hittable) {
             float2 inc_dir = normalize((float2){.b2vec=b2Body_GetLinearVelocity(sensor->body_id)});
@@ -397,6 +401,7 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
                     }
                 }
 
+
                 b2Body_SetLinearVelocity(ent->body_id, (b2Vec2){velocity.x, velocity.y});
             } else if (ent->player_state == PlayerState_Dashing) {
                 velocity = float2_scale(ent->dash_direction, dash_speed);
@@ -458,6 +463,11 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
         if (ent->flags & EntityFlags_physics) {
             ent->position.b2vec = b2Body_GetPosition(ent->body_id);
             ent->physics.linear_velocity.b2vec = b2Body_GetLinearVelocity(ent->body_id);
+
+            if (!ent->sensor_added_this_tick) {
+                ent->last_tick_sensor = (EntityHandle){0};
+            }
+            ent->sensor_added_this_tick = false;
         }
     }
 
@@ -467,7 +477,8 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
         }
 
         for (u32 i = 0; i < create_list->length; i++) {
-            create_entity(state, slice_get(*create_list, i));
+            EntityHandle handle = create_entity(state, slice_get(*create_list, i));
+            *slice_getp(*create_list, i) = state->entities.data[handle.index];
         }
     }
 }

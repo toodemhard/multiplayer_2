@@ -32,10 +32,10 @@ struct Tick {
     u32 input_count;
     PlayerInput inputs[MaxPlayers];
     ClientID client_ids[MaxPlayers];
-    // Entity create_events[MaxTickEvents];
-    // u32 create_event_count;
-    // EntityIndex delete_events[MaxTickEvents];
-    // u32 delete_event_count;
+    EntityIndex delete_events[MaxTickEvents];
+    u32 delete_event_count;
+    Entity create_events[MaxTickEvents];
+    u32 create_event_count;
     u32 tick;
     u64 total_size; // header + slice data
 };
@@ -75,7 +75,7 @@ struct Scene {
     ClientID client_id;
 
 
-    bool finished_init_sync;
+    bool received_init;
 
     // Ring_DeleteEntityMessage pending_delete_list;
     // Ring_CreateEntityMessage pending_create_list;

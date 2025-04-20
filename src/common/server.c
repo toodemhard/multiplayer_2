@@ -28,6 +28,7 @@ typedef struct PacketQueue {
     Packet* tail;
 } PacketQueue;
 
+
 void packet_queue_init(PacketQueue* queue, Arena* arena, u64 size) {
     queue->buffer = arena_alloc(arena, size);
     queue->capacity = size;
@@ -244,7 +245,17 @@ void server_update(Server* s) {
             input.tick = input_tick;
 
             RingArray_PlayerInput* input_ring = &client->input_ring;
-            if (input_tick >= s->current_tick && input_ring->length < input_ring->capacity) {
+
+            bool valid_input = true;
+
+            if (input_ring->length > 0 && input.tick <= (ring_back_ref(*input_ring))->tick) {
+                valid_input = false;
+            }
+            if (input_tick <= s->current_tick) {
+                valid_input = false;
+            }
+
+            if (valid_input && input_ring->length < input_ring->capacity) {
                 ring_push_back(input_ring, input);
             }
         }
@@ -329,6 +340,7 @@ void server_update(Server* s) {
 
     // Arena tick_arena = arena_suballoc(&temp_arena, megabytes(4));
     while (s->accumulator >= FIXED_DT) {
+        s->current_tick++;
         ArenaTemp scratch = scratch_get(0,0);
         defer_loop((void)0, scratch_release(scratch)) {
 
@@ -347,7 +359,11 @@ void server_update(Server* s) {
                 PlayerInput input = {0};
                 if (client->input_ring.length > 0 && ring_front(client->input_ring)->tick <= s->current_tick) {
                     input = ring_pop_front(&client->input_ring);
+                    ASSERT(input.tick == s->current_tick);
                 }
+                // if (input.dash) {
+                //     __debugbreak();
+                // }
                 slice_push(&inputs.inputs, input);
             }
         }
@@ -452,7 +468,6 @@ void server_update(Server* s) {
         mod_lists_clear(&s->state);
 
         // printf("tick: %d", s->current_tick);
-        s->current_tick++;
 
         }
     }

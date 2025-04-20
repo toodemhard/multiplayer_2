@@ -144,6 +144,9 @@ struct Entity {
 
     float2 position;
     PhysicsComponent physics;
+    EntityHandle last_tick_sensor;
+    bool sensor_added_this_tick;
+
     // dont set
     b2BodyId body_id;
 
