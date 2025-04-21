@@ -374,10 +374,10 @@ void rollback(Scene* s, GameEventsMessage* events) {
         target_tick_index = s->latest_snapshot.tick_index;
     }
 
-    if (target_tick_index == debug_tick) {
-        (void)0;
-        int asdf =123;
-    }
+    // if (target_tick_index == debug_tick) {
+    //     (void)0;
+    //     int asdf =123;
+    // }
 
     // printf("start tick: %d\n", target_tick_index);
 
