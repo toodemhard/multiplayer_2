@@ -1,3 +1,7 @@
+float lerp(float v0, float v1, float t) {
+    return (1 - t) * v0 + t * v1;
+}
+
 f32 f32_max(f32 a, f32 b) {
     if (b > a) {
         return b;
@@ -45,6 +49,7 @@ float2 float2_scale(float2 a, float b) {
     return c;
 }
 
+
 float2 float2x2_mult_float2(float2x2 a, float2 b) {
     float2 c;
     for (u32 j = 0; j < 2; j++) {
@@ -63,4 +68,12 @@ float magnitude(float2 a) {
 
 float2 normalize(float2 a) {
     return float2_scale(a, 1.0 / magnitude(a));
+}
+
+float4 float4_lerp(float4 a, float4 b, f32 t) {
+    float4 c;
+    for (u32 i = 0; i < 4; i++) {
+        c.v[i] = lerp(a.v[i], b.v[i], t);
+    }
+    return c;
 }

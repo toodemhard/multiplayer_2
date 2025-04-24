@@ -38,7 +38,8 @@ typedef double f64;
 
 #define array_length(array) (sizeof(array) / sizeof((array)[0]))
 
-#define array_copy(dst, src) (memcpy((dst), (src), sizeof(dst) / sizeof((dst)[0])))
+// #define array_copy(dst, src) (memcpy((dst), (src), sizeof(dst) / sizeof((dst)[0])))
+#define array_copy(dst, src) (memcpy((dst), (src), sizeof(dst)))
 
 // https://github.com/EpicGamesExt/raddebugger/blob/master/src/base/base_core.h
 #define defer_loop(begin, end) for(int _i_ = ((begin), 0); !_i_; _i_ += 1, (end))

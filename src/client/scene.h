@@ -66,6 +66,8 @@ struct Scene {
 
     Server local_server;
     GameState predicted_state;
+    bool match_finished;
+    bool rematching;
 
 
     Ring_Tick history;

@@ -142,6 +142,8 @@ void serialize_init_entity(Stream* stream, Entity* ent) {
         serialize_var(stream, &ent->dash_end_tick);
         serialize_var(stream, &ent->selected_spell);
         serialize_var(stream, &ent->client_id);
+        serialize_var(stream, &ent->mana);
+        serialize_var(stream, &ent->max_mana);
     }
 
     if (ent->flags & EntityFlags_physics) {
@@ -151,6 +153,7 @@ void serialize_init_entity(Stream* stream, Entity* ent) {
 
     if (ent->flags & EntityFlags_hittable) {
         serialize_var(stream, &ent->health);
+        serialize_var(stream, &ent->max_health);
         serialize_var(stream, &ent->hit_flash_end_tick);
     }
 
@@ -286,6 +289,18 @@ void serialize_slice_raw(Stream* stream, void* data, u64 element_size, u64* leng
 // } CreateEntityMessage;
 // ring_def(CreateEntityMessage);
 
+typedef enum GameEventType {
+    GameEventType_NULL,
+    GameEventType_RoundReset,
+    GameEventType_MatchFinish,
+} GameEventType;
+
+typedef struct GameEvent {
+    GameEventType type;
+    i32 score[2];
+} GameEvent;
+slice_def(GameEvent);
+
 typedef struct GameEventsMessage {
     u32 tick;
     Slice_Entity create_list;
@@ -293,6 +308,8 @@ typedef struct GameEventsMessage {
 
     Slice_ClientID clients;
     Slice_PlayerInput inputs;
+    Slice_GameEvent events;
+
 } GameEventsMessage;
 
 void serialize_game_events(Stream* stream, Arena* arena, GameEventsMessage* message) {
@@ -322,6 +339,9 @@ void serialize_game_events(Stream* stream, Arena* arena, GameEventsMessage* mess
 
     serialize_slice_alloc(stream, arena, &message->clients);
     serialize_slice_alloc(stream, arena, &message->inputs);
+    // serialize_var(stream, &message->event);
+
+    serialize_slice_alloc(stream, arena, &message->events);
 }
 
 // void serialize_create_entity_message(Stream* stream, CreateEntityMessage* message) {

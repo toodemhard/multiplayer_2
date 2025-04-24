@@ -40,13 +40,38 @@ typedef enum PlayerState {
     PlayerState_Dashing,
 } PlayerState;
 
+typedef struct Spell {
+    i32 mana_cost;
+    f32 recharge_time;
+    f32 cast_delay;
+} Spell;
+
+// typedef enum SpellType {
+//     SpellType_NULL,
+//     SpellType_Fireball,
+//     SpellType_SpreadBolt,
+//     SpellType_IceWall,
+//     SpellType_SniperRifle,
+// } SpellType;
+
+#define SPELL_TABLE(_)\
+    _(Fireball, {10, 0.1})\
+    _(SpreadBolt, {30, 0.5})\
+    _(IceWall, {20, 0.3})\
+    _(SniperRifle, {})\
+
+#define SPELL_TYPE(a, ...) SpellType_##a,
+#define SPELL_VALUES(a, ...) __VA_ARGS__,
+
 typedef enum SpellType {
     SpellType_NULL,
-    SpellType_Fireball,
-    SpellType_SpreadBolt,
-    SpellType_IceWall,
-    SpellType_SniperRifle,
+    SPELL_TABLE(SPELL_TYPE)
 } SpellType;
+
+const Spell spell_table[] = { 
+    {0,0},
+    SPELL_TABLE(SPELL_VALUES)
+};
 
 typedef enum EntityType {
     EntityType_NULL,
@@ -65,6 +90,7 @@ _(expires)\
 _(attack)\
 _(player)\
 _(damage_owner)\
+_(has_mana)\
 
 #define ENTITY_FLAG_INDEX(a) EntityFlagIndex_##a,
 enum {
@@ -152,14 +178,19 @@ struct Entity {
 
     //player
     ClientID client_id;
-    SpellType hotbar[10];
+    SpellType hotbar[8];
     PlayerState player_state;
     float2 dash_direction;
     u32 dash_end_tick;
     u16 selected_spell;
 
+    i32 mana;
+    i32 max_mana;
+    u32 cast_delay_end_tick;
+
     // hittable
     i32 health;
+    i32 max_health;
     u32 hit_flash_end_tick;
 
     // expires
@@ -194,6 +225,9 @@ struct Box {
 typedef struct GameState GameState;
 struct GameState {
     Slice_Entity entities;
+
+    i32 score[2];
+    ClientID players[2];
 
     Slice_Entity create_list;
     Slice_EntityIndex delete_list;

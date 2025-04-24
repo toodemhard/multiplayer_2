@@ -42,6 +42,7 @@ union Rect {
     };
 };
 
+float lerp(float v0, float v1, float t);
 f32 f32_max(f32 a, f32 b);
 float2 float2_add(float2 a, float2 b);
 float2 float2_sub(float2 a, float2 b);
@@ -51,3 +52,4 @@ float2 float2_scale(float2 a, float b);
 float2 float2x2_mult_float2(float2x2 a, float2 b);
 float magnitude(float2 a);
 float2 normalize(float2 a);
+float4 float4_lerp(float4 a, float4 b, f32 t);

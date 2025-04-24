@@ -1,8 +1,11 @@
 #pragma once
 
-typedef struct RGBA RGBA;
-struct RGBA {
-    u8 r, g, b, a;
+typedef union RGBA RGBA;
+union RGBA {
+    struct {
+        u8 r, g, b, a;
+    };
+    u8 v[4];
 };
 opt_def(RGBA);
 

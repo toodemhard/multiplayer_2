@@ -134,9 +134,11 @@ typedef struct RingArray_PlayerInput {
 typedef struct Client {
     bool active;
     ClientID id;
+    EntityHandle player_handle;
     RingArray_PlayerInput input_ring;
     u32 latest_tick;
     ENetPeer* peer;
+    bool rematch;
 } Client;
 slice_def(Client);
 
@@ -151,6 +153,9 @@ slice_def(Client);
 typedef struct Server {
     GameState state;
     ENetHost* server;
+    bool match_finished;
+
+    bool reset_round;
 
     Slice_Client clients;
     ClientID client_serial;
@@ -193,7 +198,23 @@ void server_connect(Server* s, ENetAddress address) {
     if (!s->server) {
         fprintf (stderr, "An error occurred while trying to create an ENet server host.\n");
     }
+}
 
+void assign_players_to_clients(Slice_Client* clients, Slice_Entity create_list) {
+    for (i32 i = 0; i < create_list.length; i++) {
+        Entity* ent = slice_getp(create_list, i);
+        if (ent->flags & EntityFlags_player) {
+            for (i32 client_idx = 0; client_idx < clients->length; client_idx++) {
+                Client* client = slice_getp(*clients, client_idx);
+                if (client->id == ent->client_id) {
+                    client->player_handle = (EntityHandle) {
+                        .index = ent->index,
+                        .generation = ent->generation,
+                    };
+                }
+            }
+        }
+    }
 }
 
 void server_update(Server* s) {
@@ -260,6 +281,31 @@ void server_update(Server* s) {
             }
         }
 
+        if (type == MessageType_RematchToggle && s->match_finished) {
+            Client* client = (Client*)packet.peer->data;
+            client->rematch = !client->rematch;
+
+            bool rematch = true;
+            for (i32 i = 0; i < s->clients.length; i++) {
+                if (!slice_get(s->clients, i).rematch) {
+                    rematch = false;
+                    break;
+                }
+            }
+
+            if (rematch) {
+                s->reset_round = true;
+                s->match_finished = false;
+                for (i32 i = 0; i < 2; i ++) {
+                    s->state.score[i] = 0;
+                }
+
+                for (i32 i = 0; i < s->clients.length; i++) {
+                    slice_getp(s->clients, i)->rematch = false;
+                }
+            }
+        }
+
     }
 
     ENetEvent event;
@@ -291,7 +337,7 @@ void server_update(Server* s) {
             event.peer->data = client;
             s->client_serial += 1;
 
-            create_player(&s->state.create_list, client->id);
+            create_player(&s->state.create_list, client->id, (float2){0,0});
 
             printf ("A new client connected from %x:%u.\n", event.peer->address.host, event.peer->address.port);
             
@@ -369,6 +415,64 @@ void server_update(Server* s) {
         }
 
         state_update(&s->state, inputs, s->current_tick, TICK_RATE, true);
+
+        assign_players_to_clients(&s->clients, s->state.create_list);
+
+        Slice_i32 alive_players = slice_create(i32, scratch.arena, 16);
+        Slice_i32 dead_players = slice_create(i32, scratch.arena, 16);
+        for (i32 i = 0; i < s->clients.length; i++) {
+            if (!entity_is_valid(s->state.entities, slice_get(s->clients, i).player_handle)) {
+                slice_push(&dead_players, i);
+            } else {
+                slice_push(&alive_players, i);
+            }
+        }
+
+        float2 spawn_points[] = {{-2,0}, {2,0}};
+
+        GameEventType event_type = {0};
+
+        if (!s->reset_round && !s->match_finished && alive_players.length <= 1 && dead_players.length > 0) {
+            for (i32 i = 0; i < alive_players.length; i++) {
+                s->state.score[slice_get(s->clients, slice_get(alive_players, i)).id - 1] += 1;
+            }
+
+            for (i32 i = 0; i < 2; i++) {
+                if (s->state.score[i] >= 3) {
+                    s->match_finished = true;
+                    event_type = GameEventType_MatchFinish;
+                }
+            }
+
+            s->reset_round = true;
+
+
+            if (!s->match_finished) {
+            }
+        }
+
+        if (!s->match_finished && s->reset_round == true) {
+            event_type = GameEventType_RoundReset;
+            slice_clear(&s->state.delete_list);
+            slice_clear(&s->state.create_list);
+            for (i32 i = 0; i < s->state.entities.length; i++) {
+                delete_entity(&s->state.entities, i);
+            }
+
+            for (i32 i = 0; i < s->clients.length; i++) {
+                create_player(&s->state.create_list, slice_get(s->clients, i).id, spawn_points[i]);
+            }
+
+            for (u32 i = 0; i < s->state.create_list.length; i++) {
+                EntityHandle handle = create_entity(&s->state, slice_get(s->state.create_list, i));
+                *slice_getp(s->state.create_list, i) = s->state.entities.data[handle.index];
+            }
+            assign_players_to_clients(&s->clients, s->state.create_list);
+
+            s->reset_round = false;
+        }
+
+
         // Entity* ent = slice_getp(s->state.entities, 2);
         // if (ent->active) {
         //     printf("%d, %f, %f\n", s->current_tick, ent->position.x, ent->position.y);
@@ -383,7 +487,18 @@ void server_update(Server* s) {
             .create_list = s->state.create_list,
             .clients = inputs.ids,
             .inputs = inputs.inputs,
+            // .event = event,
         };
+        if (event_type != GameEventType_NULL) {
+            msg.events = slice_create(GameEvent, scratch.arena, 1);
+            GameEvent event = {
+                .type = event_type,
+                .score = {
+                    s->state.score[0], s->state.score[1]
+                },
+            };
+            slice_push(&msg.events, event);
+        }
         {
             for (u32 i = 0; i < msg.create_list.length; i++) {
                 slice_getp(msg.create_list, i)->active = true;

@@ -305,7 +305,7 @@ bool state_diff(const Slice_Entity auth_ents, const Slice_Entity past_ents) {
 
         if (!vars_equal(&pred_ent->position, &auth_ent->position)) {
             diff = true;
-            printf("disccccc\n");
+            // printf("disccccc\n");
             break;
         }
     }
@@ -316,7 +316,7 @@ bool state_diff(const Slice_Entity auth_ents, const Slice_Entity past_ents) {
 void apply_snapshot(Slice_Entity snapshot, GameState predicted_state) {
     Slice_Entity auth_ents = snapshot;
     Slice_Entity pred_ents = predicted_state.entities;
-    state_diff(auth_ents, pred_ents);
+    // state_diff(auth_ents, pred_ents);
     for (i32 i = 0; i < auth_ents.length; i++) {
         Entity* auth_ent = slice_getp(auth_ents, i);
         Entity* pred_ent = slice_getp(pred_ents, auth_ent->index);
@@ -345,6 +345,22 @@ void apply_snapshot(Slice_Entity snapshot, GameState predicted_state) {
     }
 }
 
+// EntityHandle find_owned_player(Slice_Entity entities, ClientID client_id) {
+//     for (u32 i = 0; i < entities.length; i++) {
+//         Entity* ent = slice_getp(entities, i);
+//         if (!ent->active) {
+//             continue;
+//         }
+//
+//         if (ent->flags & EntityFlags_player && ent->client_id == client_id) {
+//             return (EntityHandle) {
+//                 .index = ent->index,
+//                     .generation = ent->generation,
+//             };
+//         }
+//     }
+// }
+
 // Checks if something mispredicted then rollback
 // Defaults to doing check + rollback with latest snapshot in Scene*
 // If events != NULL then do rollback for running events at tick
@@ -359,11 +375,11 @@ void rollback(Scene* s, GameEventsMessage* events) {
     // } else {
     //     printf("%d snapshot rollback\n", s->latest_snapshot.tick_index);
     // }
-    Entity* box = slice_getp(s->predicted_state.entities, 0);
-    if (box->active && box->health < 50) {
-        // printf("%d: %d\n", target_tick_index, ent->health);
-        printf("faksdhj\n");
-    }
+    // Entity* box = slice_getp(s->predicted_state.entities, 0);
+    // if (box->active && box->health < 50) {
+    //     // printf("%d: %d\n", target_tick_index, ent->health);
+    //     printf("faksdhj\n");
+    // }
 
 
     u32 target_tick_index = 0;
@@ -383,10 +399,7 @@ void rollback(Scene* s, GameEventsMessage* events) {
 
     // Find matching tick in history
     u32 past_tick_idx = 0;
-    for (i32 i = s->history.start, c = 0; c <= s->history.length; c++) {
-        Tick* tick = &s->history.data[i];
-        if (tick->tick == target_tick_index) {
-            past_tick = tick;
+    for (i32 i = s->history.start, c = 0; c <= s->history.length; c++) { Tick* tick = &s->history.data[i]; if (tick->tick == target_tick_index) { past_tick = tick;
             past_tick_idx = i;
             break;
         }
@@ -449,7 +462,7 @@ void rollback(Scene* s, GameEventsMessage* events) {
         Slice_Entity* pred_ents = &s->predicted_state.entities;
 
         for (i32 i = 0; i < pred_ents->length; i++) {
-            entity_list_remove(pred_ents, i);
+            delete_entity(pred_ents, i);
         }
 
         for (i32 i = 0; i < array_length(past_tick->entities); i++) {
@@ -526,6 +539,8 @@ void rollback(Scene* s, GameEventsMessage* events) {
                 s->snapshot_applied = true;
             }
 
+            // bool round_reset = false;
+
             if (event_tick) {
                 const Slice_ClientID clients = events->clients;
                 memcpy(tick->client_ids, events->clients.data, slice_size(events->clients));
@@ -542,6 +557,32 @@ void rollback(Scene* s, GameEventsMessage* events) {
                 //         printf("adsklfjh\n");
                 //     }
                 // }
+                for (i32 i = 0; i < events->events.length; i++) {
+                    GameEvent* event = slice_getp(events->events, i);
+
+                    if (event->type == GameEventType_RoundReset) {
+                        for (i32 i = 0; i < s->predicted_state.entities.length; i++) {
+                            delete_entity(&s->predicted_state.entities, i);
+                        }
+
+                        // round_reset = true;
+                        array_copy(s->predicted_state.score, event->score);
+                        s->match_finished = false;
+                        s->rematching = false;
+                    }
+
+                    if (event->type == GameEventType_MatchFinish) {
+                        array_copy(s->predicted_state.score, event->score);
+                        s->match_finished = true;
+                    }
+
+                    // Slice_Entity new_ents = slice_create(Entity, scratch.arena, MaxEntities);
+                    // serialize_round_reset_message(&stream, &new_ents);
+                    // for (i32 i = 0; i < new_ents.length; i++) {
+                    //
+                    //     create_entity(&s->predicted_state, slice_get(new_ents, i));
+                    // }
+                }
             }
 
             Inputs inputs = {
@@ -564,14 +605,23 @@ void rollback(Scene* s, GameEventsMessage* events) {
             // if (!hack_create) {
             // printf("%d mod\n", tick->tick);
             for (i32 i = 0; i < tick->delete_event_count; i++) {
-                entity_list_remove(&s->predicted_state.entities, tick->delete_events[i]);
+                delete_entity(&s->predicted_state.entities, tick->delete_events[i]);
                 // printf("delete: %d\n", i);
             }
 
             for (i32 i = 0; i < tick->create_event_count; i++) {
-                create_entity(&s->predicted_state, tick->create_events[i]);
+                EntityHandle handle = create_entity(&s->predicted_state, tick->create_events[i]);
+                Entity* ent = entity_list_get(s->predicted_state.entities, handle);
+                if (ent->flags & EntityFlags_player && ent->client_id == s->client_id) {
+                    s->player_handle = handle;
+
+                }
                 // printf("create: %d\n", i);
             }
+
+            // if (round_reset) {
+            //     s->player_handle = find_owned_player(s->predicted_state.entities, s->client_id);
+            // }
             // }
 
             // const Slice_EntityIndex delete_list = slice_create_view(EntityIndex, tick->delete_events, tick->delete_event_count);
@@ -830,6 +880,8 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
                     create_entity(&s->predicted_state, *ent);
                 }
 
+                // s->player_handle = find_owned_player(s->predicted_state.entities, s->client_id);
+
                 ring_push_back(&s->history, (Tick){
                     .inputs = {0},
                     .client_ids = {0},
@@ -864,7 +916,7 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
 
                 if (msg.create_list.length > 0) {
                     Entity* ent = slice_getp(msg.create_list, 0);
-                    printf("event, %d, %f, %f\n", msg.tick, ent->position.x, ent->position.y);
+                    // printf("event, %d, %f, %f\n", msg.tick, ent->position.x, ent->position.y);
                 }
                 rollback(s, &msg);
 
@@ -915,6 +967,7 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
     if (player == NULL) {
         player = &zero;
     }
+
 
     for (i32 i = 0; i < 8; i++) {
         ImageID image = {0};
@@ -992,14 +1045,67 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
     
     ui_pop_row();
 
+    // draw_text(slice_get(sys->fonts_view, 0), "sfaldfjhklj", 30, (float2) {500,500}, (RGBA){255,0,0,255}, 9999);
+
+    GameState* state = &s->predicted_state;
+    ui_row({
+        .position = pos_anchor2(1,0),
+        .text = string8_format(frame_arena, "%d - %d", state->score[0], state->score[1]).data,
+        .font_size = font_ru(3),
+        // .background_color = {1,0,0,1},
+        .padding = sides(size_ru(1)),
+        // .text_color = {1,1,1,1},
+    }) {
+
+    }
+
+    if (s->match_finished) {
+        ui_row({
+            .font_size = font_ru(3),
+            .position = pos_anchor2(0.5, 0.5),
+            .stack_axis = Axis2_Y,
+            
+        }) {
+            ui_row({
+                .text = "REMATCH",
+                .font_color = (!s->rematching) ? (float4){1,1,1,1} : (float4){1,0,0,1},
+            });
+
+            UI_Element* a = ui_prev_element();
+            if (ui_hover(a->computed_key)) {
+                a->background_color = (float4){1,1,1,0.5};
+                // float4_lerp(a->background_color, (float4) {1,1,1,1}, 0.5);
+
+                if (input_mouse_down(SDL_BUTTON_LEFT)) {
+                    s->rematching = !s->rematching;
+                    MessageType msg = MessageType_RematchToggle;
+                    ENetPacket* packet = enet_packet_create(&msg, sizeof(msg), ENET_PACKET_FLAG_RELIABLE);
+                    enet_peer_send(s->server, Channel_Reliable, packet);
+                    enet_host_flush(s->client);
+                }
+            }
+
+            ui_row({
+                .text = "QUIT",
+            });
+            a = ui_prev_element();
+            if (ui_button(a->computed_key)) {
+                enet_peer_disconnect(s->server, 0);
+                enet_host_flush(s->client);
+                ring_push_back(&sys->events, (Event){.type = EventType_QuitScene});
+            }
+        }
+    }
+    
+
     // if (next_frame) {
     //     int x = 4123;
     //     next_frame = false;
     // }
 
-    if (input_key_down(SDL_SCANCODE_TAB)) {
-        s->inventory_open = !s->inventory_open;
-    }
+    // if (input_key_down(SDL_SCANCODE_TAB)) {
+    //     s->inventory_open = !s->inventory_open;
+    // }
 
     if (input_key_down(SDL_SCANCODE_ESCAPE)) {
         s->paused = !s->paused;
@@ -1010,8 +1116,9 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
     }
 
     if (input_key_down(SDL_SCANCODE_F)) {
-        Entity* ent = slice_getp(s->predicted_state.entities, 0);
-        b2Body_SetTransform(ent->body_id, float2_add(ent->position, (float2){-1,0}).b2vec, b2Body_GetTransform(ent->body_id).q);
+        s->match_finished = true;
+        // Entity* ent = slice_getp(s->predicted_state.entities, 0);
+        // b2Body_SetTransform(ent->body_id, float2_add(ent->position, (float2){-1,0}).b2vec, b2Body_GetTransform(ent->body_id).q);
     }
 
     ui_row({
@@ -1136,7 +1243,7 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
         ui_pop_row();
     }
 
-    if (s->paused) {
+    if (s->paused && !s->match_finished) {
         ui_row({
             .font_size = font_ru(2),
             .size = {{UI_SizeType_ParentFraction, 1}, {UI_SizeType_ParentFraction, 1}},
@@ -1239,23 +1346,6 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
 
         if (input_mouse_up(SDL_BUTTON_LEFT)) {
             s->moving_spell = false;
-        }
-
-        if (s->player_handle.generation == 0) {
-            for (u32 i = 0; i < s->predicted_state.entities.length; i++) {
-                Entity* ent = slice_getp(s->predicted_state.entities, i);
-                if (!ent->active) {
-                    continue;
-                }
-
-                if (ent->flags & EntityFlags_player && ent->client_id == s->client_id) {
-                    s->player_handle = (EntityHandle) {
-                        .index = ent->index,
-                        .generation = ent->generation,
-                    };
-                    break;
-                }
-            }
         }
 
         {
@@ -1367,15 +1457,38 @@ void render_entities(Camera2D camera, Slice_Entity ents, u32 current_tick, bool 
             });
         }
 
-        if (!filter_predicted && ent->flags & EntityFlags_hittable) {
-            float2 pos = float2_sub(world_rect.position, (float2){0, -1});
+        f32 y_offset = -1.1;
+        f32 dy = -.2;
+
+        if (!filter_predicted && ent->flags & EntityFlags_player) { 
+        }
+
+        if (!filter_predicted && ent->flags & EntityFlags_has_mana) { 
+            float2 pos = float2_sub(world_rect.position, (float2){0, y_offset});
+            y_offset += dy;
+            f32 max_length = ent->max_mana / 50.0;
             draw_world_rect(camera, (Rect){
                     .position = pos,
-                    .size={1, 0.1},
+                    .size={max_length, 0.1},
                 },
                 (float4){0.2, 0.2, 0.2, 1.0}
             );
-            draw_world_rect(camera, (Rect){.position=pos, .size={ent->health / (float)box_health, 0.1}}, (float4){1, 0.2, 0.1, 1.0});
+            f32 length = ent->mana / (float)ent->max_mana * max_length;
+            draw_world_rect(camera, (Rect){.position=float2_sub(pos, (float2){(max_length - length) / 2.0, 0}), .size={length, 0.1}}, (float4){0.2, 0.5, 1, 1.0});
+        }
+
+        if (!filter_predicted && ent->flags & EntityFlags_hittable) {
+            float2 pos = float2_sub(world_rect.position, (float2){0, y_offset});
+            y_offset += dy;
+            f32 max_length = ent->max_health / 50.0;
+            draw_world_rect(camera, (Rect){
+                    .position = pos,
+                    .size={max_length, 0.1},
+                },
+                (float4){0.2, 0.2, 0.2, 1.0}
+            );
+            f32 length = ent->health / (float)ent->max_health * max_length;
+            draw_world_rect(camera, (Rect){.position=float2_sub(pos, (float2){(max_length - length) / 2.0, 0}), .size={length, 0.1}}, (float4){1, 0.2, 0.1, 1.0});
         }
     }
 }

@@ -184,8 +184,8 @@ inline FontSize font_ru(f32 value) {
 
 #define pos_anchor2(v0, v1) {anchor(v0), anchor(v1)}
 
+#define sides(v) {v, v, v ,v}
 #define sides_px(v) {size_px(v), size_px(v), size_px(v), size_px(v)}
-
 #define sides2_px(v1, v2) {size_px(v1), size_px(v1), size_px(v2), size_px(v2)}
 
 

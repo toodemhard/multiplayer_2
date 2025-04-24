@@ -153,9 +153,10 @@ void create_box(Slice_Entity* create_list, float2 position) {
         .type = EntityType_Box,
         .flags = EntityFlags_physics | EntityFlags_hittable,
         .replication_type = ReplicationType_Predicted,
-        .health = box_health,
+        .max_health = box_health,
         .position = position,
     };
+    ent.health = ent.max_health;
 
     entity_add_physics_component(&ent, (PhysicsComponent) {
         .collider = (ColliderDef) {0.5, 0.5},
@@ -179,21 +180,22 @@ void create_wall(Slice_Entity* create_list, float2 position, Dir8 direction) {
         flip_sprite = true;
     }
 
-    Entity wall = {
+    Entity ent = {
         .replication_type = ReplicationType_Predicted,
         .sprite = TextureID_ice_wall_png,
         .sprite_src = src,
         .flip_sprite = flip_sprite,
         .flags = EntityFlags_physics | EntityFlags_hittable,
-        .health = 50,
+        .max_health = 50,
         .position = position,
     };
+    ent.health = ent.max_health;
 
-    entity_add_physics_component(&wall, (PhysicsComponent) {
+    entity_add_physics_component(&ent, (PhysicsComponent) {
         .collider = (ColliderDef) {1, 1},
     });
 
-    slice_push(create_list, wall);
+    slice_push(create_list, ent);
 }
 
 void create_bullet(Slice_Entity* create_list, EntityHandle owner, float2 position, float2 direction, u32 current_tick, i32 tick_rate) {
@@ -218,7 +220,7 @@ void create_bullet(Slice_Entity* create_list, EntityHandle owner, float2 positio
     slice_push(create_list, bullet);
 }
 
-void entity_list_remove(Slice_Entity* entity_list, EntityIndex index) {
+void delete_entity(Slice_Entity* entity_list, EntityIndex index) {
     Entity* ent = slice_getp(*entity_list, index);
     if (ent->active) {
         ent->active = false;
@@ -258,10 +260,6 @@ float2 rotate(float2 vector, f32 angle) {
     };
 
     return float2x2_mult_float2(rotation_matrix, vector);
-}
-
-float lerp(float v0, float v1, float t) {
-    return (1 - t) * v0 + t * v1;
 }
 
 const double pi = 3.141592653589793238462643383279502884197;
@@ -345,9 +343,14 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
             }
             PlayerInput idk = {0};
 
+
             if (!input) {
                 input = &idk;
             }
+
+            // if (modify_existences && ent->client_id == 1){
+            //     printf("input: %d\n",input->left);
+            // }
 
             float2 move_input = {0};
             if (input->up) {
@@ -415,24 +418,32 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
 
             EntityHandle handle = {i, ent->generation};
 
-            if (input->fire) {
+            ent->mana += 1;
+            ent->mana = min(ent->mana, ent->max_mana);
+
+
+            SpellType selected_spell = SpellType_NULL;
+            if (ent->selected_spell >= 0 && ent->selected_spell < hotbar_length) {
+                selected_spell = ent->hotbar[ent->selected_spell];
+            }
+            Spell spell = spell_table[selected_spell];
+            bool sufficient_mana = ent->mana >= spell.mana_cost;
+
+            if (input->fire && sufficient_mana) {
                 float2 player_pos = {.b2vec=b2Body_GetPosition(ent->body_id)};
                 float2 direction = {1,0};
                 if (magnitude(float2_sub(input->cursor_world_pos, player_pos)) > 0) {
                     direction = normalize(float2_sub(input->cursor_world_pos, player_pos));
                 }
 
-                SpellType selected_spell = SpellType_NULL;
-                if (ent->selected_spell >= 0 && ent->selected_spell < hotbar_length) {
-                    selected_spell = ent->hotbar[ent->selected_spell];
-                }
+                ent->mana -= spell.mana_cost;
+
 
                 if (selected_spell == SpellType_Fireball) {
                     create_bullet(create_list, handle, player_pos, direction, current_tick, tick_rate);
                 }
 
                 if (selected_spell == SpellType_SpreadBolt) {
-
                     i32 projectile_count = 4;
 
                     f32 range_start = deg_to_rad(-20);
@@ -473,7 +484,7 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
 
     if (modify_existences) {
         for (u32 i = 0; i < delete_list->length; i++) {
-            entity_list_remove(&state->entities, slice_get(*delete_list, i));
+            delete_entity(&state->entities, slice_get(*delete_list, i));
         }
 
         for (u32 i = 0; i < create_list->length; i++) {
@@ -483,38 +494,31 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
     }
 }
 
-void create_player(Slice_Entity* create_list, ClientID client_id) {
+void create_player(Slice_Entity* create_list, ClientID client_id, float2 position) {
     // b2BodyDef body_def = b2DefaultBodyDef();
     // body_def.fixedRotation = true;
     // b2BodyId body_id = b2CreateBody(state->world_id, &body_def);
     
-    Entity player = {
+    Entity ent = {
         .sprite = TextureID_player_png,
         .type = EntityType_Player,
-        .flags = EntityFlags_player | EntityFlags_physics | EntityFlags_hittable,
+        .flags = EntityFlags_player | EntityFlags_physics | EntityFlags_hittable | EntityFlags_has_mana,
         .replication_type = ReplicationType_Predicted,
         .hotbar = {SpellType_Fireball, SpellType_SpreadBolt, SpellType_IceWall, SpellType_SniperRifle},
         .client_id = client_id,
-        // .hotbar = {SpellType_Bolt, SpellType_SpreadBolt},
-        .health = 100,
-        .position = (float2){0.0, 1.0},
+        .max_health = 100,
+        .max_mana = 100,
+        .position = position,
     };
+    ent.health = ent.max_health;
+    ent.mana = ent.max_mana;
 
-    entity_add_physics_component(&player, (PhysicsComponent) {
+    entity_add_physics_component(&ent, (PhysicsComponent) {
         .collider = (ColliderDef){0.5, 0.5},
         .body_type = b2_dynamicBody,
     });
 
-    slice_push(create_list, player);
-
-
-
-    // b2Polygon polygon = b2MakeBox(0.5, 0.5);
-    // b2ShapeDef shape_def = b2DefaultShapeDef();
-    // shape_def.friction = 0;
-    // shape_def.userData = slice_getp(state->entities, handle.index);
-    //
-    // b2CreatePolygonShape(body_id, &shape_def, &polygon);
+    slice_push(create_list, ent);
 }
 
 // out params

@@ -15,6 +15,8 @@ typedef enum MessageType {
     MessageType_Snapshot,
     MessageType_StateInit,
     MessageType_GameEvents,
+    MessageType_RematchToggle,
+    // MessageType_RematchCancel,
 } MessageType;
 
 typedef enum Channel {
