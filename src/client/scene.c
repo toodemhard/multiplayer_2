@@ -377,8 +377,12 @@ int compare_u32(const void* a, const void* b)
 void rollback(Scene* s, GameEventsMessage* events) {
     Tick* past_tick = NULL;
 
-    Entity* ent = slice_getp(s->predicted_state.entities, 1);
-    f32 x = ent->position.x;
+    // Entity* ent = slice_getp(s->predicted_state.entities, 2);
+    //
+    // bool x = ent->active;
+    // if (x) {
+    //     // __debugbreak();
+    // }
 
     // if (events) {
     //     printf("%d event rollback\n", events->tick);
@@ -514,20 +518,10 @@ void rollback(Scene* s, GameEventsMessage* events) {
         i = (i + 1) % s->history.capacity;
         s->latest_rollback_tick = ring_get_ref(s->history, i)->tick;
 
-        // printf("rollback: %d\n", past_tick->tick);
-        // Entity* ent = slice_getp(s->predicted_state.entities, 0);
+        // Entity* ent = slice_getp(s->predicted_state.entities, 2);
         // if (ent->active) {
-        //     printf("%d: %d\n", target_tick_index, ent->health);
+        //     printf("%d: %d\n", target_tick_index, ent->active);
         // }
-        // Entity* ent = slice_getp(s->predicted_state.entities, 0);
-        // if (ent->active) {
-        //     printf("%d, %f, %f\n", target_tick_index, ent->position.x, ent->position.y);
-        // }
-        // Entity* ent = slice_getp(s->predicted_state.entities, 1);
-        // if (ent->active) {
-        //     printf("%d: %f\n", target_tick_index, ent->position.x);
-        // }
-
 
 
         // Rollback tick order:
@@ -670,12 +664,10 @@ void rollback(Scene* s, GameEventsMessage* events) {
                 .inputs = slice_create_view(PlayerInput, tick->inputs, tick->input_count),
             };
 
-            state_update(&s->predicted_state, inputs, tick->tick, TICK_RATE, false);
+            state_update(&s->predicted_state, inputs, tick->tick, TICK_RATE, !event_tick);
 
-            // Entity* ent = slice_getp(s->predicted_state.entities, 1);
-            // if (ent->active) {
-            //     printf("%d: %f\n", tick->tick, ent->position.x);
-            // }
+            // Entity* ent = slice_getp(s->predicted_state.entities, 2);
+            // printf("%d: %d\n", tick->tick, ent->active);
             // Entity* ent = slice_getp(s->predicted_state.entities, 0);
             // // if (ent->active) {
             //     printf("%d: %d\n", tick->tick, ent->active);
@@ -722,11 +714,10 @@ void rollback(Scene* s, GameEventsMessage* events) {
 
             i = (i + 1) % s->history.capacity;
         } while (tick->tick < s->current_tick);
-        // printf("%d\n", s->current_tick);
     }
 
-    // ent = slice_getp(s->predicted_state.entities, 1);
-    // if (ent->position.x < x) {
+    // ent = slice_getp(s->predicted_state.entities, 2);
+    // if (x && !ent->active) {
     //     printf("!!!!!!!!!!!pos fuckup!!!!!!!!!!!!!!!!!!!!!!\n");
     // }
 
@@ -965,14 +956,14 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
                 ArenaTemp scratch = scratch_get(0, 0);
                 serialize_game_events(&stream, scratch.arena, &msg);
 
-                for (i32 i = 0; i < msg.create_list.length; i++) {
-                    Entity* ent = slice_getp(msg.create_list, i);
-                    if (ent->flags & EntityFlags_player) {
-                        printf("creating player!!!\n");
-
-                    }
-                    // printf("event, %d, %f, %f\n", msg.tick, ent->position.x, ent->position.y);
-                }
+                // for (i32 i = 0; i < msg.create_list.length; i++) {
+                //     Entity* ent = slice_getp(msg.create_list, i);
+                //     if (ent->flags & EntityFlags_player) {
+                //         printf("creating player!!!\n");
+                //
+                //     }
+                //     // printf("event, %d, %f, %f\n", msg.tick, ent->position.x, ent->position.y);
+                // }
 
                 if (!s->disable_prediction) {
                     rollback(s, &msg);
@@ -1375,7 +1366,7 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
     while (s->received_init && s->accumulator >= FIXED_DT) {
         s->current_tick++;
 
-        printf("tick: %d\n", s->current_tick);
+        // printf("tick: %d\n", s->current_tick);
 
         // if (s->ents_modified_since_last_tick) {
         //     rollback(s, true);
@@ -1472,7 +1463,10 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
             //     slice_push(&inputs.ids, prev_tick->client_ids[i]);
             //     slice_push(&inputs.inputs, input);
             // }
-            state_update(&s->predicted_state, inputs, s->current_tick, TICK_RATE, false);
+            state_update(&s->predicted_state, inputs, s->current_tick, TICK_RATE, true);
+            if (s->predicted_state.create_list.length > 0) {
+                printf("predict create: %d\n", s->current_tick);
+            }
             mod_lists_clear(&s->predicted_state);
 
             if (s->history.length >= s->history.capacity) {
