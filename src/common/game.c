@@ -457,13 +457,7 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
 
                 if (selected_spell == SpellType_IceWall) {
                     f32 d = 1 - fmod(atan2f(direction.y, direction.x) / (2*pi) + 0.5 + 0.1875, 1);
-                    // printf("%f %f\n", direction.x, direction.y);
-                    printf("%f\n", d);
-                    // i32 idk = (1 - fmod(d + 0.5, 1)) * 8;
                     Dir8 dir = (Dir8) (d * 8);
-                    printf("%d\n", dir);
-                    // i32 x = (pi - d - 1/8.0 * pi) / (2*pi) * 8;
-                    // printf("%x\n", x);
                     create_wall(create_list, float2_add(player_pos, float2_scale(direction, 2)), dir);
                 }
 

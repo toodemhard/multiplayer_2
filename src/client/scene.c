@@ -725,9 +725,10 @@ void rollback(Scene* s, GameEventsMessage* events) {
 
 }
 
-void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 ip_address) {
+void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 ip_address, bool disable_prediction) {
     zero_struct(s);
     // *s = {0};
+    // s->disable_prediction = disable_prediction;
     s->sys = sys;
     s->online_mode = online;
 
@@ -747,9 +748,9 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
             .port = 1234,
         };
 
-        server_init(&s->local_server, level_arena);
-        // s->local_server.out_latency = 0.05;
-        // s->local_server.in_latency = 0.05;
+        server_init(&s->local_server, level_arena, disable_prediction);
+        s->local_server.out_latency = 0.05;
+        s->local_server.in_latency = 0.05;
         server_connect(&s->local_server, host_address);
     }
 
@@ -911,7 +912,7 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
             if (message_type == MessageType_StateInit) {
                 printf("Init message\n");
                 Slice_Entity init_snapshot = slice_create(Entity, scratch.arena, 512);
-                serialize_state_init_message(&stream, &init_snapshot, &s->client_id, &s->current_tick);
+                serialize_state_init_message(&stream, &init_snapshot, &s->client_id, &s->current_tick, &s->disable_prediction);
                 // TODO: init should force index position
                 for (u32 i = 0; i < init_snapshot.length; i++) {
                     Entity* ent = slice_getp(init_snapshot, i);
@@ -920,25 +921,27 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
 
                 // s->player_handle = find_owned_player(s->predicted_state.entities, s->client_id);
 
-                ring_push_back(&s->history, (Tick){
-                    .inputs = {0},
-                    .client_ids = {0},
-                    .input_count = 0,
-                    .tick = s->current_tick,
-                });
+                if (!s->disable_prediction) {
+                    ring_push_back(&s->history, (Tick){
+                        .inputs = {0},
+                        .client_ids = {0},
+                        .input_count = 0,
+                        .tick = s->current_tick,
+                    });
 
-                Tick* history_tick = ring_back_ref(s->history);
-                Slice_Entity* ents = &s->predicted_state.entities;
-                memcpy(history_tick->entities, ents->data, slice_size_bytes(*ents));
+                    Tick* history_tick = ring_back_ref(s->history);
+                    Slice_Entity* ents = &s->predicted_state.entities;
+                    memcpy(history_tick->entities, ents->data, slice_size_bytes(*ents));
 
-                f64 total_latency = s->server->roundTripTime / 1000.0;
-                if (!s->online_mode) {
-                    total_latency += s->local_server.out_latency + s->local_server.in_latency;
+                    f64 total_latency = s->server->roundTripTime / 1000.0;
+                    if (!s->online_mode) {
+                        total_latency += s->local_server.out_latency + s->local_server.in_latency;
+                    }
+                    // printf("")
+
+                    // fast forward sim to be ahead of server instead of waiting for throttling to slowly do it
+                    s->accumulator += total_latency / 2.0;
                 }
-                // printf("")
-
-                // fast forward sim to be ahead of server instead of waiting for throttling to slowly do it
-                s->accumulator += total_latency / 2.0;
 
                 printf("ping: %d\n", s->server->roundTripTime);
                 s->received_init = true;
@@ -956,7 +959,10 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
                     Entity* ent = slice_getp(msg.create_list, 0);
                     // printf("event, %d, %f, %f\n", msg.tick, ent->position.x, ent->position.y);
                 }
-                rollback(s, &msg);
+
+                if (!s->disable_prediction) {
+                    rollback(s, &msg);
+                }
 
                 scratch_release(scratch);
             }
@@ -1016,7 +1022,19 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
         .position = {position_offset_px(50), position_offset_px(50)},
     });
 
-    Entity* player = entity_list_get(s->predicted_state.entities, s->player_handle);
+    Entity* player;
+    if (!s->disable_prediction) {
+        player = entity_list_get(s->predicted_state.entities, s->player_handle);
+    } else {
+        for (i32 i = 0; i < s->latest_snapshot.ents.length; i++) {
+            Entity* ent = slice_getp(s->latest_snapshot.ents, i);
+            if (ent->client_id == s-> client_id)  {
+                player = ent;
+                break;
+            }
+        }
+    }
+
     Entity zero = {0};
     if (player == NULL) {
         player = &zero;
@@ -1410,11 +1428,12 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
             s->moving_spell = false;
         }
 
-        Inputs inputs = {
-            .ids = slice_create(ClientID, &s->tick_arena, MaxPlayers),
-            .inputs = slice_create(PlayerInput, &s->tick_arena, MaxPlayers),
-        };
-        {
+        if (!s->disable_prediction){
+            Inputs inputs = {
+                .ids = slice_create(ClientID, &s->tick_arena, MaxPlayers),
+                .inputs = slice_create(PlayerInput, &s->tick_arena, MaxPlayers),
+            };
+
             slice_push(&inputs.ids, s->client_id);
             slice_push(&inputs.inputs, input);
             // .inputs = slice_create_view(PlayerInput, &input, 1),
@@ -1437,22 +1456,22 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
             // }
             state_update(&s->predicted_state, inputs, s->current_tick, TICK_RATE, false);
             mod_lists_clear(&s->predicted_state);
+
+            if (s->history.length >= s->history.capacity) {
+                ring_pop_front(&s->history);
+            }
+
+            ring_push_back(&s->history, (Tick){
+                .inputs = {input},
+                .client_ids = {s->client_id},
+                .input_count = 1,
+                .tick = s->current_tick,
+            });
+
+            Tick* history_tick = ring_back_ref(s->history);
+            Slice_Entity* ents = &s->predicted_state.entities;
+            memcpy(history_tick->entities, ents->data, slice_size_bytes(*ents));
         }
-
-        if (s->history.length >= s->history.capacity) {
-            ring_pop_front(&s->history);
-        }
-
-        ring_push_back(&s->history, (Tick){
-            .inputs = {input},
-            .client_ids = {s->client_id},
-            .input_count = 1,
-            .tick = s->current_tick,
-        });
-
-        Tick* history_tick = ring_back_ref(s->history);
-        Slice_Entity* ents = &s->predicted_state.entities;
-        memcpy(history_tick->entities, ents->data, slice_size_bytes(*ents));
 
 
 
@@ -1587,8 +1606,12 @@ void scene_render(Scene* s) {
     //     s->camera.position = player->position;
     // }
 
-    // render_entities(s->camera, s->latest_snapshot.ents, s->latest_snapshot.tick_index, true);
-    render_entities(s->camera, s->predicted_state.entities, s->current_tick, false);
+    if (s->disable_prediction) {
+        render_entities(s->camera, s->latest_snapshot.ents, s->latest_snapshot.tick_index, false);
+    } else {
+        render_entities(s->camera, s->latest_snapshot.ents, s->latest_snapshot.tick_index, true);
+        render_entities(s->camera, s->predicted_state.entities, s->current_tick, false);
+    }
 
     
     // for (i32 i = 0; i < 4; i++) {

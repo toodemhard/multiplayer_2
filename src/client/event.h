@@ -13,6 +13,7 @@ typedef enum EventType {
 
 typedef struct GameStartEvent {
     bool online;
+    bool host_disable_prediction;
     String8 connect_ip;
 } GameStartEvent;
 

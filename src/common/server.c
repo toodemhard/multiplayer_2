@@ -178,11 +178,13 @@ typedef struct Server {
     PacketQueue in_packet_queue;
 
     bool first_frame;
+
+    bool disable_prediction;
 } Server;
 
 #define MaxPlayers 16
 
-void server_init(Server* s, Arena* arena) {
+void server_init(Server* s, Arena* arena, bool disable_prediciton) {
     state_init(&s->state, arena);
 
     create_box(&s->state.create_list, (float2){2,2});
@@ -190,6 +192,7 @@ void server_init(Server* s, Arena* arena) {
     packet_queue_init(&s->in_packet_queue, arena, megabytes(0.2));
     s->clients = slice_create(Client, arena, MaxPlayers);
     s->client_serial = 1;
+    s->disable_prediction = disable_prediciton;
 }
 
 void server_connect(Server* s, ENetAddress address) {
@@ -371,7 +374,7 @@ void server_update(Server* s) {
                 .slice = slice_create(u8, scratch.arena, sizeof(Entity) * 512),
                 .operation = Stream_Write,
             };
-            serialize_state_init_message(&stream, &s->state.entities, &client->id, &s->current_tick);
+            serialize_state_init_message(&stream, &s->state.entities, &client->id, &s->current_tick, &s->disable_prediction);
 
             Packet packet = {
                 .send_flag = ENET_PACKET_FLAG_RELIABLE,

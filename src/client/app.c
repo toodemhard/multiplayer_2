@@ -225,6 +225,12 @@ void menu_update(Menu* menu, Arena* temp_arena) {
     ArenaTemp scratch = scratch_get(0, 0);
     defer_loop(0, scratch_release(scratch)) {
 
+        
+    // ui_row({
+    //     .size = axis2(size_grow()),
+    //     .background_color = {1,0,0,1},
+    //     // .position = pos_anchor2(0.5,0.5),
+    // });
     ui_row({
         .font_size = font_px(32),
         .stack_axis = Axis2_Y,
@@ -236,16 +242,52 @@ void menu_update(Menu* menu, Arena* temp_arena) {
             int as = 123;
         }
 
-        if (ui_button(ui_row_ret({
-            .text = "Local",
-        }))) {
-            ring_push_back(&sys->events, (Event){
-                .type = EventType_StartScene,
-                .game_start = {
-                    .online = false,
-                },
-            });
+        ui_row({.background_color = {1,0,0,0}, .size = {size_grow()}}) {
+                
+            if (ui_button(ui_row_ret({
+                .text = "Host",
+                // .padding = axis2(size_ru(0.5)),
+            }))) {
+                ring_push_back(&sys->events, (Event){
+                    .type = EventType_StartScene,
+                    .game_start = {
+                        .host_disable_prediction = menu->disable_prediction,
+                        .online = false,
+                    },
+                });
+            }
+            {
+                UI_Element* e = ui_prev_element();
+                if (ui_hover(e->computed_key)) {
+                    e->background_color = (float4) {1,1,1,0.25};
+                }
+            }
+
+            ui_row({.size = {size_grow(), size_grow()} });
+            ui_row({ .text = "disable prediction", .padding[RectSide_Right] = size_ru(0.5) });
+            UI_Key thing;
+            ui_row({
+                .out_key = &thing,
+                .size = axis2(size_ru(1.75)),
+                .border = sides(size_px(2)),
+                .border_color = (float4) {1,1,1,1},
+            }) {
+                ui_row({
+                    .position = axis2(anchor(0.5)),
+                    .border = sides(size_px(4)),
+                    .background_color = (menu->disable_prediction) ? (float4){1,1,1,1} : (float4){0},
+                    // .border_color = (float4) {1,0,0,1},
+                    .size = axis2(size_ru(0.75)),
+                });
+            }
+
+            if (ui_button(thing)) {
+                menu->disable_prediction = !menu->disable_prediction;
+            }
         }
+
+        ui_row({.size[Axis2_Y] = size_ru(1)});
+
 
         ui_row({0}) {
             ui_row({.text = "Server IP: "});
@@ -381,7 +423,7 @@ DLL_EXPORT Signals update(void* memory) {
 
             GameStartEvent event = union_event.game_start;            
 
-            scene_init(&state->local_scene, &state->level_arena, sys, event.online, event.connect_ip);
+            scene_init(&state->local_scene, &state->level_arena, sys, event.online, event.connect_ip, event.host_disable_prediction);
             state->active_scene = SceneType_Game;
         } break;
         case EventType_QuitScene: {

@@ -8,6 +8,7 @@ typedef struct Menu {
     System* sys;
     Slice_u8 text;
     UI ui;
+    bool disable_prediction;
 } Menu;
 
 typedef struct State State;

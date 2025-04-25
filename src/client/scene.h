@@ -99,6 +99,7 @@ struct Scene {
 
     double acc_2;
 
+    bool disable_prediction;
     bool online_mode;
     bool debug_draw;
 
@@ -133,4 +134,4 @@ struct Scene {
     ENetPeer* server;
 };
 
-void scene_init(Scene* scene, Arena* level_arena, System* sys, bool online, String8 ip_address);
+// void scene_init(Scene* scene, Arena* level_arena, System* sys, bool online, String8 ip_address);

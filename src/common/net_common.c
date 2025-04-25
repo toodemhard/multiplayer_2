@@ -108,6 +108,14 @@ void serialize_snapshot_entity(Stream* stream, Entity* ent) {
     serialize_var(stream, &ent->sprite_src);
     serialize_var(stream, &ent->flip_sprite);
 
+    if (ent->flags & EntityFlags_player) {
+        serialize_var(stream, &ent->hotbar);
+        serialize_var(stream, &ent->mana);
+        serialize_var(stream, &ent->max_mana);
+        serialize_var(stream, &ent->selected_spell);
+        serialize_var(stream, &ent->client_id);
+    }
+
     if (ent->flags & EntityFlags_physics) {
         serialize_var(stream, &ent->position);
         serialize_var(stream, &ent->physics.linear_velocity);
@@ -115,6 +123,7 @@ void serialize_snapshot_entity(Stream* stream, Entity* ent) {
 
     if (ent->flags & EntityFlags_hittable) {
         serialize_var(stream, &ent->health);
+        serialize_var(stream, &ent->max_health);
         serialize_var(stream, &ent->hit_flash_end_tick);
     }
 
@@ -167,9 +176,10 @@ void serialize_init_entity(Stream* stream, Entity* ent) {
     }
 }
 
-void serialize_state_init_message(Stream* stream, Slice_Entity* entities, ClientID* client_id, u32* tick) {
+void serialize_state_init_message(Stream* stream, Slice_Entity* entities, ClientID* client_id, u32* tick, bool* disable_prediction) {
     MessageType message_type = MessageType_StateInit;
     serialize_var(stream, &message_type);
+    serialize_var(stream, disable_prediction);
     serialize_var(stream, client_id);
     serialize_var(stream, tick);
     serialize_entities(stream, entities, EntitySerializationType_Init);
