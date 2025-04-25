@@ -409,7 +409,10 @@ void rollback(Scene* s, GameEventsMessage* events) {
 
     // Find matching tick in history
     u32 past_tick_idx = 0;
-    for (i32 i = s->history.start, c = 0; c <= s->history.length; c++) { Tick* tick = &s->history.data[i]; if (tick->tick == target_tick_index) { past_tick = tick;
+    for (i32 i = s->history.start, c = 0; c <= s->history.length; c++) { 
+        Tick* tick = &s->history.data[i];
+        if (tick->tick == target_tick_index) {
+            past_tick = tick;
             past_tick_idx = i;
             break;
         }
@@ -417,6 +420,10 @@ void rollback(Scene* s, GameEventsMessage* events) {
         //     break;
         // }
         i = (i + 1) % s->history.capacity;
+    }
+
+    if (!past_tick) {
+        printf("event dropped\n");
     }
 
 
@@ -828,7 +835,7 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
 
     System* sys = s->sys;
 
-    if (delta_time < 0.25) {
+    if (s->received_init && delta_time < 0.25) {
         s->accumulator += delta_time;
     }
 
@@ -940,11 +947,14 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
                     // printf("")
 
                     // fast forward sim to be ahead of server instead of waiting for throttling to slowly do it
-                    s->accumulator += total_latency / 2.0;
+                    s->accumulator += total_latency / 2.0 + (f64)target_input_buffer_size / (f64)TICK_RATE;
                 }
 
                 printf("ping: %d\n", s->server->roundTripTime);
                 s->received_init = true;
+
+                goto simulate_forward;
+
             }
 
             if (message_type == MessageType_GameEvents) {
@@ -955,8 +965,12 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
                 ArenaTemp scratch = scratch_get(0, 0);
                 serialize_game_events(&stream, scratch.arena, &msg);
 
-                if (msg.create_list.length > 0) {
-                    Entity* ent = slice_getp(msg.create_list, 0);
+                for (i32 i = 0; i < msg.create_list.length; i++) {
+                    Entity* ent = slice_getp(msg.create_list, i);
+                    if (ent->flags & EntityFlags_player) {
+                        printf("creating player!!!\n");
+
+                    }
                     // printf("event, %d, %f, %f\n", msg.tick, ent->position.x, ent->position.y);
                 }
 
@@ -996,6 +1010,8 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
 
         }
     }
+
+    simulate_forward:
 
 
     // Entity* player = entity_list_get(&s->state.entities, s->player_handle);
@@ -1358,6 +1374,8 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
 
     while (s->received_init && s->accumulator >= FIXED_DT) {
         s->current_tick++;
+
+        printf("tick: %d\n", s->current_tick);
 
         // if (s->ents_modified_since_last_tick) {
         //     rollback(s, true);

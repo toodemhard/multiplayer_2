@@ -53,7 +53,7 @@ int main() {
     };
 
     Server server = {0};
-    server_init(&server, &persistent_arena);
+    server_init(&server, &persistent_arena, false);
     server_connect(&server, address);
     
     while (true) {
