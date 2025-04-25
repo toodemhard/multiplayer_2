@@ -7,7 +7,7 @@ Features:
 
 Other Systems:
 - Code hot reloading
-- Dyanmic layout Imgui
+- Dynamic layout Imgui
 - 2D renderer with draw call batching
 
 ## Building
