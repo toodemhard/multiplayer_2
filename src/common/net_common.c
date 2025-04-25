@@ -196,6 +196,23 @@ void serialize_snapshot_message(Stream* stream, SnapshotMessage* s) {
     // }
 }
 
+typedef struct NetStats {
+    u32 median_rtt;
+    f32 loss_percent;
+} NetStats;
+
+void serialize_telemetry_message(Stream* stream, NetStats* stats) {
+    MessageType type = MessageType_Telemetry;
+    serialize_var(stream, &type);
+    serialize_var(stream, stats);
+}
+
+void serialize_ping_response_message(Stream* stream, u32* tick) {
+    MessageType type = MessageType_PingResponse;
+    serialize_var(stream, &type);
+    serialize_var(stream, tick);
+}
+
 void serialize_input_message(Stream* stream, PlayerInput* input, u32* tick) {
     MessageType type = MessageType_Input;
     serialize_var(stream, &type);

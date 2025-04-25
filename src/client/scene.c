@@ -361,6 +361,16 @@ void apply_snapshot(Slice_Entity snapshot, GameState predicted_state) {
 //     }
 // }
 
+int compare_u32(const void* a, const void* b)
+{
+    int arg1 = *(const u32*)a;
+    int arg2 = *(const u32*)b;
+
+    if (arg1 < arg2) return -1;
+    if (arg1 > arg2) return 1;
+    return 0;
+}
+
 // Checks if something mispredicted then rollback
 // Defaults to doing check + rollback with latest snapshot in Scene*
 // If events != NULL then do rollback for running events at tick
@@ -449,9 +459,9 @@ void rollback(Scene* s, GameEventsMessage* events) {
         // }
     // }
 
-    if (events->create_list.length > 0)  {
-        printf("has create events\n");
-    }
+    // if (events->create_list.length > 0)  {
+    //     printf("has create events\n");
+    // }
 
     if (past_tick) {
         // printf("%d rollback\n", past_tick->tick);
@@ -528,6 +538,8 @@ void rollback(Scene* s, GameEventsMessage* events) {
         // }
         do {
             tick = &s->history.data[i];
+            Tick* prev_tick = &s->history.data[(s->history.capacity + i - 1) % s->history.capacity];
+
             bool event_tick = false;
             if (events != NULL && tick->tick == events->tick) {
                 event_tick = true;
@@ -540,6 +552,37 @@ void rollback(Scene* s, GameEventsMessage* events) {
             }
 
             // bool round_reset = false;
+            // Inputs inputs = {
+            //     .ids = slice_create(ClientID, &s->tick_arena, MaxPlayers),
+            //     .inputs = slice_create(PlayerInput, &s->tick_arena, MaxPlayers),
+            // };
+
+            // all input prediction experiment
+            // too much snapping so no
+            // tick->input_count = 0;
+            // tick->client_ids[tick->input_count] = s->client_id;
+            // tick->inputs[tick->input_count] = tick->inputs[0];
+            // tick->input_count += 1;
+            //
+            // .inputs = slice_create_view(PlayerInput, &input, 1),
+            // for (i32 i = 0; i < prev_tick->input_count; i++) {
+            //     if (prev_tick->client_ids[i] == s->client_id) {
+            //         continue;
+            //     }
+            //
+            //     PlayerInput* prev_input = &prev_tick->inputs[i];
+            //     PlayerInput input = {0};
+            //
+            //     input.left = prev_input->left;
+            //     input.right = prev_input->right;
+            //     input.up = prev_input->up;
+            //     input.down = prev_input->down;
+            //
+            //     tick->client_ids[tick->input_count] = prev_tick->client_ids[i];
+            //     tick->inputs[tick->input_count] = input;
+            //     tick->input_count += 1;
+            // }
+            //
 
             if (event_tick) {
                 const Slice_ClientID clients = events->clients;
@@ -574,6 +617,37 @@ void rollback(Scene* s, GameEventsMessage* events) {
                     if (event->type == GameEventType_MatchFinish) {
                         array_copy(s->predicted_state.score, event->score);
                         s->match_finished = true;
+
+
+                        qsort(s->ping_samples.data, s->ping_samples.length, sizeof(u32), compare_u32);
+
+                        u32 median_ping;
+                        u32 count = s->ping_samples.length;
+                        if (s->ping_samples.length % 2 == 0) {
+                            median_ping = (slice_get(s->ping_samples, count / 2 - 1) + slice_get(s->ping_samples, count / 2)) / 2.0;
+                        } else {
+                            median_ping = slice_get(s->ping_samples, count / 2);
+                        }
+
+                        NetStats stats = {
+                            .median_rtt = median_ping,
+                            .loss_percent = ((f32)s->server->packetLoss / (f32)ENET_PEER_PACKET_LOSS_SCALE) * 100.0,
+                        };
+
+                        ArenaTemp scratch = scratch_get(0,0);
+
+                        Stream stream = {
+                            .slice = slice_create(u8, scratch.arena, sizeof(MessageType) + sizeof(NetStats)),
+                            .operation = Stream_Write,
+                        };
+
+                        serialize_telemetry_message(&stream, &stats);
+
+                        ENetPacket* packet = enet_packet_create(stream.slice.data, stream.slice.length, ENET_PACKET_FLAG_RELIABLE);
+                        enet_peer_send(s->server, Channel_Reliable, packet);
+                        enet_host_flush(s->client);
+
+                        scratch_release(scratch);
                     }
 
                     // Slice_Entity new_ents = slice_create(Entity, scratch.arena, MaxEntities);
@@ -584,7 +658,6 @@ void rollback(Scene* s, GameEventsMessage* events) {
                     // }
                 }
             }
-
             Inputs inputs = {
                 .ids = slice_create_view(ClientID, tick->client_ids, tick->input_count),
                 .inputs = slice_create_view(PlayerInput, tick->inputs, tick->input_count),
@@ -668,42 +741,6 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
     state_init(&s->predicted_state, level_arena);
 
 
-    {
-        b2WorldDef world_def = b2DefaultWorldDef();
-        world_def.gravity = (b2Vec2){0.0f, 0.0f};
-        b2WorldId world_id = b2CreateWorld(&world_def);
-
-        b2BodyDef bodyDef = b2DefaultBodyDef();
-        bodyDef.type = b2_dynamicBody;
-        bodyDef.position = (b2Vec2){0};
-        b2BodyId b1 = b2CreateBody(world_id, &bodyDef);
-        b2Polygon dynamicBox = b2MakeBox(1.0f, 1.0f);
-        b2ShapeDef shapeDef = b2DefaultShapeDef();
-        b2CreatePolygonShape(b1, &shapeDef, &dynamicBox);
-
-        bodyDef = b2DefaultBodyDef();
-        bodyDef.type = b2_dynamicBody;
-        bodyDef.position = (b2Vec2){3.0f, 0.0f};
-        b2BodyId b2 = b2CreateBody(world_id, &bodyDef);
-        dynamicBox = b2MakeBox(1.0f, 1.0f);
-        shapeDef = b2DefaultShapeDef();
-        shapeDef.isSensor = true;
-        b2CreatePolygonShape(b2, &shapeDef, &dynamicBox);
-
-        b2World_Step(world_id, 0.1, substep_count);
-
-        b2Body_SetTransform(b2, (b2Vec2){0.0f,0.0f}, b2Body_GetTransform(b2).q);
-
-        for (u32 i = 0; i < 10; i++) {
-            b2World_Step(world_id, 0.1, substep_count);
-            b2SensorEvents sensorEvents = b2World_GetSensorEvents(world_id);
-            for (int i = 0; i < sensorEvents.beginCount; ++i) {
-                b2SensorBeginTouchEvent* beginTouch = sensorEvents.beginEvents + i;
-                printf("%d\n", i);
-            }
-        }
-    }
-
     if (!online) {
         ENetAddress host_address = {
             .host = ENET_HOST_ANY,
@@ -711,8 +748,8 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
         };
 
         server_init(&s->local_server, level_arena);
-        s->local_server.out_latency = 0.05;
-        s->local_server.in_latency = 0.05;
+        // s->local_server.out_latency = 0.05;
+        // s->local_server.in_latency = 0.05;
         server_connect(&s->local_server, host_address);
     }
 
@@ -763,9 +800,10 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
     enet_peer_timeout(s->server, U32_Max, U32_Max, U32_Max);
     // ENET_PEER_TIMEOUT_MINIMUM
 
-    // enet_peer_ping_interval(s->server, 10);
+    // enet_peer_ping_interval(s->server, 100);
 
     s->history = ring_alloc(Tick, level_arena, 64);
+    s->ping_samples = slice_create(u32, level_arena, 3600);
     // s->pending_create_list = ring_alloc(CreateEntityMessage, level_arena, 64);
     // s->pending_delete_list = ring_alloc(DeleteEntityMessage, level_arena, 64);
 
@@ -929,6 +967,22 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
 
                 printf("%s", slice_str_to_cstr(scratch.arena, message.str));
             }
+
+            // if (message_type == MessageType_PingResponse) {
+            //     u32 tick;
+            //     serialize_ping_response_message(&stream, &tick);
+            //
+            //     PingWait ping_wait;
+            //     do {
+            //         ping_wait = ring_pop_front(&s->ping_wait_queue);
+            //
+            //     } while (ping_wait.tick < tick && s->ping_wait_queue.length > 0);
+            //
+            //     if (ping_wait.tick == tick) {
+            //         s->latest_ping = (os_now_seconds() - ping_wait.time) * 1000.0;
+            //         printf("%f\n", s->latest_ping);
+            //     }
+            // }
 
             enet_packet_destroy (net_event.packet);
         } break;
@@ -1180,6 +1234,8 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
 
             s->up_bandwidth = (s->client->totalSentData - s->last_total_sent_data) / bw_poll;
             s->last_total_sent_data = s->client->totalSentData;
+
+            slice_push(&s->ping_samples, s->server->lastRoundTripTime);
         }
 
         ui_row({
@@ -1200,6 +1256,10 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
             ui_row({
                 .text=(char*)string8_format(frame_arena, "ping: %.2fms", ping).data,
                 // .background_color={1,0,0,1},
+            });
+            ui_row({
+                // .text=(char*)string8_format(frame_arena, "loss: %.2f%", s->server->packetsLost/ (f32)s->server->packetsSent * 100.0).data,
+                .text=(char*)string8_format(frame_arena, "loss: %f%%", ((f32)s->server->packetLoss / (f32)ENET_PEER_PACKET_LOSS_SCALE) * 100.0).data,
             });
             ui_row({
                 .text=(char*)string8_format(frame_arena, "up: %.2fKB/s", s->up_bandwidth / 1024.0).data,
@@ -1313,10 +1373,6 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
             s->moving_spell = false;
         }
 
-        Inputs inputs = {
-            .ids = slice_create_view(ClientID, &s->client_id, 1),
-            .inputs = slice_create_view(PlayerInput, &input, 1),
-        };
 
         // if (input_key_down(SDL_SCANCODE_F)) {
         //     Stream stream = {
@@ -1332,12 +1388,18 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
         //     enet_host_flush(s->client);
         // }
 
+        
         Stream stream = {
             .slice = slice_create(u8, &s->tick_arena, sizeof(PlayerInput)),
             .operation = Stream_Write,
         };
 
         serialize_input_message(&stream, &input, &s->current_tick);
+
+        // ring_push_back(&s->ping_wait_queue, (PingWait) {
+        //     s->current_tick,
+        //     os_now_seconds()
+        // });
 
         ENetPacket* packet = enet_packet_create(stream.slice.data, stream.slice.length, ENET_PACKET_FLAG_RELIABLE);
         enet_peer_send(s->server, Channel_Reliable, packet);
@@ -1348,7 +1410,31 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
             s->moving_spell = false;
         }
 
+        Inputs inputs = {
+            .ids = slice_create(ClientID, &s->tick_arena, MaxPlayers),
+            .inputs = slice_create(PlayerInput, &s->tick_arena, MaxPlayers),
+        };
         {
+            slice_push(&inputs.ids, s->client_id);
+            slice_push(&inputs.inputs, input);
+            // .inputs = slice_create_view(PlayerInput, &input, 1),
+            // Tick* prev_tick = ring_back_ref(s->history);
+            // for (i32 i = 0; i < prev_tick->input_count; i++) {
+            //     if (prev_tick->client_ids[i] == s->client_id) {
+            //         continue;
+            //     }
+            //
+            //     PlayerInput* prev_input = &prev_tick->inputs[i];
+            //     PlayerInput input = {0};
+            //
+            //     input.left = prev_input->left;
+            //     input.right = prev_input->right;
+            //     input.up = prev_input->up;
+            //     input.down = prev_input->down;
+            //
+            //     slice_push(&inputs.ids, prev_tick->client_ids[i]);
+            //     slice_push(&inputs.inputs, input);
+            // }
             state_update(&s->predicted_state, inputs, s->current_tick, TICK_RATE, false);
             mod_lists_clear(&s->predicted_state);
         }
@@ -1501,7 +1587,7 @@ void scene_render(Scene* s) {
     //     s->camera.position = player->position;
     // }
 
-    render_entities(s->camera, s->latest_snapshot.ents, s->latest_snapshot.tick_index, true);
+    // render_entities(s->camera, s->latest_snapshot.ents, s->latest_snapshot.tick_index, true);
     render_entities(s->camera, s->predicted_state.entities, s->current_tick, false);
 
     

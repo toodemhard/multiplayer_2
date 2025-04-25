@@ -254,9 +254,9 @@ void server_update(Server* s) {
         //     serialize_test_message(&stream, scratch.arena, &message);
         //     ENetPacket* packet = enet_packet_create(event.packet->data, event.packet->dataLength, ENET_PACKET_FLAG_RELIABLE);
         // }
+        Client* client = (Client*)packet.peer->data;
 
         if (type == MessageType_Input) {
-            Client* client = (Client*)packet.peer->data;
 
             PlayerInput input = {0};
 
@@ -279,10 +279,35 @@ void server_update(Server* s) {
             if (valid_input && input_ring->length < input_ring->capacity) {
                 ring_push_back(input_ring, input);
             }
+
+            // Stream stream = {
+            //     .slice = slice_create(u8, scratch.arena, sizeof(MessageType) + sizeof(u32)),
+            //     .operation = Stream_Write,
+            // };
+            //
+            // serialize_ping_response_message(&stream, &input_tick);
+            //
+            // Packet packet = {
+            //     stream.slice.data,
+            //     stream.slice.length,
+            //     client->peer,
+            //     ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT,
+            // };
+            //
+            // queue_packet(&s->out_packet_queue, packet, s->time);
+        }
+
+        if (type == MessageType_Telemetry) {
+            NetStats stats;
+            serialize_telemetry_message(&stream, &stats);
+
+            printf("Client %d stats:\n", client->id);
+            printf("Median RTT: %dms\n", stats.median_rtt);
+            printf("Packet Loss: %f%%\n", stats.loss_percent);
+
         }
 
         if (type == MessageType_RematchToggle && s->match_finished) {
-            Client* client = (Client*)packet.peer->data;
             client->rematch = !client->rematch;
 
             bool rematch = true;
@@ -338,6 +363,7 @@ void server_update(Server* s) {
             s->client_serial += 1;
 
             create_player(&s->state.create_list, client->id, (float2){0,0});
+            enet_peer_timeout(client->peer, U32_Max, U32_Max, U32_Max);
 
             printf ("A new client connected from %x:%u.\n", event.peer->address.host, event.peer->address.port);
             

@@ -83,6 +83,20 @@ void arena_end_temp_allocs(ArenaTemp temp) {
     temp.arena->current = temp.reset_pos;
 }
 
+// typedef struct DynamicAllocation {
+//     Arena* arena;
+//     u8* memory;
+// } DynamicAllocation;
+//
+// arena_begin_dynamic_alloc(Arena* arena) {
+//     return {
+//         arean
+//     }
+// }
+//
+// arena_end_dynamic_alloc(Arena* arena) {
+// }
+
 // void bitlist_init(Bitlist* bitlist, Arena* arena, u32 capacity) {
 //     slice_init(bitlist, arena, capacity / 8 + 1);
 // }

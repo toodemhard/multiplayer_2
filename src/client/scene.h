@@ -55,6 +55,12 @@ ring_def(Tick);
 //     Tick* tail;
 // } TickQueue;
 
+typedef struct PingWait {
+    u32 tick;
+    f32 time;
+} PingWait;
+ring_def(PingWait);
+
 typedef struct Scene Scene;
 struct Scene {
     System* sys;
@@ -68,6 +74,8 @@ struct Scene {
     GameState predicted_state;
     bool match_finished;
     bool rematching;
+
+    Ring_PingWait ping_wait_queue;
 
 
     Ring_Tick history;
@@ -100,6 +108,9 @@ struct Scene {
     u64 frame;
     double time;
     u32 current_tick;
+
+    Slice_u32 ping_samples;
+
 
     // bool ents_modified_since_last_tick;
 

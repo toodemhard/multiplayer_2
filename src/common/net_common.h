@@ -16,6 +16,8 @@ typedef enum MessageType {
     MessageType_StateInit,
     MessageType_GameEvents,
     MessageType_RematchToggle,
+    MessageType_PingResponse,
+    MessageType_Telemetry
     // MessageType_RematchCancel,
 } MessageType;
 
