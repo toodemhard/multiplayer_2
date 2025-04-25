@@ -840,7 +840,9 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
     }
 
     ENetEvent net_event;
-    while (enet_host_service(s->client, &net_event, 0)) {
+
+    bool force_break = false;
+    while (!force_break && enet_host_service(s->client, &net_event, 0)) {
         ArenaTemp scratch = scratch_get(0,0);
         defer_loop((void)0, scratch_release(scratch)) {
         switch (net_event.type) {
@@ -944,8 +946,7 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
                 printf("ping: %d\n", s->server->roundTripTime);
                 s->received_init = true;
 
-                goto simulate_forward;
-
+                force_break = true;
             }
 
             if (message_type == MessageType_GameEvents) {
@@ -953,7 +954,6 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
                     int asdf = 1231;
                 }
                 GameEventsMessage msg = {0};
-                ArenaTemp scratch = scratch_get(0, 0);
                 serialize_game_events(&stream, scratch.arena, &msg);
 
                 // for (i32 i = 0; i < msg.create_list.length; i++) {
@@ -968,8 +968,6 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
                 if (!s->disable_prediction) {
                     rollback(s, &msg);
                 }
-
-                scratch_release(scratch);
             }
 
             if (message_type == MessageType_Test) {
@@ -1002,7 +1000,7 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
         }
     }
 
-    simulate_forward:
+    // simulate_forward:
 
 
     // Entity* player = entity_list_get(&s->state.entities, s->player_handle);
