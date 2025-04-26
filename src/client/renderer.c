@@ -22,12 +22,24 @@ void renderer_set_ctx(Renderer* _renderer) {
 }
 
 Rect render_target_rect(i32 window_width, i32 window_height, i32 render_width, i32 render_height) {
-    Rect rect = {
-        .h = window_height,
-        .w = render_width * (window_height / (f32)render_height),
-    };
+    Axis2 fit_axis = Axis2_X;
+    if (window_width / (f32)window_height > render_width / (f32)render_height) {
+        fit_axis = Axis2_Y;
+    }
 
-    rect.x = (window_width - rect.w) / 2;
+    float2 window_size = {window_width, window_height};
+    float2 render_size = {render_width, render_height};
+
+    Rect rect = {0};
+    for (Axis2 i = 0; i < Axis2_Count; i++) {
+        if (i == fit_axis) {
+            rect.size.v[i] = window_size.v[i];
+        } else {
+            i32 other_axis = (i+1) % Axis2_Count;
+            rect.size.v[i] = render_size.v[i] * (window_size.v[other_axis] / (f32)render_size.v[other_axis]);
+            rect.position.v[i] = (window_size.v[i] - rect.size.v[i]) / 2;
+        }
+    }
 
     return rect;
 }
