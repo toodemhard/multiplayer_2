@@ -73,6 +73,11 @@ typedef struct Renderer {
     i32 window_width;
     i32 window_height;
 
+    i32 res_width;
+    i32 res_height;
+
+    Rect dst_rect;
+
     Camera2D* active_camera;
 
     SDL_GPUDevice* device;
@@ -80,9 +85,14 @@ typedef struct Renderer {
     Texture textures[TextureID_Count];
 
     SDL_GPUTexture* swapchain_texture;
+    u32 swapchain_w;
+    u32 swapchain_h;
+
     SDL_GPUTexture* depth_texture;
     SDL_GPUCommandBuffer* draw_command_buffer;
     SDL_GPURenderPass* render_pass;
+
+    SDL_GPUTexture* render_target;
 
     Slice_DrawItem draw_list;
     Slice_u8 vertex_data;

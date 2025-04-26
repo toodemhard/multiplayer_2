@@ -8,6 +8,7 @@
 #include "stb_image_write.h"
 
 
+
 #include "assets/inc.h"
 
 
@@ -31,6 +32,9 @@
 #include "scene.h"
 #include "app.h"
 
+
+System* g_sys;
+
 #include "font.c"
 #include "input.c"
 #include "renderer.c"
@@ -39,8 +43,6 @@
 
 const global double speed_up_fraction = 0.05;
 
-const global int window_width = 1024;
-const global int window_height = 768;
 
 #define IDLE_PERIOD 0.2
 #define IDLE_COUNT 2;
@@ -93,17 +95,17 @@ bool init(void* memory) {
 
     sys->events = ring_alloc(Event, &state->persistent_arena, 32);
 
-    SDL_WindowFlags flags = SDL_WINDOW_INPUT_FOCUS; // | SDL_WINDOW_ALWAYS_ON_TOP; // | SDL_WINDOW_FULLSCREEN;
+    SDL_WindowFlags flags = SDL_WINDOW_INPUT_FOCUS | SDL_WINDOW_RESIZABLE; //| SDL_WINDOW_RESIZABLE; // | SDL_WINDOW_ALWAYS_ON_TOP; // | SDL_WINDOW_FULLSCREEN;
 
     {
         // ZoneNamedN(a, "Create Window", true);
-            sys->window = SDL_CreateWindow("ye", window_width, window_height, flags);
+            sys->window = SDL_CreateWindow("", window_width, window_height, flags);
         if (sys->window == NULL) {
             SDL_Log("CreateWindow failed: %s", SDL_GetError());
         }
     }
 
-    if (init_renderer(&sys->renderer, sys->window) != 0) {
+    if (renderer_init(&sys->renderer, sys->window) != 0) {
         ASSERT(false);
         // panic("failed to initialize renderer");
     }
@@ -344,6 +346,7 @@ DLL_EXPORT Signals update(void* memory) {
     bool quit = false;
 
     System* sys = &state->sys;
+    g_sys = &state->sys;
 
     if (!state->initialized) {
         if (!init(memory)) {
@@ -481,6 +484,7 @@ DLL_EXPORT Signals update(void* memory) {
     is_reloaded = false;
 
     frame_time = os_now_seconds() - frame_start;
+    // printf("%f\n", frame_time);
 
     return (Signals) {
         .quit = quit,

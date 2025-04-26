@@ -3,7 +3,7 @@
 #define default_camera \
 ((Camera2D) {\
     {0, 0},\
-    float2_scale((float2){1 * 4.0f/3.0f, 1}, 12.0f),\
+    float2_scale((float2){1 * 4.0f/3.0f, 1}, 18.0f),\
 })
 
 #define ChunkWidth 8

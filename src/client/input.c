@@ -1,8 +1,14 @@
 internal Input* input_ctx;
 
 void input_begin_frame(Input* input) {
-    input->button_held_flags = SDL_GetMouseState(&input->mouse_pos.x, &input->mouse_pos.y);
+    f32 x, y;
+    input->button_held_flags = SDL_GetMouseState(&x, &y);
     input->mod_state = SDL_GetModState();
+
+    Rect render_bounds = g_sys->renderer.dst_rect;
+    Renderer* renderer = &g_sys->renderer;
+    input->mouse_pos.x = (x - render_bounds.x) / render_bounds.w * renderer->res_width;
+    input->mouse_pos.y = (y - render_bounds.y) / render_bounds.h * renderer->res_height;
 }
 
 void input_end_frame(Input* input) {

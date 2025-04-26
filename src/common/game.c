@@ -239,6 +239,22 @@ void state_init(GameState* state, Arena* arena) {
     state->world_id = b2CreateWorld(&world_def);
     state->create_list = slice_create(Entity, arena, MaxEntities);
     state->delete_list = slice_create(EntityIndex, arena, MaxEntities);
+
+
+
+    b2BodyDef body_def = b2DefaultBodyDef();
+    // body_def.type = phys->body_type;
+    body_def.position = (b2Vec2) {0,5};
+    b2BodyId id0 = b2CreateBody(state->world_id, &body_def);
+    // body_def.position = (b2Vec2) {4,0};
+    // b2BodyId id1 = b2CreateBody(state->world_id, &body_def);
+    // b2BodyId id2 = b2CreateBody(state->world_id, &body_def);
+    // b2BodyId id3 = b2CreateBody(state->world_id, &body_def);
+
+    b2Polygon polygon = b2MakeBox(8, 0.5);
+    b2ShapeDef shape_def = b2DefaultShapeDef();
+    // shape_def.friction = 0;
+    b2ShapeId shape_id = b2CreatePolygonShape(id0, &shape_def, &polygon);
 }
 
 void mod_lists_clear(GameState* state) {

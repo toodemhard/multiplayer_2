@@ -21,9 +21,25 @@ void renderer_set_ctx(Renderer* _renderer) {
     renderer = _renderer;
 }
 
-int init_renderer(Renderer* renderer, SDL_Window* window) {
-    renderer->window_width = 1024;
-    renderer->window_height = 768;
+Rect render_target_rect(i32 window_width, i32 window_height, i32 render_width, i32 render_height) {
+    Rect rect = {
+        .h = window_height,
+        .w = render_width * (window_height / (f32)render_height),
+    };
+
+    rect.x = (window_width - rect.w) / 2;
+
+    return rect;
+}
+
+const global int window_width = 1024;
+const global int window_height = 768;
+
+int renderer_init(Renderer* renderer, SDL_Window* window) {
+    renderer->window_width = window_width;
+    renderer->window_height = window_height;
+    renderer->res_width = window_width;
+    renderer->res_height = window_height;
     SDL_GPUDevice* device;
     {
         device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
@@ -41,6 +57,17 @@ int init_renderer(Renderer* renderer, SDL_Window* window) {
             return 1;
         }
     }
+
+    renderer->render_target = SDL_CreateGPUTexture(renderer->device, (SDL_GPUTextureCreateInfo[]){{
+        .format = SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM,
+        .usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER,
+        .width = renderer->res_width,
+        .height = renderer->res_height,
+        .layer_count_or_depth = 1,
+        .num_levels = 1,
+    }});
+
+
 
     SDL_SetGPUSwapchainParameters(device, window, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, SDL_GPU_PRESENTMODE_IMMEDIATE);
 
@@ -517,10 +544,10 @@ void begin_rendering(SDL_Window* window, Arena* temp_arena) {
 
     renderer->draw_command_buffer = SDL_AcquireGPUCommandBuffer(renderer->device);
 
-    SDL_GPUTexture* swapchain_texture;
-    SDL_AcquireGPUSwapchainTexture(renderer->draw_command_buffer, window, &swapchain_texture, NULL, NULL);
 
-    if (swapchain_texture == NULL) {
+    SDL_AcquireGPUSwapchainTexture(renderer->draw_command_buffer, window, &renderer->swapchain_texture, &renderer->swapchain_w, &renderer->swapchain_h);
+
+    if (renderer->swapchain_texture == NULL) {
         renderer->null_swapchain = true;
         return;
     } else {
@@ -528,7 +555,7 @@ void begin_rendering(SDL_Window* window, Arena* temp_arena) {
     }
 
     SDL_GPUColorTargetInfo color_target_info = {0};
-    color_target_info.texture = swapchain_texture;
+    color_target_info.texture = renderer->render_target;
     color_target_info.clear_color = (SDL_FColor){0.0f, 0.0f, 0.0f, 1.0f};
     color_target_info.load_op = SDL_GPU_LOADOP_CLEAR;
     color_target_info.store_op = SDL_GPU_STOREOP_STORE;
@@ -563,6 +590,8 @@ void end_rendering() {
     if (renderer->null_swapchain) {
         return;
     }
+
+    // SDL_SetGPUViewport(renderer->render_pass, (SDL_GPUViewport[]){{0,0,window_width*1.5,window_height*1.5}});
 
     void* transfer_ptr = SDL_MapGPUTransferBuffer(renderer->device, renderer->transfer_buffer, true);
 
@@ -686,6 +715,27 @@ void end_rendering() {
     }
 
     SDL_EndGPURenderPass(renderer->render_pass);
+
+    Rect dst_rect = render_target_rect(renderer->swapchain_w, renderer->swapchain_h, renderer->res_width, renderer->res_height);
+    renderer->dst_rect = dst_rect;
+
+    SDL_BlitGPUTexture(renderer->draw_command_buffer, (SDL_GPUBlitInfo[]){{
+        .source = {
+            .texture = renderer->render_target,
+            .w = renderer->res_width,
+            .h = renderer->res_height,
+        },
+        .destination = {
+            .texture = renderer->swapchain_texture,
+            .x = dst_rect.x,
+            .y = dst_rect.y,
+            .w = dst_rect.w,
+            .h = dst_rect.h,
+        },
+        // .filter = SDL_GPU_FILTER_LINEAR,
+    }});
+
+
     SDL_SubmitGPUCommandBuffer(renderer->draw_command_buffer);
 }
 
