@@ -225,7 +225,7 @@ int utf8decode_unsafe(const char* s, int32_t* c) {
     return 1;
 }
 
-void draw_text(Font font, const char* text, float font_size, float2 position, RGBA color, float max_width) {
+void draw_text(Font font, const char* text, float font_size, float2 position, float4 color, float max_width) {
 
     if (text == NULL) {
         return;

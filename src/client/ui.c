@@ -503,16 +503,16 @@ void ui_draw(UI* ui_ctx) {
             });
         }
 
-        RGBA font_color;
-        for (u32 i = 0; i < 4; i++) {
-            font_color.v[i] = 255.0 * current->font_color.v[i];
+        // RGBA font_color;
+        // for (u32 i = 0; i < 4; i++) {
+        //     font_color.v[i] = 255.0 * current->font_color.v[i];
+        // }
+        //
+        if (current->font_color.a == 0) {
+            current->font_color = (float4) {1,1,1,1};
         }
 
-        if (font_color.a == 0) {
-            font_color = rgba_white;
-        }
-
-        draw_text(slice_get(ui_ctx->fonts, current->font), current->text, current->font_size.value, current->content_position, font_color, 9999);
+        draw_text(slice_get(ui_ctx->fonts, current->font), current->text, current->font_size.value, current->content_position, current->font_color, 9999);
     }
 
     while (post_stack.length > 0) {

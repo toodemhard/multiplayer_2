@@ -22,11 +22,6 @@ typedef struct MixColor {
     float t;
 } MixColor;
 
-typedef struct Camera2D {
-    float2 position;
-    float2 size;
-} Camera2D;
-
 typedef struct RectVertex {
     float2 position;
     float2 uv;
@@ -38,15 +33,17 @@ typedef struct SpriteVertex {
     float2 uv_position;
     float2 uv_size;
     
-    RGBA mult_color;
+    float4 mult_color;
     RGBA mix_color;
     float t;
 } SpriteVertex;
 
+opt_def(float4);
+
 typedef struct SpriteProperties {
     TextureID texture_id;
     Rect src_rect;
-    Opt_RGBA mult_color;
+    Opt_float4 mult_color;
     RGBA mix_color;
     float t;
 } SpriteProperties;

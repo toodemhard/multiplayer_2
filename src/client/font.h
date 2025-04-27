@@ -11,7 +11,7 @@ struct Font {
 slice_def(Font);
 
 void font_load(Arena* arena, Font* font_output, Renderer* renderer, FontID font_id, int w, int h, int font_size);
-void draw_text(Font font, const char* text, float font_size, float2 position, RGBA color, float max_width);
+void draw_text(Font font, const char* text, float font_size, float2 position, float4 color, float max_width);
 float2 text_dimensions(Font font, const char* text, f32 font_size);
 float text_height(const char* text, float font_size);
 void generate_font_atlas(Slice_u8* bitmap);

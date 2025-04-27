@@ -361,7 +361,7 @@ int renderer_init(Renderer* renderer, SDL_Window* window) {
             },
             {
                 .buffer_slot = 1,
-                .format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM,
+                .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
             },
             {
                 .buffer_slot = 1,
@@ -377,7 +377,7 @@ int renderer_init(Renderer* renderer, SDL_Window* window) {
             attributes[i].location = i;
         };
 
-        int sizes[] = { 8, 8, 8, 8, 4, 4, 4 };
+        int sizes[] = { 8, 8, 8, 8, 16, 4, 4 };
         int offset = 0;
         for (int i = 0; i < 7; i++) {
             attributes[i + 2].offset = offset;
@@ -450,7 +450,7 @@ void draw_sprite(Rect normalized_rect, SpriteProperties properties) {
     }
 
     if (!properties.mult_color.has_value) {
-        opt_set(&properties.mult_color, (RGBA){255,255,255,255});
+        opt_set(&properties.mult_color, (float4){1,1,1,1});
     }
 
     SpriteVertex sprite_vertex = {

@@ -154,8 +154,8 @@ opt_def(u64);
 #define opt_set(opt, ...)\
     (opt)->value = (__VA_ARGS__)
 
-#define opt_init(value)\
-    {value, true}
+#define opt_init(...)\
+    {__VA_ARGS__, true}
 
 
 typedef u8 HashmapFlags;
