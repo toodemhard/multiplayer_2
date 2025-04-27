@@ -1,5 +1,8 @@
-// durations in seconds 
-// multiply by tick rate to get duration in ticks
+#define DefaultCamera \
+((Camera2D) {\
+    {0, 0},\
+    float2_scale((float2){1 * 4.0f/3.0f, 1}, 16.0f),\
+})
 
 const float bullet_speed = 10.0f;
 const float bullet_expire_duration = 2;
@@ -207,12 +210,34 @@ void create_bullet(Slice_Entity* create_list, EntityHandle owner, float2 positio
         .expire_tick = current_tick + (u32)(bullet_expire_duration * tick_rate),
         .owner = owner,
         .position = position,
-        .damage = bullet_damage,
+        .damage = 20,
     };
 
     entity_add_physics_component(&bullet, (PhysicsComponent) {
         .collider = (ColliderDef) {0.25, 0.25},
-        .linear_velocity = float2_scale(direction, bullet_speed),
+        .linear_velocity = float2_scale(direction, 14),
+        .body_type = b2_dynamicBody,
+        .is_sensor = true,
+    });
+
+    slice_push(create_list, bullet);
+}
+
+void create_bolt(Slice_Entity* create_list, EntityHandle owner, float2 position, float2 direction, u32 current_tick, i32 tick_rate) {
+    Entity bullet = {
+        .sprite = TextureID_bullet_png,
+        .replication_type = ReplicationType_Predicted,
+        .type = EntityType_Bullet,
+        .flags = EntityFlags_physics | EntityFlags_attack | EntityFlags_expires,
+        .expire_tick = current_tick + (u32)(bullet_expire_duration * tick_rate),
+        .owner = owner,
+        .position = position,
+        .damage = 10,
+    };
+
+    entity_add_physics_component(&bullet, (PhysicsComponent) {
+        .collider = (ColliderDef) {0.25, 0.25},
+        .linear_velocity = float2_scale(direction, 10),
         .body_type = b2_dynamicBody,
         .is_sensor = true,
     });
@@ -242,19 +267,29 @@ void state_init(GameState* state, Arena* arena) {
 
 
 
+    Camera2D cam = DefaultCamera;
+
     b2BodyDef body_def = b2DefaultBodyDef();
     // body_def.type = phys->body_type;
-    body_def.position = (b2Vec2) {0,5};
+    body_def.position = (b2Vec2) {0, cam.size.y / 2 + 0.5};
     b2BodyId id0 = b2CreateBody(state->world_id, &body_def);
     // body_def.position = (b2Vec2) {4,0};
-    // b2BodyId id1 = b2CreateBody(state->world_id, &body_def);
-    // b2BodyId id2 = b2CreateBody(state->world_id, &body_def);
-    // b2BodyId id3 = b2CreateBody(state->world_id, &body_def);
+    body_def.position = (b2Vec2) {0, -(cam.size.y / 2 + 0.5)};
+    b2BodyId id1 = b2CreateBody(state->world_id, &body_def);
+    body_def.position = (b2Vec2) {cam.size.x / 2 + 0.5, 0};
+    b2BodyId id2 = b2CreateBody(state->world_id, &body_def);
+    body_def.position = (b2Vec2) {-(cam.size.x / 2 + 0.5), 0};
+    b2BodyId id3 = b2CreateBody(state->world_id, &body_def);
 
-    b2Polygon polygon = b2MakeBox(8, 0.5);
+    b2Polygon polygon = b2MakeBox(30, 0.5);
     b2ShapeDef shape_def = b2DefaultShapeDef();
     // shape_def.friction = 0;
-    b2ShapeId shape_id = b2CreatePolygonShape(id0, &shape_def, &polygon);
+    b2CreatePolygonShape(id0, &shape_def, &polygon);
+    b2CreatePolygonShape(id1, &shape_def, &polygon);
+
+    polygon = b2MakeBox(0.5, 20);
+    b2CreatePolygonShape(id2, &shape_def, &polygon);
+    b2CreatePolygonShape(id3, &shape_def, &polygon);
 }
 
 void mod_lists_clear(GameState* state) {
@@ -262,7 +297,7 @@ void mod_lists_clear(GameState* state) {
     slice_clear(&state->create_list);
 }
 
-const float player_speed = 6;
+const float player_speed = 7;
 const float dash_speed = 20;
 const float dash_distance = 3;
 
@@ -405,6 +440,7 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
             // };
 
             if (ent->player_state == PlayerState_Neutral) {
+                ent->t = 0;
                 if (move_input.x == 0 && move_input.y == 0) {
 
                 }
@@ -413,7 +449,8 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
                     velocity = float2_scale(move_direction, player_speed);
                     // printf("%f, %f\n", velocity.x, velocity.y);
 
-                    if (input->dash) {
+                    if (input->dash && (current_tick > ent->dash_end_tick + 0.2 * tick_rate || !ent->not_first_dash)) {
+                        ent->not_first_dash = true;
                         ent->player_state = PlayerState_Dashing;
                         ent->dash_direction = move_direction;
                         ent->dash_end_tick = current_tick + dash_duration * tick_rate;
@@ -423,6 +460,8 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
 
                 b2Body_SetLinearVelocity(ent->body_id, (b2Vec2){velocity.x, velocity.y});
             } else if (ent->player_state == PlayerState_Dashing) {
+                ent->mix_color = (RGBA){255,255,255,255};
+                ent->t = 0.75;
                 velocity = float2_scale(ent->dash_direction, dash_speed);
 
                 b2Body_SetLinearVelocity(ent->body_id, (b2Vec2){velocity.x, velocity.y});
@@ -434,7 +473,16 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
 
             EntityHandle handle = {i, ent->generation};
 
-            ent->mana += 1;
+            ent->mana_regen_tick_acc += 1;
+
+            const i32 mana_per_second = 50;
+            const i32 ticks_per_mana = TICK_RATE / mana_per_second;
+            while (ent->mana_regen_tick_acc > ticks_per_mana) {
+                ent->mana += 1;
+                ent->mana_regen_tick_acc -= ticks_per_mana;
+            }
+
+            // ent->mana += 1;
             ent->mana = min(ent->mana, ent->max_mana);
 
 
@@ -460,14 +508,14 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
                 }
 
                 if (selected_spell == SpellType_SpreadBolt) {
-                    i32 projectile_count = 4;
+                    i32 projectile_count = 5;
 
-                    f32 range_start = deg_to_rad(-20);
-                    f32 range_end = deg_to_rad(20);
+                    f32 range_start = deg_to_rad(-25);
+                    f32 range_end = deg_to_rad(25);
 
                     for (i32 i = 0; i < projectile_count; i++) {
                         f32 dir_offset = lerp(range_start, range_end, (f32)i / (projectile_count - 1));
-                        create_bullet(create_list, handle, player_pos, rotate(direction, dir_offset), current_tick, tick_rate);
+                        create_bolt(create_list, handle, player_pos, rotate(direction, dir_offset), current_tick, tick_rate);
                     }
                 }
 

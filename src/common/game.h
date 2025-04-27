@@ -1,5 +1,10 @@
 #pragma once
 
+typedef struct Camera2D {
+    float2 position;
+    float2 size;
+} Camera2D;
+
 typedef enum ReplicationType {
     ReplicationType_Snapshot,
     ReplicationType_Predicted,
@@ -55,7 +60,7 @@ typedef struct Spell {
 // } SpellType;
 
 #define SPELL_TABLE(_)\
-    _(Fireball, {10, 0.1})\
+    _(Fireball, {30, 0.1})\
     _(SpreadBolt, {30, 0.5})\
     _(IceWall, {20, 0.3})\
     _(SniperRifle, {})\
@@ -165,6 +170,8 @@ struct Entity {
     ReplicationType replication_type;
 
     TextureID sprite;
+    RGBA mix_color;
+    float t;
     Rect sprite_src;
     bool flip_sprite;
 
@@ -182,10 +189,12 @@ struct Entity {
     PlayerState player_state;
     float2 dash_direction;
     u32 dash_end_tick;
+    bool not_first_dash;
     u16 selected_spell;
 
     i32 mana;
     i32 max_mana;
+    i32 mana_regen_tick_acc;
     u32 cast_delay_end_tick;
 
     // hittable

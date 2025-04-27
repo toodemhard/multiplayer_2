@@ -730,7 +730,7 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
     s->sys = sys;
     s->online_mode = online;
 
-    s->camera = default_camera;
+    s->camera = DefaultCamera;
     sys->renderer.active_camera = &s->camera;
 
     arena_init(&s->tick_arena, arena_alloc(level_arena, megabytes(1)), megabytes(1));
@@ -1192,11 +1192,11 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
         s->debug_draw = !s->debug_draw;
     }
 
-    if (input_key_down(SDL_SCANCODE_F)) {
-        s->match_finished = true;
-        // Entity* ent = slice_getp(s->predicted_state.entities, 0);
-        // b2Body_SetTransform(ent->body_id, float2_add(ent->position, (float2){-1,0}).b2vec, b2Body_GetTransform(ent->body_id).q);
-    }
+    // if (input_key_down(SDL_SCANCODE_F)) {
+    //     s->match_finished = true;
+    //     // Entity* ent = slice_getp(s->predicted_state.entities, 0);
+    //     // b2Body_SetTransform(ent->body_id, float2_add(ent->position, (float2){-1,0}).b2vec, b2Body_GetTransform(ent->body_id).q);
+    // }
 
     ui_row({
         .stack_axis = Axis2_Y,
@@ -1543,9 +1543,10 @@ void render_entities(Camera2D camera, Slice_Entity ents, u32 current_tick, bool 
             world_rect.size = float2_scale(ent->sprite_src.size, 1 / 16.0);
         }
 
-        RGBA mix_color = {255,255,255,255};
-        f32 t = 0;
+        RGBA mix_color = ent->mix_color;
+        f32 t = ent->t;
         if (ent->hit_flash_end_tick > current_tick) {
+            mix_color = (RGBA){255,255,255,255};
             t = 1;
         }
 
@@ -1619,9 +1620,64 @@ void scene_render(Scene* s) {
     if (s->disable_prediction) {
         render_entities(s->camera, s->latest_snapshot.ents, s->latest_snapshot.tick_index, false);
     } else {
-        render_entities(s->camera, s->latest_snapshot.ents, s->latest_snapshot.tick_index, true);
+        // render_entities(s->camera, s->latest_snapshot.ents, s->latest_snapshot.tick_index, true);
+        Slice_Entity ents = s->latest_snapshot.ents;
+        for (i32 i = 0; i < ents.length; i++) {
+            const Entity* ent = slice_getp(ents, i);
+
+            if (!ent->active || !(ent->flags & EntityFlags_player)) {
+                continue;
+            }
+            // if (filter_predicted && ghost->replication_type != ReplicationType_Snapshot) {
+            //     continue;
+            // }
+
+            if (s->latest_snapshot.tick_index > ent->dash_end_tick) {
+                continue;
+            }
+
+            Rect world_rect = {
+                .position = ent->position,
+                .size = float2_scale(texture_dimensions(ent->sprite), 1 / 16.0),
+            };
+
+            if (!float2_cmp(ent->sprite_src.size, (float2){0,0})) {
+                world_rect.size = float2_scale(ent->sprite_src.size, 1 / 16.0);
+            }
+
+            RGBA mix_color = {255,255,255,255};
+
+            if (ent->flip_sprite) {
+                world_rect.size.x *= -1;
+            }
+
+            RGBA mult_color = {0};
+            // if (filter_predicted && ent->replication_type != ReplicationType_Snapshot) {
+            //     // mult_color = (RGBA) {255,255,255,128};
+            //     mix_color = (RGBA){255,0,0,255};
+            //     t = 1;
+            //     
+            //     // continue;
+            // }
+
+            if (ent->sprite != TextureID_NULL) {
+                draw_sprite_world(s->camera, world_rect, (SpriteProperties){
+                    .texture_id = ent->sprite,
+                    .src_rect = ent->sprite_src,
+                    .mix_color = {255,0,0,0},
+                    // .mult_color = opt_init({1,1,1,0.75}),
+                    .t = 1
+                });
+            }
+        }
+
         render_entities(s->camera, s->predicted_state.entities, s->current_tick, false);
     }
+
+    // draw_sprite((Rect) {0,0,0.5,0.5}, (SpriteProperties) {
+    //     .texture_id = TextureID_player_png,
+    //     .mult_color = opt_init({1,0,1,0.5}),
+    // });
 
     
     // for (i32 i = 0; i < 4; i++) {

@@ -22,7 +22,6 @@
 #include "common/inc.h"
 #include "common/inc.c"
 
-#include "color.h"
 #include "exports.h"
 #include "input.h"
 #include "renderer.h"

@@ -114,6 +114,7 @@ void serialize_snapshot_entity(Stream* stream, Entity* ent) {
         serialize_var(stream, &ent->max_mana);
         serialize_var(stream, &ent->selected_spell);
         serialize_var(stream, &ent->client_id);
+        serialize_var(stream, &ent->dash_end_tick);
     }
 
     if (ent->flags & EntityFlags_physics) {
@@ -152,6 +153,7 @@ void serialize_init_entity(Stream* stream, Entity* ent) {
         serialize_var(stream, &ent->selected_spell);
         serialize_var(stream, &ent->client_id);
         serialize_var(stream, &ent->mana);
+        serialize_var(stream, &ent->mana_regen_tick_acc);
         serialize_var(stream, &ent->max_mana);
     }
 
