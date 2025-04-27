@@ -334,6 +334,8 @@ void apply_snapshot(Slice_Entity snapshot, GameState predicted_state) {
 
         pred_ent->position = auth_ent->position;
         pred_ent->physics.linear_velocity = auth_ent->physics.linear_velocity;
+
+        pred_ent->health = auth_ent->health;
     }
     // Physics state needs to be applied
     for (i32 i = 0; i < predicted_state.entities.length; i++) {
@@ -518,10 +520,8 @@ void rollback(Scene* s, GameEventsMessage* events) {
         i = (i + 1) % s->history.capacity;
         s->latest_rollback_tick = ring_get_ref(s->history, i)->tick;
 
-        // Entity* ent = slice_getp(s->predicted_state.entities, 2);
-        // if (ent->active) {
-        //     printf("%d: %d\n", target_tick_index, ent->active);
-        // }
+        // Entity* ent = slice_getp(s->predicted_state.entities, 1);
+        // printf("%d: %d\n", target_tick_index, ent->active);
 
 
         // Rollback tick order:
@@ -560,30 +560,31 @@ void rollback(Scene* s, GameEventsMessage* events) {
 
             // all input prediction experiment
             // too much snapping so no
-            // tick->input_count = 0;
-            // tick->client_ids[tick->input_count] = s->client_id;
-            // tick->inputs[tick->input_count] = tick->inputs[0];
-            // tick->input_count += 1;
-            //
+            tick->input_count = 0;
+            tick->client_ids[tick->input_count] = s->client_id;
+            tick->inputs[tick->input_count] = tick->inputs[0];
+            tick->input_count += 1;
+
             // .inputs = slice_create_view(PlayerInput, &input, 1),
-            // for (i32 i = 0; i < prev_tick->input_count; i++) {
-            //     if (prev_tick->client_ids[i] == s->client_id) {
-            //         continue;
-            //     }
-            //
-            //     PlayerInput* prev_input = &prev_tick->inputs[i];
-            //     PlayerInput input = {0};
-            //
-            //     input.left = prev_input->left;
-            //     input.right = prev_input->right;
-            //     input.up = prev_input->up;
-            //     input.down = prev_input->down;
-            //
-            //     tick->client_ids[tick->input_count] = prev_tick->client_ids[i];
-            //     tick->inputs[tick->input_count] = input;
-            //     tick->input_count += 1;
-            // }
-            //
+            for (i32 i = 0; i < prev_tick->input_count; i++) {
+                if (prev_tick->client_ids[i] == s->client_id) {
+                    continue;
+                }
+
+                PlayerInput* prev_input = &prev_tick->inputs[i];
+                PlayerInput input = {0};
+
+                input.cursor_world_pos = prev_input->cursor_world_pos;
+                // input.left = prev_input->left;
+                // input.right = prev_input->right;
+                // input.up = prev_input->up;
+                // input.down = prev_input->down;
+
+                tick->client_ids[tick->input_count] = prev_tick->client_ids[i];
+                tick->inputs[tick->input_count] = input;
+                tick->input_count += 1;
+            }
+
 
             if (event_tick) {
                 const Slice_ClientID clients = events->clients;
@@ -664,14 +665,14 @@ void rollback(Scene* s, GameEventsMessage* events) {
                 .inputs = slice_create_view(PlayerInput, tick->inputs, tick->input_count),
             };
 
-            state_update(&s->predicted_state, inputs, tick->tick, TICK_RATE, !event_tick);
+            state_update(&s->predicted_state, inputs, tick->tick, TICK_RATE, !event_tick, 2);
 
             // Entity* ent = slice_getp(s->predicted_state.entities, 2);
             // printf("%d: %d\n", tick->tick, ent->active);
             // Entity* ent = slice_getp(s->predicted_state.entities, 0);
-            // // if (ent->active) {
-            //     printf("%d: %d\n", tick->tick, ent->active);
-            // // }
+            // printf("%d: %d\n", tick->tick, ent->active);
+            // if (ent->active) {
+            // }
 
 
             // if (!hack_create) {
@@ -1361,6 +1362,11 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
 
     ui_end(frame_arena);
 
+    if (input_key_down(SDL_SCANCODE_F)) {
+        slice_push(&s->predicted_state.delete_list, 1);
+    }
+
+
     while (s->received_init && s->accumulator >= FIXED_DT) {
         s->current_tick++;
 
@@ -1444,27 +1450,28 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
             slice_push(&inputs.ids, s->client_id);
             slice_push(&inputs.inputs, input);
             // .inputs = slice_create_view(PlayerInput, &input, 1),
-            // Tick* prev_tick = ring_back_ref(s->history);
-            // for (i32 i = 0; i < prev_tick->input_count; i++) {
-            //     if (prev_tick->client_ids[i] == s->client_id) {
-            //         continue;
-            //     }
-            //
-            //     PlayerInput* prev_input = &prev_tick->inputs[i];
-            //     PlayerInput input = {0};
-            //
-            //     input.left = prev_input->left;
-            //     input.right = prev_input->right;
-            //     input.up = prev_input->up;
-            //     input.down = prev_input->down;
-            //
-            //     slice_push(&inputs.ids, prev_tick->client_ids[i]);
-            //     slice_push(&inputs.inputs, input);
-            // }
-            state_update(&s->predicted_state, inputs, s->current_tick, TICK_RATE, true);
-            if (s->predicted_state.create_list.length > 0) {
-                printf("predict create: %d\n", s->current_tick);
+            Tick* prev_tick = ring_back_ref(s->history);
+            for (i32 i = 0; i < prev_tick->input_count; i++) {
+                if (prev_tick->client_ids[i] == s->client_id) {
+                    continue;
+                }
+
+                PlayerInput* prev_input = &prev_tick->inputs[i];
+                PlayerInput input = {0};
+
+                input.cursor_world_pos = prev_input->cursor_world_pos;
+                // input.left = prev_input->left;
+                // input.right = prev_input->right;
+                // input.up = prev_input->up;
+                // input.down = prev_input->down;
+
+                slice_push(&inputs.ids, prev_tick->client_ids[i]);
+                slice_push(&inputs.inputs, input);
             }
+            state_update(&s->predicted_state, inputs, s->current_tick, TICK_RATE, true, 2);
+            // if (s->predicted_state.create_list.length > 0) {
+            //     printf("predict create: %d\n", s->current_tick);
+            // }
             mod_lists_clear(&s->predicted_state);
 
             if (s->history.length >= s->history.capacity) {
@@ -1616,6 +1623,7 @@ void scene_render(Scene* s) {
     // if (player) {
     //     s->camera.position = player->position;
     // }
+    // draw_screen_rect((Rect){0,0,sys->renderer.res_width,sys->renderer.res_height}, (float4){0.3,0.5,0.2,1});
 
     if (s->disable_prediction) {
         render_entities(s->camera, s->latest_snapshot.ents, s->latest_snapshot.tick_index, false);

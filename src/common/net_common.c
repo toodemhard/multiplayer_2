@@ -144,6 +144,8 @@ void serialize_init_entity(Stream* stream, Entity* ent) {
     serialize_var(stream, &ent->sprite);
     serialize_var(stream, &ent->sprite_src);
     serialize_var(stream, &ent->flip_sprite);
+    // serialize_var(stream, &ent->mix_color);
+    // serialize_var(stream, &ent->t);
 
     if (ent->flags & EntityFlags_player) {
         serialize_bytes(stream, (u8*)ent->hotbar, sizeof(ent->hotbar));

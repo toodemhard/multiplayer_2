@@ -1,7 +1,7 @@
 #define DefaultCamera \
 ((Camera2D) {\
     {0, 0},\
-    float2_scale((float2){1 * 4.0f/3.0f, 1}, 16.0f),\
+    float2_scale((float2){1 * 4.0f/3.0f, 1}, 14.0f),\
 })
 
 const float bullet_speed = 10.0f;
@@ -203,7 +203,9 @@ void create_wall(Slice_Entity* create_list, float2 position, Dir8 direction) {
 
 void create_bullet(Slice_Entity* create_list, EntityHandle owner, float2 position, float2 direction, u32 current_tick, i32 tick_rate) {
     Entity bullet = {
-        .sprite = TextureID_bullet_png,
+        .sprite = TextureID_fireball_png,
+        // .mix_color = {255,0,0,0},
+        // .t = 0.5,
         .replication_type = ReplicationType_Predicted,
         .type = EntityType_Bullet,
         .flags = EntityFlags_physics | EntityFlags_attack | EntityFlags_expires,
@@ -237,7 +239,7 @@ void create_bolt(Slice_Entity* create_list, EntityHandle owner, float2 position,
 
     entity_add_physics_component(&bullet, (PhysicsComponent) {
         .collider = (ColliderDef) {0.25, 0.25},
-        .linear_velocity = float2_scale(direction, 10),
+        .linear_velocity = float2_scale(direction, 8),
         .body_type = b2_dynamicBody,
         .is_sensor = true,
     });
@@ -326,7 +328,7 @@ typedef struct ModLists {
 } ModLists;
 
 // modified entities is out parameter so server can send mod messages to client for replication
-void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_rate, bool modify_existences) {
+void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_rate, bool modify_existences, int aaa) {
     // ArenaTemp scratch = scratch_get(0,0);
     // defer_loop((void)0, scratch_release(scratch)) {
 
@@ -348,14 +350,15 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
         if (visitor == NULL) {
             continue;
         }
-        if (entity_handle_equals(entity_ptr_to_handle(sensor), visitor->last_tick_sensor)) {
-            printf("double enter skip\n");
-            continue;
+
+        bool skip = !(sensor->flags & EntityFlags_damage_owner) && entity_handle_equals(sensor->owner, entity_ptr_to_handle(visitor));
+        if (!skip) {
+            if (visitor->flags & EntityFlags_player && visitor->player_state == PlayerState_Dashing) {
+                skip = true;
+            }
         }
 
-        bool skip_owner = !(sensor->flags & EntityFlags_damage_owner) && entity_handle_equals(sensor->owner, entity_ptr_to_handle(visitor));
-
-        if (!skip_owner && visitor != NULL && visitor->flags & EntityFlags_hittable) {
+        if (!skip && visitor != NULL && visitor->flags & EntityFlags_hittable) {
             float2 inc_dir = normalize((float2){.b2vec=b2Body_GetLinearVelocity(sensor->body_id)});
             b2Body_ApplyLinearImpulse(visitor->body_id, float2_scale(inc_dir, 2.0f).b2vec, b2Body_GetWorldCenterOfMass(visitor->body_id), true);
 
@@ -493,18 +496,43 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
             Spell spell = spell_table[selected_spell];
             bool sufficient_mana = ent->mana >= spell.mana_cost;
 
+            float2 player_pos = {.b2vec=b2Body_GetPosition(ent->body_id)};
+            float2 aim_direction = {1,0};
+            if (magnitude(float2_sub(input->cursor_world_pos, player_pos)) > 0) {
+                aim_direction = normalize(float2_sub(input->cursor_world_pos, player_pos));
+            }
+            f32 d = 1 - fmod(atan2f(aim_direction.y, aim_direction.x) / (2*pi) + 0.5 + 0.1875, 1);
+            Dir8 dir = (Dir8) (d * 8);
+
+            ent->sprite_src.size = (float2){16,32};
+            ent->flip_sprite = (dir > Dir8_Down) ? true : false;
+            switch(dir) {
+                case Dir8_Up:
+                ent->sprite_src.position = (float2){0,32};
+                break;
+                case Dir8_UpRight:
+                case Dir8_UpLeft:
+                ent->sprite_src.position = (float2){48,0};
+                break;
+                case Dir8_Right:
+                case Dir8_Left:
+                ent->sprite_src.position = (float2){32,0};
+                break;
+                case Dir8_DownRight:
+                case Dir8_DownLeft:
+                ent->sprite_src.position = (float2){16,0};
+                break;
+                case Dir8_Down:
+                ent->sprite_src.position = (float2){0,0};
+                break;
+            }
             if (input->fire && sufficient_mana) {
-                float2 player_pos = {.b2vec=b2Body_GetPosition(ent->body_id)};
-                float2 direction = {1,0};
-                if (magnitude(float2_sub(input->cursor_world_pos, player_pos)) > 0) {
-                    direction = normalize(float2_sub(input->cursor_world_pos, player_pos));
-                }
 
                 ent->mana -= spell.mana_cost;
 
 
                 if (selected_spell == SpellType_Fireball) {
-                    create_bullet(create_list, handle, player_pos, direction, current_tick, tick_rate);
+                    create_bullet(create_list, handle, player_pos, aim_direction, current_tick, tick_rate);
                 }
 
                 if (selected_spell == SpellType_SpreadBolt) {
@@ -515,17 +543,13 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
 
                     for (i32 i = 0; i < projectile_count; i++) {
                         f32 dir_offset = lerp(range_start, range_end, (f32)i / (projectile_count - 1));
-                        create_bolt(create_list, handle, player_pos, rotate(direction, dir_offset), current_tick, tick_rate);
+                        create_bolt(create_list, handle, player_pos, rotate(aim_direction, dir_offset), current_tick, tick_rate);
                     }
                 }
 
                 if (selected_spell == SpellType_IceWall) {
-                    f32 d = 1 - fmod(atan2f(direction.y, direction.x) / (2*pi) + 0.5 + 0.1875, 1);
-                    Dir8 dir = (Dir8) (d * 8);
-                    create_wall(create_list, float2_add(player_pos, float2_scale(direction, 2)), dir);
+                    create_wall(create_list, float2_add(player_pos, float2_scale(aim_direction, 2)), dir);
                 }
-
-                // if (selected)
             }
         }
 
@@ -558,7 +582,8 @@ void create_player(Slice_Entity* create_list, ClientID client_id, float2 positio
     // b2BodyId body_id = b2CreateBody(state->world_id, &body_def);
     
     Entity ent = {
-        .sprite = TextureID_player_png,
+        .sprite = TextureID_player_2_png,
+        .sprite_src.size = (float2){16,32},
         .type = EntityType_Player,
         .flags = EntityFlags_player | EntityFlags_physics | EntityFlags_hittable | EntityFlags_has_mana,
         .replication_type = ReplicationType_Predicted,
@@ -572,7 +597,7 @@ void create_player(Slice_Entity* create_list, ClientID client_id, float2 positio
     ent.mana = ent.max_mana;
 
     entity_add_physics_component(&ent, (PhysicsComponent) {
-        .collider = (ColliderDef){0.5, 0.5},
+        .collider = (ColliderDef){0.35, 0.65},
         .body_type = b2_dynamicBody,
     });
 

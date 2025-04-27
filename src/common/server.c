@@ -443,7 +443,7 @@ void server_update(Server* s) {
             }
         }
 
-        state_update(&s->state, inputs, s->current_tick, TICK_RATE, true);
+        state_update(&s->state, inputs, s->current_tick, TICK_RATE, true, true);
 
         assign_players_to_clients(&s->clients, s->state.create_list);
 
@@ -460,7 +460,7 @@ void server_update(Server* s) {
         float2 spawn_points[] = {{-2,0}, {2,0}};
 
         GameEventType event_type = {0};
-
+ 
         if (!s->reset_round && !s->match_finished && alive_players.length <= 1 && dead_players.length > 0) {
             for (i32 i = 0; i < alive_players.length; i++) {
                 s->state.score[slice_get(s->clients, slice_get(alive_players, i)).id - 1] += 1;
@@ -518,6 +518,12 @@ void server_update(Server* s) {
             .inputs = inputs.inputs,
             // .event = event,
         };
+        for (i32 i = 0; i < msg.delete_list.length; i++) {
+            // printf("i\n");
+            // if (slice_getp(s->state.entities, slice_get(msg.delete_list,i))->flags & EntityFlags_player) {
+            //     printf("server delete player\n");
+            // }
+        }
         if (event_type != GameEventType_NULL) {
             msg.events = slice_create(GameEvent, scratch.arena, 1);
             GameEvent event = {
