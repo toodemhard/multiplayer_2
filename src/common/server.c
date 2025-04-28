@@ -457,7 +457,7 @@ void server_update(Server* s) {
             }
         }
 
-        float2 spawn_points[] = {{-2,0}, {2,0}};
+        float2 spawn_points[] = {{-3,0}, {3,0}};
 
         GameEventType event_type = {0};
  

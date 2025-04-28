@@ -105,8 +105,11 @@ void serialize_snapshot_entity(Stream* stream, Entity* ent) {
     serialize_var(stream, &ent->replication_type);
 
     serialize_var(stream, &ent->sprite);
+    serialize_var(stream, &ent->mix_color);
+    serialize_var(stream, &ent->t);
     serialize_var(stream, &ent->sprite_src);
     serialize_var(stream, &ent->flip_sprite);
+
 
     if (ent->flags & EntityFlags_player) {
         serialize_var(stream, &ent->hotbar);

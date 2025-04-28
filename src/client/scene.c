@@ -154,6 +154,68 @@ void scene_render(Scene* s);
 //
 //     return result;
 // }
+int compare_u32(const void* a, const void* b)
+{
+    int arg1 = *(const u32*)a;
+    int arg2 = *(const u32*)b;
+
+    if (arg1 < arg2) return -1;
+    if (arg1 > arg2) return 1;
+    return 0;
+}
+
+void process_game_events(Scene* s, GameEventsMessage* events) {
+    for (i32 i = 0; i < events->events.length; i++) {
+        GameEvent* event = slice_getp(events->events, i);
+
+        if (event->type == GameEventType_RoundReset) {
+            for (i32 i = 0; i < s->predicted_state.entities.length; i++) {
+                delete_entity(&s->predicted_state.entities, i);
+            }
+
+            // round_reset = true;
+            array_copy(s->predicted_state.score, event->score);
+            s->match_finished = false;
+            s->rematching = false;
+        }
+
+        if (event->type == GameEventType_MatchFinish) {
+            array_copy(s->predicted_state.score, event->score);
+            s->match_finished = true;
+
+
+            qsort(s->ping_samples.data, s->ping_samples.length, sizeof(u32), compare_u32);
+
+            u32 median_ping;
+            u32 count = s->ping_samples.length;
+            if (s->ping_samples.length % 2 == 0) {
+                median_ping = (slice_get(s->ping_samples, count / 2 - 1) + slice_get(s->ping_samples, count / 2)) / 2.0;
+            } else {
+                median_ping = slice_get(s->ping_samples, count / 2);
+            }
+
+            NetStats stats = {
+                .median_rtt = median_ping,
+                .loss_percent = ((f32)s->server->packetLoss / (f32)ENET_PEER_PACKET_LOSS_SCALE) * 100.0,
+            };
+
+            ArenaTemp scratch = scratch_get(0,0);
+
+            Stream stream = {
+                .slice = slice_create(u8, scratch.arena, sizeof(MessageType) + sizeof(NetStats)),
+                .operation = Stream_Write,
+            };
+
+            serialize_telemetry_message(&stream, &stats);
+
+            ENetPacket* packet = enet_packet_create(stream.slice.data, stream.slice.length, ENET_PACKET_FLAG_RELIABLE);
+            enet_peer_send(s->server, Channel_Reliable, packet);
+            enet_host_flush(s->client);
+
+            scratch_release(scratch);
+        }
+    }
+}
 
 void end_input_events(Input* tick_inputs) {
     zero_struct(&tick_inputs->keyboard_up);
@@ -363,15 +425,6 @@ void apply_snapshot(Slice_Entity snapshot, GameState predicted_state) {
 //     }
 // }
 
-int compare_u32(const void* a, const void* b)
-{
-    int arg1 = *(const u32*)a;
-    int arg2 = *(const u32*)b;
-
-    if (arg1 < arg2) return -1;
-    if (arg1 > arg2) return 1;
-    return 0;
-}
 
 // Checks if something mispredicted then rollback
 // Defaults to doing check + rollback with latest snapshot in Scene*
@@ -748,8 +801,8 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
         };
 
         server_init(&s->local_server, level_arena, disable_prediction);
-        s->local_server.out_latency = 0.05;
-        s->local_server.in_latency = 0.05;
+        // s->local_server.out_latency = 0.05;
+        // s->local_server.in_latency = 0.05;
         server_connect(&s->local_server, host_address);
     }
 
@@ -968,6 +1021,8 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
 
                 if (!s->disable_prediction) {
                     rollback(s, &msg);
+                } else {
+                    process_game_events(s, &msg);
                 }
             }
 
