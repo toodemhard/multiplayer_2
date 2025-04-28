@@ -19,4 +19,5 @@ build.exe
 ```
 
 ## Media
-![image](https://github.com/user-attachments/assets/c8fec7fc-b703-4aec-8d91-5b6478beed36)
+![image](https://github.com/user-attachments/assets/dabf0d4d-973d-4f16-bcd5-efdfe50f9935)
+
