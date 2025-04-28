@@ -1,6 +1,23 @@
 const global u64 fnv_offset_basis = 14695981039346656037ULL;
 const global u64 fnv_prime = 1099511628211ULL;
 
+u64 bounds_check(u64 index, u64 capacity) {
+    ASSERT((index) >= 0);
+    ASSERT((index) < capacity);
+    return index;
+}
+
+// return index
+u64 ring_pop_raw(void* data, u64 capacity, u64* length, u64* start) {
+    ASSERT(*length > 0);
+
+    *length -= 1;
+    u64 result = *start;
+    *start = (*start + 1) % capacity;
+
+    return result;
+}
+
 // should switch to xxhash later
 
 // https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function

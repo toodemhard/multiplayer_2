@@ -56,11 +56,10 @@ int renderer_init(Renderer* renderer, SDL_Window* window) {
     {
         device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
         if (device == NULL) {
-            SDL_Log("CreateGPUDevice failed");
+            SDL_Log("CreateGPUDevice failed: %s", SDL_GetError());
             return 1;
         }
         renderer->device = device;
-        
     }
 
     {

@@ -1,7 +1,5 @@
 #pragma once
 
-#define ASSERT(condition) ((condition) ? 0 : (fprintf(stderr, "ASSERT: %s %s:%d\n", #condition, __FILE__, __LINE__), __debugbreak(), 0))
-
 typedef struct Arena Arena;
 struct Arena {
     u8* start;

@@ -53,3 +53,7 @@ bool memory_equal(u8* a, u8* b, u64 size);
 
 #define vars_equal(a, b)\
     memory_equal((u8*)(a), (u8*)(b), sizeof(*(a)))
+
+#define ASSERT(condition) ((condition) ? 0 : (assert_internal(#condition, __FILE__, __LINE__), __debugbreak(), 0))
+
+void assert_internal(const char* condition, const char* file, i32 line);

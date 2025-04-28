@@ -22,12 +22,6 @@ typedef struct {\
     u64 capacity;\
 }Slice_p##type
 
-u64 bounds_check(u64 index, u64 capacity) {
-    ASSERT((index) >= 0);
-    ASSERT((index) < capacity);
-    return index;
-}
-
 #define slice_get(slice, index)\
     (slice).data[bounds_check((index), (slice).capacity)]
 
@@ -282,17 +276,6 @@ do {\
 #define ring_back_ref(r)\
     &(r).data[((r).end + (r).capacity - 1) % (r).capacity]
 
-
-// return index
-u64 ring_pop_raw(void* data, u64 capacity, u64* length, u64* start) {
-    ASSERT(*length > 0);
-
-    *length -= 1;
-    u64 result = *start;
-    *start = (*start + 1) % capacity;
-
-    return result;
-}
 
 #define ring_front(r)\
     ( &(r).data[(r).start] )
