@@ -293,7 +293,7 @@ float4 hex_to_rgban(b2HexColor hex) {
     color.r = ((hex >> 16) & 0xFF) / 255.0f;
     color.g = ((hex >> 8) & 0xFF) / 255.0f;
     color.b = ((hex & 0xFF)) / 255.0f;
-    color.a = 200;
+    color.a = 0.7;
 
     return color;
 }
@@ -1784,7 +1784,7 @@ void scene_render(Scene* s) {
             }
         }
     } else {
-        render_entities(s->camera, s->latest_snapshot.ents, s->latest_snapshot.tick_index, true);
+        // render_entities(s->camera, s->latest_snapshot.ents, s->latest_snapshot.tick_index, true);
         Slice_Entity ents = s->latest_snapshot.ents;
         for (i32 i = 0; i < ents.length; i++) {
             const Entity* ent = slice_getp(ents, i);
