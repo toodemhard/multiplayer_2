@@ -443,11 +443,12 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
 
             // auto print_vec2 = [current_tick](float2 vec) {
             //     // printf("%d, %f, %f\n", current_tick, vec.x, vec.y);
-            // };
+            // };b2Body_GetPosition(ent->body_id)
+            float2 current_pos = (float2) {.b2vec = b2Body_GetPosition(ent->body_id)};
             if (current_tick < ent->dash_end_tick + 0.1 * TICK_RATE) {
-                ent->dash_trail = float2_add(ent->dash_trail, float2_scale(float2_sub(ent->position, ent->dash_trail), 20 * dt));
+                ent->dash_trail = float2_add(ent->dash_trail, float2_scale(float2_sub(current_pos, ent->dash_trail), 20 * dt));
             } else {
-                ent->dash_trail = ent->position;
+                ent->dash_trail = current_pos;
             }
 
             if (ent->player_state == PlayerState_Neutral) {
@@ -540,7 +541,6 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
             if (input->fire && sufficient_mana) {
 
                 ent->mana -= spell.mana_cost;
-
 
                 if (selected_spell == SpellType_Fireball) {
                     create_bullet(create_list, handle, player_pos, aim_direction, current_tick, tick_rate);
