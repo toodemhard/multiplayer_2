@@ -807,8 +807,8 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
         };
 
         server_init(&s->local_server, level_arena, disable_prediction);
-        // s->local_server.out_latency = 0.1;
-        // s->local_server.in_latency = 0.1;
+        s->local_server.out_latency = 0.1;
+        s->local_server.in_latency = 0.1;
         server_connect(&s->local_server, host_address);
     }
 
@@ -861,6 +861,8 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
 
     // enet_peer_ping_interval(s->server, 100);
 
+    s->ping_wait_queue = ring_alloc(PingWait, level_arena, 64);
+    s->ping_ring = ring_alloc(f64, level_arena, 30);
     s->history = ring_alloc(Tick, level_arena, 64);
     s->ping_samples = slice_create(u32, level_arena, 3600);
     // s->pending_create_list = ring_alloc(CreateEntityMessage, level_arena, 64);
@@ -1038,21 +1040,26 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
                 printf("%s", slice_str_to_cstr(scratch.arena, message.str));
             }
 
-            // if (message_type == MessageType_PingResponse) {
-            //     u32 tick;
-            //     serialize_ping_response_message(&stream, &tick);
-            //
-            //     PingWait ping_wait;
-            //     do {
-            //         ping_wait = ring_pop_front(&s->ping_wait_queue);
-            //
-            //     } while (ping_wait.tick < tick && s->ping_wait_queue.length > 0);
-            //
-            //     if (ping_wait.tick == tick) {
-            //         s->latest_ping = (os_now_seconds() - ping_wait.time) * 1000.0;
-            //         printf("%f\n", s->latest_ping);
-            //     }
-            // }
+            if (message_type == MessageType_PingResponse) {
+                u32 tick;
+                serialize_ping_response_message(&stream, &tick);
+
+                PingWait ping_wait;
+                do {
+                    ping_wait = ring_pop_front(&s->ping_wait_queue);
+
+                } while (ping_wait.tick < tick && s->ping_wait_queue.length > 0);
+
+                if (ping_wait.tick == tick) {
+                    // s->latest_ping = (os_now_seconds() - ping_wait.time) * 1000.0;
+
+                    ring_push_back(&s->ping_ring, (os_now_seconds() - ping_wait.time));
+                    if (s->ping_ring.length > 16) {
+                        ring_pop_front(&s->ping_ring);
+                    }
+                    // printf("%f\n", s->latest_ping);
+                }
+            }
 
             enet_packet_destroy (net_event.packet);
         } break;
@@ -1336,7 +1343,13 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
             ui_row({
                 .text=(char*)string.data,
             });
-            f64 ping = s->server->lastRoundTripTime + (s->local_server.out_latency + s->local_server.in_latency) * 1000.0;
+            // f64 ping = s->server->lastRoundTripTime + (s->local_server.out_latency + s->local_server.in_latency) * 1000.0;
+            f64 ping = 0;
+            for (i32 i = 0; i < s->ping_ring.length; i++) {
+                ping += *ring_get_ref(s->ping_ring, (s->ping_ring.start + i) % s->ping_ring.capacity);
+            }
+            ping /= s->ping_ring.length;
+            ping *= 1000.0;
             ui_row({
                 .text=(char*)string8_format(frame_arena, "ping: %.2fms", ping).data,
                 // .background_color={1,0,0,1},
@@ -1487,10 +1500,10 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
 
         serialize_input_message(&stream, &input, &s->current_tick);
 
-        // ring_push_back(&s->ping_wait_queue, (PingWait) {
-        //     s->current_tick,
-        //     os_now_seconds()
-        // });
+        ring_push_back(&s->ping_wait_queue, (PingWait) {
+            s->current_tick,
+            os_now_seconds()
+        });
 
         ENetPacket* packet = enet_packet_create(stream.slice.data, stream.slice.length, ENET_PACKET_FLAG_RELIABLE);
         enet_peer_send(s->server, Channel_Reliable, packet);

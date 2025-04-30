@@ -12,6 +12,7 @@ struct Packet{
 
     // dont set
     f64 time;
+    f64 time2;
     Packet* next;
 };
 
@@ -40,6 +41,7 @@ void queue_packet(PacketQueue* queue, Packet packet, f64 time) {
     // queue.buffer
 
     packet.time = time;
+    packet.time2 = os_now_seconds();
 
     u64 chunk_size = sizeof(Packet) + packet.size;
 
@@ -97,6 +99,7 @@ void service_packets_out(PacketQueue* queue, f64 latency, f64 time) {
 
     while (queue->count > 0 && now >= queue->head->time + latency) {
         Packet* head = queue->head;
+        // printf("packet delay: %f\n", os_now_seconds() - head->time2);
         ENetPacket* packet = enet_packet_create((void*)head->data, head->size, head->send_flag);
         Channel channel = Channel_Unreliable;
         if (head->send_flag == ENET_PACKET_FLAG_RELIABLE) {
@@ -107,13 +110,13 @@ void service_packets_out(PacketQueue* queue, f64 latency, f64 time) {
     }
 }
 
-bool service_incoming_packets(PacketQueue* queue, f64 latency, Packet* packet) {
-    f64 now = os_now_seconds();
+bool service_incoming_packets(PacketQueue* queue, f64 latency, Packet* packet, f64 time_now) {
 
     bool result = false;
 
-    if (queue->count > 0 && now >= queue->head->time + latency) {
+    if (queue->count > 0 && time_now >= queue->head->time + latency) {
         *packet = *queue->head;
+        // printf("in packet delay: %f\n", os_now_seconds() - packet->time2);
 
         result = true;
         dequeue_packet(queue);
@@ -161,6 +164,7 @@ typedef struct Server {
     ClientID client_serial;
 
     f64 accumulator;
+    f64 start_time;
     f64 time;
     u64 frame;
     u32 current_tick;
@@ -224,6 +228,7 @@ void server_update(Server* s) {
     if (!s->first_frame) {
         s->last_time = os_now_seconds();
         s->first_frame = true;
+        s->start_time = os_now_seconds();
     }
     f64 time = os_now_seconds();
     f64 dt = time - s->last_time;
@@ -232,6 +237,7 @@ void server_update(Server* s) {
     if (dt < 0.25) {
         s->time += dt;
     }
+    // printf("%f, %f\n", s->time, os_now_seconds() - s->start_time);
 
     if (dt < 0.25) {
         s->accumulator += dt;
@@ -242,7 +248,7 @@ void server_update(Server* s) {
     service_packets_out(&s->out_packet_queue, s->out_latency, s->time);
 
     Packet in_packet;
-    while (service_incoming_packets(&s->in_packet_queue, s->in_latency, &in_packet)) {
+    while (service_incoming_packets(&s->in_packet_queue, s->in_latency, &in_packet, s->time)) {
         Stream stream = {
             .slice = slice_create_view(u8, in_packet.data, in_packet.size),
             .operation = Stream_Read,
@@ -283,21 +289,21 @@ void server_update(Server* s) {
                 ring_push_back(input_ring, input);
             }
 
-            // Stream stream = {
-            //     .slice = slice_create(u8, scratch.arena, sizeof(MessageType) + sizeof(u32)),
-            //     .operation = Stream_Write,
-            // };
-            //
-            // serialize_ping_response_message(&stream, &input_tick);
-            //
-            // Packet packet = {
-            //     stream.slice.data,
-            //     stream.slice.length,
-            //     client->peer,
-            //     ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT,
-            // };
-            //
-            // queue_packet(&s->out_packet_queue, packet, s->time);
+            Stream stream = {
+                .slice = slice_create(u8, scratch.arena, sizeof(MessageType) + sizeof(u32)),
+                .operation = Stream_Write,
+            };
+
+            serialize_ping_response_message(&stream, &input_tick);
+
+            Packet packet = {
+                stream.slice.data,
+                stream.slice.length,
+                client->peer,
+                ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT,
+            };
+
+            queue_packet(&s->out_packet_queue, packet, s->time);
         }
 
         if (type == MessageType_Telemetry) {
@@ -420,7 +426,6 @@ void server_update(Server* s) {
         defer_loop((void)0, scratch_release(scratch)) {
 
         s->accumulator = s->accumulator - FIXED_DT;
-        s->time += FIXED_DT;
 
         Inputs inputs = {
             .ids = slice_create(ClientID, scratch.arena, s->clients.length),

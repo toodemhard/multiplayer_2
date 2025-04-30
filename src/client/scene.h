@@ -71,6 +71,8 @@ struct Scene {
     bool rematching;
 
     Ring_PingWait ping_wait_queue;
+    f64 latest_ping;
+    Ring_f64 ping_ring;
 
 
     Ring_Tick history;

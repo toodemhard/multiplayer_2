@@ -245,6 +245,8 @@ typedef struct {\
     u64 capacity;\
 } Ring_##T
 ring_def(u32);
+ring_def(f64);
+
 
 #define ring_alloc(T, arena, _capacity)\
     (Ring_##T) {\
