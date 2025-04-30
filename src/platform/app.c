@@ -54,8 +54,10 @@ void ErrorExit()
 void run(){
     // TracyNoop;
 
+#ifdef HOT_RELOAD
     ASSERT(SDL_LoadObject("box2dd.dll") != NULL);
     ASSERT(SDL_LoadObject("enet.dll") != NULL);
+#endif
 
     // auto object = SDL_LoadObject("./game.dll");
     DLL dll = {0};

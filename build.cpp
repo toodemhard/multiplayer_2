@@ -8,135 +8,10 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <cstdlib>
-// #include <stdarg.h>
-// #include "tinycthread.h"
-// #include "common/types.h"
-// #include "common/allocator.h"
-//
-// #include "tinycthread.c"
-// #include "common/allocator.cpp"
- 
 
 #include <iostream>
 
 #define ASSERT(condition) if (!(condition)) { fprintf(stderr, "ASSERT: %s %s:%d\n", #condition, __FILE__, __LINE__); __debugbreak(); }
-
-// struct Future {
-//     bool finish;
-//     mtx_t mtx;
-//     cnd_t cnd;
-// };
-//
-// typedef void (*Fn)(void* data);
-//
-// struct Task {
-//     Fn fn;
-//     void* data;
-//     Future* future;
-// };
-//
-//
-// constexpr u64 max_threads = 256;
-//
-// struct ThreadPool {
-//     RingBuffer<Task, 1024> task_queue;
-//     mtx_t queue_mtx;
-//     cnd_t queue_cnd;
-//
-//     Slice<Future> futures;
-//     mtx_t futures_mtx;
-//
-//     thrd_t threads[max_threads];
-//     u32 thread_count; 
-//
-//     bool terminate;
-// };
-//
-// ThreadPool pool;
-//
-// void wait_future(Future* future) {
-//     mtx_lock(&future->mtx);
-//     while (future->finish != true) {
-//         cnd_wait(&future->cnd, &future->mtx);
-//     }
-//     mtx_unlock(&future->mtx);
-// }
-//
-// int worker_thread(void* data) {
-//     ThreadPool* pool = (ThreadPool*)data;
-//
-//     while (true) {
-//
-//         mtx_lock(&pool->queue_mtx);
-//         while (pool->task_queue.length <= 0 && !pool->terminate) {
-//             cnd_wait(&pool->queue_cnd, &pool->queue_mtx);
-//         }
-//         if (pool->terminate) {
-//             mtx_unlock(&pool->queue_mtx);
-//             break;
-//         }
-//         Task task = ring_buffer_pop_front(&pool->task_queue);
-//         mtx_unlock(&pool->queue_mtx);
-//
-//         task.fn(task.data);
-//         mtx_lock(&task.future->mtx);
-//         task.future->finish = true;
-//         mtx_unlock(&task.future->mtx);
-//         cnd_signal(&task.future->cnd);
-//     }
-//
-//     return 0;
-// }
-//
-// void thread_pool_init(ThreadPool* pool, Arena* a, int thread_count) {
-//     *pool = {};
-//     mtx_init(&pool->queue_mtx, 0);
-//     cnd_init(&pool->queue_cnd);
-//     mtx_init(&pool->futures_mtx, 0);
-//
-//     slice_init(&pool->futures, a, 1000);
-//
-//     pool->thread_count = thread_count;
-//     for (int i = 0; i < thread_count; i++) {
-//         thrd_create(&pool->threads[i], worker_thread, pool);
-//     }
-// }
-//
-// void thread_pool_shutdown(ThreadPool* pool) {
-//     mtx_lock(&pool->queue_mtx);
-//     pool->terminate = true;
-//     mtx_unlock(&pool->queue_mtx);
-//     cnd_broadcast(&pool->queue_cnd);
-//
-//     for (int i = 0; i < pool->thread_count; i++) {
-//         thrd_join(&pool->threads[i], NULL);
-//     }
-// }
-//
-// Future* queue_task(ThreadPool* pool, Fn task, void* data) {
-//     mtx_lock(&pool->queue_mtx);
-//     
-//
-//     mtx_lock(&pool->futures_mtx);
-//     slice_push(&pool->futures, {});
-//     Future* future = slice_back(pool->futures);
-//     mtx_init(&future->mtx, 0);
-//     cnd_init(&future->cnd);
-//
-//     
-//     ring_buffer_push_back(&pool->task_queue, {
-//         .fn = task,
-//         .data = data,
-//         .future = future,
-//     });
-//
-//     mtx_unlock(&pool->futures_mtx);
-//     mtx_unlock(&pool->queue_mtx);
-//
-//     cnd_signal(&pool->queue_cnd);
-//
-//     return future;
-// }
 
 enum class buildsystem {
     cmake,
@@ -401,7 +276,7 @@ std::string command_output(const char* command) {
 }
 // _popen(const char *Command, const char *Mode)
 
-void build_target(Target target, Lib libs[], int lib_count, Compiler compiler, std::string compiler_flags, std::string& commands_json) {
+void build_target(Target target, Lib libs[], int lib_count, Compiler compiler, std::string compiler_flags, std::string& commands_json, bool force) {
     timer total(target.name);
 
     std::unordered_map<std::string, int> lib_index;
@@ -463,7 +338,7 @@ void build_target(Target target, Lib libs[], int lib_count, Compiler compiler, s
         }
     }
 
-    bool compile = false;
+    bool compile = force;
     if (target.type == target_type::precompiled_header) {
         // last_compile = std::filesystem::last_write_time("game.o");
         if (std::filesystem::exists("./pch.pch")) {
@@ -728,12 +603,16 @@ int main(int argc, char* argv[]) {
 
 
     bool release = false;
-
+    bool force = false;
 
     for (int i = 0; i < argc; i++) {
         if (strcmp(argv[i], "-release") == 0) {
             release = true;
             printf("aaaaa\n");
+        }
+
+        if (strcmp(argv[i], "-force") == 0) {
+            force = true;
         }
     }
 
@@ -742,14 +621,15 @@ int main(int argc, char* argv[]) {
             .name = "box2d",
             .rel_include_paths = {"include"},
             .lib_path = "box2dd.lib",
-            .shared_lib_path = "box2dd.dll",
+            // .shared_lib_path = "box2dd.dll",
             .cmake_args = R"(-DBUILD_SHARED_LIBS=ON)"
         },
         Lib {
             .name = "SDL",
             .rel_include_paths = {"include"},
             .lib_path = "SDL3.lib",
-            .shared_lib_path = "SDL3.dll"
+            .shared_lib_path = "SDL3.dll",
+            .cmake_args = "",
         },
         // Lib {
         //     .name = "tracy",
@@ -867,29 +747,43 @@ int main(int argc, char* argv[]) {
     };
 
     std::string crt = "msvcrtd.lib";
-    std::string add_flags = "/Zi /MDd";
+    std::string add_flags = "/Zi /MDd /D DEBUG /D HOT_RELOAD /D ENET_DLL";
     // std::string add_flags = "-g";
 
     if (release) {
-        // add_flags = "/MT";
-        add_flags = "";
-        crt = "libcmt.lib";
+        add_flags = "/O2 /MT";
+        // printf("")
+        // add_flags = "";
+        crt = "libcmt.lib Winmm.lib ws2_32.lib";
+
+        for (int i = 0; i < sizeof(libs) / sizeof(Lib); i++) {
+            libs[i].cmake_args = "-DCMAKE_BUILD_TYPE=Release";
+
+
+            if (strcmp(libs[i].name, "box2d") == 0) {
+                libs[i].lib_path = "box2d.lib";
+            }
+            // if (strcmp(libs[i].name, "SDL") == 0) {
+                // libs[i].cmake_args = "-DSDL_STATIC=ON -DSDL_SHARED=OFF";
+                // libs[i].lib_path = "SDL3-static.lib";
+            // }
+        }
     } 
 
     Compiler compiler = Compiler_MSVC;
 
     // std::string compiler /lin
 
-    std::string msvc_compiler_flags = std::format("/std:clatest /MP {} " TRACY_DEFINES " /D ENET_DLL", add_flags);
+    std::string msvc_compiler_flags = std::format("/std:clatest /diagnostics:color /MP {} " TRACY_DEFINES, add_flags);
     std::string clang_compiler_flags = std::format("-std=c++20 -w -O0 -fno-exceptions -fno-rtti -Wno-deprecated-declarations -ftime-trace {} " TRACY_DEFINES " -D ENET_DLL", add_flags);
 
     std::string compiler_flags = msvc_compiler_flags;
     // std::string compiler_flags = clang_compiler_flags;
 
-    {
-        timer timer("build libs");
-        build_libs(libs, lib_count);
-    }
+    // {
+    //     timer timer("build libs");
+    //     build_libs(libs, lib_count);
+    // }
     std::string commands_json;
 
     {
@@ -910,7 +804,7 @@ int main(int argc, char* argv[]) {
         std::filesystem::create_directory("targets");
         for (auto& target : targets) {
             target.crt = crt;
-            build_target(target, libs, lib_count, compiler, compiler_flags, commands_json);
+            build_target(target, libs, lib_count, compiler, compiler_flags, commands_json, force);
         }
     }
 
