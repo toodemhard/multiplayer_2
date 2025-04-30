@@ -574,7 +574,9 @@ void rollback(Scene* s, GameEventsMessage* events) {
         s->latest_rollback_tick = ring_get_ref(s->history, i)->tick;
 
         // Entity* ent = slice_getp(s->predicted_state.entities, 1);
-        // printf("%d: %d\n", target_tick_index, ent->active);
+
+        // float2 pos = ring_back_ref(s->history)->inputs[2].cursor_world_pos;
+        // printf("%d: %f, %f\n", ring_back_ref(s->history)->tick, pos.x, pos.y);
 
 
         // Rollback tick order:
@@ -613,30 +615,33 @@ void rollback(Scene* s, GameEventsMessage* events) {
 
             // all input prediction experiment
             // too much snapping so no
-            tick->input_count = 0;
-            tick->client_ids[tick->input_count] = s->client_id;
-            tick->inputs[tick->input_count] = tick->inputs[0];
-            tick->input_count += 1;
+            // tick->input_count = 0;
+            // tick->client_ids[tick->input_count] = s->client_id;
+            // tick->inputs[tick->input_count] = tick->inputs[0];
+            // tick->input_count += 1;
+            //
+            // // .inputs = slice_create_view(PlayerInput, &input, 1),
+            // for (i32 i = 0; i < prev_tick->input_count; i++) {
+            //     if (prev_tick->client_ids[i] == s->client_id) {
+            //         continue;
+            //     }
+            //
+            //     PlayerInput* prev_input = &prev_tick->inputs[i];
+            //     PlayerInput input = {0};
+            //
+            //     input.cursor_world_pos = prev_input->cursor_world_pos;
+            //     // input.left = prev_input->left;
+            //     // input.right = prev_input->right;
+            //     // input.up = prev_input->up;
+            //     // input.down = prev_input->down;
+            //
+            //     tick->client_ids[tick->input_count] = prev_tick->client_ids[i];
+            //     tick->inputs[tick->input_count] = input;
+            //     tick->input_count += 1;
+            // }
 
-            // .inputs = slice_create_view(PlayerInput, &input, 1),
-            for (i32 i = 0; i < prev_tick->input_count; i++) {
-                if (prev_tick->client_ids[i] == s->client_id) {
-                    continue;
-                }
-
-                PlayerInput* prev_input = &prev_tick->inputs[i];
-                PlayerInput input = {0};
-
-                input.cursor_world_pos = prev_input->cursor_world_pos;
-                // input.left = prev_input->left;
-                // input.right = prev_input->right;
-                // input.up = prev_input->up;
-                // input.down = prev_input->down;
-
-                tick->client_ids[tick->input_count] = prev_tick->client_ids[i];
-                tick->inputs[tick->input_count] = input;
-                tick->input_count += 1;
-            }
+            // float2 pos = tick->inputs[2].cursor_world_pos;
+            // printf("%d: %f, %f\n", tick->tick, pos.x, pos.y);
 
 
             if (event_tick) {
@@ -781,6 +786,7 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
     zero_struct(s);
     // *s = {0};
     // s->disable_prediction = disable_prediction;
+    s->level_arena = level_arena;
     s->sys = sys;
     s->online_mode = online;
 
@@ -801,8 +807,8 @@ void scene_init(Scene* s, Arena* level_arena, System* sys, bool online, String8 
         };
 
         server_init(&s->local_server, level_arena, disable_prediction);
-        // s->local_server.out_latency = 0.05;
-        // s->local_server.in_latency = 0.05;
+        // s->local_server.out_latency = 0.1;
+        // s->local_server.in_latency = 0.1;
         server_connect(&s->local_server, host_address);
     }
 
@@ -877,7 +883,6 @@ void scene_end(Scene* s) {
 void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_time) {
     // printf("%d\n", s->paused);
     // ZoneScoped;
-
     System* sys = s->sys;
 
     if (s->received_init && delta_time < 0.25) {
@@ -928,7 +933,7 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
 
                 if (tick > s->latest_snapshot.tick_index) {
                     slice_clear(&s->latest_snapshot.ents);
-                    serialize_snapshot_message(&stream, &s->latest_snapshot);
+                    serialize_snapshot_message(&stream, &s->latest_snapshot, 0);
                     s->snapshot_applied = false;
 
                     // bool force_rollback = false;
@@ -1008,7 +1013,7 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
                     int asdf = 1231;
                 }
                 GameEventsMessage msg = {0};
-                serialize_game_events(&stream, scratch.arena, &msg);
+                serialize_game_events(&stream, scratch.arena, &msg, s->client_id);
 
                 // for (i32 i = 0; i < msg.create_list.length; i++) {
                 //     Entity* ent = slice_getp(msg.create_list, i);
@@ -1504,25 +1509,25 @@ void scene_update(Scene* s, Arena* frame_arena, f64 delta_time, f64 last_frame_t
 
             slice_push(&inputs.ids, s->client_id);
             slice_push(&inputs.inputs, input);
-            // .inputs = slice_create_view(PlayerInput, &input, 1),
-            Tick* prev_tick = ring_back_ref(s->history);
-            for (i32 i = 0; i < prev_tick->input_count; i++) {
-                if (prev_tick->client_ids[i] == s->client_id) {
-                    continue;
-                }
-
-                PlayerInput* prev_input = &prev_tick->inputs[i];
-                PlayerInput input = {0};
-
-                input.cursor_world_pos = prev_input->cursor_world_pos;
-                // input.left = prev_input->left;
-                // input.right = prev_input->right;
-                // input.up = prev_input->up;
-                // input.down = prev_input->down;
-
-                slice_push(&inputs.ids, prev_tick->client_ids[i]);
-                slice_push(&inputs.inputs, input);
-            }
+            // // .inputs = slice_create_view(PlayerInput, &input, 1),
+            // Tick* prev_tick = ring_back_ref(s->history);
+            // for (i32 i = 0; i < prev_tick->input_count; i++) {
+            //     if (prev_tick->client_ids[i] == s->client_id) {
+            //         continue;
+            //     }
+            //
+            //     PlayerInput* prev_input = &prev_tick->inputs[i];
+            //     PlayerInput input = {0};
+            //
+            //     input.cursor_world_pos = prev_input->cursor_world_pos;
+            //     // input.left = prev_input->left;
+            //     // input.right = prev_input->right;
+            //     // input.up = prev_input->up;
+            //     // input.down = prev_input->down;
+            //
+            //     slice_push(&inputs.ids, prev_tick->client_ids[i]);
+            //     slice_push(&inputs.inputs, input);
+            // }
             state_update(&s->predicted_state, inputs, s->current_tick, TICK_RATE, true, 2);
             // if (s->predicted_state.create_list.length > 0) {
             //     printf("predict create: %d\n", s->current_tick);
@@ -1619,11 +1624,12 @@ void render_entities(Camera2D camera, Slice_Entity ents, u32 current_tick, bool 
         RGBA mult_color = {0};
         if (filter_predicted && ent->replication_type != ReplicationType_Snapshot) {
             // mult_color = (RGBA) {255,255,255,128};
-            mix_color = (RGBA){255,0,0,255};
+            mix_color = (RGBA){0,0,200,255};
             t = 1;
             
             // continue;
         }
+
 
         if (ent->sprite != TextureID_NULL) {
             draw_sprite_world(camera, world_rect, (SpriteProperties){
@@ -1671,6 +1677,93 @@ void render_entities(Camera2D camera, Slice_Entity ents, u32 current_tick, bool 
     }
 }
 
+void render_entity(Camera2D camera, const Entity* ent, u32 current_tick, bool force_color) {
+    if (!ent->active) {
+        return;
+    }
+
+    Rect world_rect = {
+        .position = ent->position,
+        .size = float2_scale(texture_dimensions(ent->sprite), 1 / 16.0),
+    };
+
+    if (!float2_cmp(ent->sprite_src.size, (float2){0,0})) {
+        world_rect.size = float2_scale(ent->sprite_src.size, 1 / 16.0);
+    }
+
+    RGBA mix_color = ent->mix_color;
+    f32 t = ent->t;
+    if (ent->hit_flash_end_tick > current_tick) {
+        mix_color = (RGBA){255,255,255,255};
+        t = 1;
+    }
+
+    if (ent->flip_sprite) {
+        world_rect.size.x *= -1;
+    }
+
+    RGBA mult_color = {0};
+    if (force_color && ent->replication_type != ReplicationType_Snapshot) {
+        // mult_color = (RGBA) {255,255,255,128};
+        mix_color = (RGBA){0,0,200,255};
+        t = 1;
+    }
+
+    if (ent->flags & EntityFlags_player) { 
+        Rect a = world_rect;
+        a.position = ent->dash_trail;
+        draw_sprite_world(camera, a, (SpriteProperties){
+            .texture_id = ent->sprite,
+            .src_rect = ent->sprite_src,
+            .mix_color = {255,0,0,255},
+            // .mult_color = mult_color,
+            .t = 1,
+        });
+    }
+
+    if (ent->sprite != TextureID_NULL) {
+        draw_sprite_world(camera, world_rect, (SpriteProperties){
+            .texture_id = ent->sprite,
+            .src_rect = ent->sprite_src,
+            .mix_color = mix_color,
+            // .mult_color = mult_color,
+            .t = t,
+        });
+    }
+
+    f32 y_offset = -1.1;
+    f32 dy = -.2;
+
+
+    if (!force_color && ent->flags & EntityFlags_has_mana) { 
+        float2 pos = float2_sub(world_rect.position, (float2){0, y_offset});
+        y_offset += dy;
+        f32 max_length = ent->max_mana / 50.0;
+        draw_world_rect(camera, (Rect){
+                .position = pos,
+                .size={max_length, 0.1},
+            },
+            (float4){0.2, 0.2, 0.2, 1.0}
+        );
+        f32 length = ent->mana / (float)ent->max_mana * max_length;
+        draw_world_rect(camera, (Rect){.position=float2_sub(pos, (float2){(max_length - length) / 2.0, 0}), .size={length, 0.1}}, (float4){0.2, 0.5, 1, 1.0});
+    }
+
+    if (!force_color && ent->flags & EntityFlags_hittable) {
+        float2 pos = float2_sub(world_rect.position, (float2){0, y_offset});
+        y_offset += dy;
+        f32 max_length = ent->max_health / 50.0;
+        draw_world_rect(camera, (Rect){
+                .position = pos,
+                .size={max_length, 0.1},
+            },
+            (float4){0.2, 0.2, 0.2, 1.0}
+        );
+        f32 length = ent->health / (float)ent->max_health * max_length;
+        draw_world_rect(camera, (Rect){.position=float2_sub(pos, (float2){(max_length - length) / 2.0, 0}), .size={length, 0.1}}, (float4){1, 0.2, 0.1, 1.0});
+    }
+}
+
 void scene_render(Scene* s) {
     System* sys = s->sys;
 
@@ -1682,59 +1775,35 @@ void scene_render(Scene* s) {
 
     if (s->disable_prediction) {
         render_entities(s->camera, s->latest_snapshot.ents, s->latest_snapshot.tick_index, false);
-    } else {
-        // render_entities(s->camera, s->latest_snapshot.ents, s->latest_snapshot.tick_index, true);
         Slice_Entity ents = s->latest_snapshot.ents;
         for (i32 i = 0; i < ents.length; i++) {
             const Entity* ent = slice_getp(ents, i);
 
-            if (!ent->active || !(ent->flags & EntityFlags_player)) {
-                continue;
+            if (ent->flags & EntityFlags_player && ent->client_id != s->client_id) {
+                render_entity(s->camera, ent, s->latest_snapshot.tick_index, false);
             }
-            // if (filter_predicted && ghost->replication_type != ReplicationType_Snapshot) {
-            //     continue;
-            // }
+        }
+    } else {
+        render_entities(s->camera, s->latest_snapshot.ents, s->latest_snapshot.tick_index, true);
+        Slice_Entity ents = s->latest_snapshot.ents;
+        for (i32 i = 0; i < ents.length; i++) {
+            const Entity* ent = slice_getp(ents, i);
 
-            if (s->latest_snapshot.tick_index > ent->dash_end_tick) {
-                continue;
-            }
-
-            Rect world_rect = {
-                .position = ent->position,
-                .size = float2_scale(texture_dimensions(ent->sprite), 1 / 16.0),
-            };
-
-            if (!float2_cmp(ent->sprite_src.size, (float2){0,0})) {
-                world_rect.size = float2_scale(ent->sprite_src.size, 1 / 16.0);
-            }
-
-            RGBA mix_color = {255,255,255,255};
-
-            if (ent->flip_sprite) {
-                world_rect.size.x *= -1;
-            }
-
-            RGBA mult_color = {0};
-            // if (filter_predicted && ent->replication_type != ReplicationType_Snapshot) {
-            //     // mult_color = (RGBA) {255,255,255,128};
-            //     mix_color = (RGBA){255,0,0,255};
-            //     t = 1;
-            //     
-            //     // continue;
-            // }
-
-            if (ent->sprite != TextureID_NULL) {
-                draw_sprite_world(s->camera, world_rect, (SpriteProperties){
-                    .texture_id = ent->sprite,
-                    .src_rect = ent->sprite_src,
-                    .mix_color = {255,0,0,0},
-                    // .mult_color = opt_init({1,1,1,0.75}),
-                    .t = 1
-                });
+            if (ent->replication_type == ReplicationType_Snapshot) {
+                render_entity(s->camera, ent, s->latest_snapshot.tick_index, false);
             }
         }
 
-        render_entities(s->camera, s->predicted_state.entities, s->current_tick, false);
+        ents = s->predicted_state.entities;
+        for (i32 i = 0; i < ents.length; i++) {
+            const Entity* ent = slice_getp(ents, i);
+
+            if (ent->replication_type == ReplicationType_Predicted) {
+                render_entity(s->camera, ent, s->latest_snapshot.tick_index, false);
+            }
+        }
+
+        // render_entities(s->camera, s->predicted_state.entities, s->current_tick, false);
     }
 
     // draw_sprite((Rect) {0,0,0.5,0.5}, (SpriteProperties) {

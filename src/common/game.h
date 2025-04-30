@@ -6,8 +6,10 @@ typedef struct Camera2D {
 } Camera2D;
 
 typedef enum ReplicationType {
+    ReplicationType_NULL,
     ReplicationType_Snapshot,
     ReplicationType_Predicted,
+    ReplicationType_Conditional,
 } ReplicationType;
 
 typedef enum PlayerAnimState {
@@ -187,6 +189,7 @@ struct Entity {
     ClientID client_id;
     SpellType hotbar[8];
     PlayerState player_state;
+    float2 dash_trail;
     float2 dash_direction;
     u32 dash_end_tick;
     bool not_first_dash;
@@ -230,7 +233,7 @@ struct Box {
 
 #define MaxEntities 128
 #define MaxPredicted 128
-
+    
 typedef struct GameState GameState;
 struct GameState {
     Slice_Entity entities;

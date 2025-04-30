@@ -274,7 +274,7 @@ do {\
 } while(0)
 
 #define ring_back_ref(r)\
-    &(r).data[((r).end + (r).capacity - 1) % (r).capacity]
+    (&(r).data[((r).end + (r).capacity - 1) % (r).capacity])
 
 
 #define ring_front(r)\

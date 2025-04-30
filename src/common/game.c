@@ -353,6 +353,9 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
 
         bool skip = !(sensor->flags & EntityFlags_damage_owner) && entity_handle_equals(sensor->owner, entity_ptr_to_handle(visitor));
         if (!skip) {
+            if (!visitor->active) {
+                skip = true;
+            }
             if (visitor->flags & EntityFlags_player && visitor->player_state == PlayerState_Dashing) {
                 skip = true;
             }
@@ -441,12 +444,18 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
             // auto print_vec2 = [current_tick](float2 vec) {
             //     // printf("%d, %f, %f\n", current_tick, vec.x, vec.y);
             // };
+            if (current_tick < ent->dash_end_tick + 0.1 * TICK_RATE) {
+                ent->dash_trail = float2_add(ent->dash_trail, float2_scale(float2_sub(ent->position, ent->dash_trail), 20 * dt));
+            } else {
+                ent->dash_trail = ent->position;
+            }
 
             if (ent->player_state == PlayerState_Neutral) {
                 ent->t = 0;
-                if (move_input.x == 0 && move_input.y == 0) {
-
-                }
+                // if (move_input.x == 0 && move_input.y == 0) {
+                //
+                // }
+                // ent->dash_trail = ent->position;
                 if (magnitude(move_input) > 0) {
                     float2 move_direction = normalize(move_input);
                     velocity = float2_scale(move_direction, player_speed);
@@ -463,6 +472,8 @@ void state_update(GameState* state, Inputs inputs, u32 current_tick, i32 tick_ra
 
                 b2Body_SetLinearVelocity(ent->body_id, (b2Vec2){velocity.x, velocity.y});
             } else if (ent->player_state == PlayerState_Dashing) {
+                // float dash_gap = 0.5;
+
                 ent->mix_color = (RGBA){255,255,255,255};
                 ent->t = 0.75;
                 velocity = float2_scale(ent->dash_direction, dash_speed);
@@ -586,7 +597,7 @@ void create_player(Slice_Entity* create_list, ClientID client_id, float2 positio
         .sprite_src.size = (float2){16,32},
         .type = EntityType_Player,
         .flags = EntityFlags_player | EntityFlags_physics | EntityFlags_hittable | EntityFlags_has_mana,
-        .replication_type = ReplicationType_Predicted,
+        .replication_type = ReplicationType_Conditional,
         .hotbar = {SpellType_Fireball, SpellType_SpreadBolt, SpellType_IceWall, SpellType_SniperRifle},
         .client_id = client_id,
         .max_health = 100,

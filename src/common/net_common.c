@@ -22,6 +22,8 @@ void serialize_player(Stream* s, Entity* player) {
     serialize_var(s, &player->selected_spell);
 }
 
+void serialize_init_entity(Stream* stream, Entity* ent);
+
 // void serialize_init_entities(Stream* stream, Slice_Entity* entities) {
 //     u32* count_ref = (u32*)slice_getp(stream->slice, stream->current);
 //
@@ -55,7 +57,7 @@ typedef enum EntitySerializationType {
     EntitySerializationType_Update,
 } EntitySerializationType;
 
-void serialize_entities(Stream* stream, Slice_Entity* entities, EntitySerializationType serialization_type) {
+void serialize_entities(Stream* stream, Slice_Entity* entities, EntitySerializationType serialization_type, ClientID client_id) {
     u32* count_ref = (u32*)slice_getp(stream->slice, stream->current);
 
     u32 count = 0;
@@ -70,10 +72,18 @@ void serialize_entities(Stream* stream, Slice_Entity* entities, EntitySerializat
                 serialize = true;
             }
             if (serialize) {
+                ReplicationType reset = ReplicationType_NULL;
+                if (ent->replication_type == ReplicationType_Conditional) {
+                    reset = ent->replication_type;
+                    ent->replication_type = (ent->client_id == client_id) ? ReplicationType_Predicted : ReplicationType_Snapshot;
+                }
                 if (serialization_type == EntitySerializationType_Init) {
                     serialize_init_entity(stream, ent);
                 } else if (serialization_type == EntitySerializationType_Update) {
                     serialize_snapshot_entity(stream, ent);
+                }
+                if (reset != ReplicationType_NULL) {
+                    ent->replication_type = reset;
                 }
                 count += 1;
             }
@@ -118,6 +128,7 @@ void serialize_snapshot_entity(Stream* stream, Entity* ent) {
         serialize_var(stream, &ent->selected_spell);
         serialize_var(stream, &ent->client_id);
         serialize_var(stream, &ent->dash_end_tick);
+        serialize_var(stream, &ent->dash_trail);
     }
 
     if (ent->flags & EntityFlags_physics) {
@@ -138,11 +149,14 @@ void serialize_snapshot_entity(Stream* stream, Entity* ent) {
 
 // serialize fully with all init config stuff for recreating
 void serialize_init_entity(Stream* stream, Entity* ent) {
+    ASSERT(ent->replication_type != ReplicationType_Conditional);
+
     serialize_var(stream, &ent->index);
     serialize_var(stream, &ent->generation);
 
     serialize_var(stream, &ent->type);
     serialize_var(stream, &ent->flags);
+    serialize_var(stream, &ent->replication_type);
 
     serialize_var(stream, &ent->sprite);
     serialize_var(stream, &ent->sprite_src);
@@ -150,36 +164,41 @@ void serialize_init_entity(Stream* stream, Entity* ent) {
     // serialize_var(stream, &ent->mix_color);
     // serialize_var(stream, &ent->t);
 
-    if (ent->flags & EntityFlags_player) {
-        serialize_bytes(stream, (u8*)ent->hotbar, sizeof(ent->hotbar));
-        serialize_var(stream, &ent->player_state);
-        serialize_var(stream, &ent->dash_direction);
-        serialize_var(stream, &ent->dash_end_tick);
-        serialize_var(stream, &ent->selected_spell);
-        serialize_var(stream, &ent->client_id);
-        serialize_var(stream, &ent->mana);
-        serialize_var(stream, &ent->mana_regen_tick_acc);
-        serialize_var(stream, &ent->max_mana);
-    }
+
 
     if (ent->flags & EntityFlags_physics) {
         serialize_var(stream, &ent->position);
         serialize_var(stream, &ent->physics);
     }
 
-    if (ent->flags & EntityFlags_hittable) {
-        serialize_var(stream, &ent->health);
-        serialize_var(stream, &ent->max_health);
-        serialize_var(stream, &ent->hit_flash_end_tick);
-    }
+    if (ent->replication_type == ReplicationType_Predicted) {
+        if (ent->flags & EntityFlags_player) {
+            serialize_bytes(stream, (u8*)ent->hotbar, sizeof(ent->hotbar));
+            serialize_var(stream, &ent->player_state);
+            serialize_var(stream, &ent->dash_direction);
+            serialize_var(stream, &ent->dash_end_tick);
+            serialize_var(stream, &ent->selected_spell);
+            serialize_var(stream, &ent->client_id);
+            serialize_var(stream, &ent->mana);
+            serialize_var(stream, &ent->mana_regen_tick_acc);
+            serialize_var(stream, &ent->max_mana);
+        }
 
-    if (ent->flags & EntityFlags_expires) {
-        serialize_var(stream, &ent->expire_tick);
-    }
 
-    if (ent->flags & EntityFlags_attack){
-        serialize_var(stream, &ent->damage);
-        serialize_var(stream, &ent->owner);
+        if (ent->flags & EntityFlags_hittable) {
+            serialize_var(stream, &ent->health);
+            serialize_var(stream, &ent->max_health);
+            serialize_var(stream, &ent->hit_flash_end_tick);
+        }
+
+        if (ent->flags & EntityFlags_expires) {
+            serialize_var(stream, &ent->expire_tick);
+        }
+
+        if (ent->flags & EntityFlags_attack){
+            serialize_var(stream, &ent->damage);
+            serialize_var(stream, &ent->owner);
+        }
     }
 }
 
@@ -189,16 +208,17 @@ void serialize_state_init_message(Stream* stream, Slice_Entity* entities, Client
     serialize_var(stream, disable_prediction);
     serialize_var(stream, client_id);
     serialize_var(stream, tick);
-    serialize_entities(stream, entities, EntitySerializationType_Init);
+    serialize_entities(stream, entities, EntitySerializationType_Init, *client_id);
 }
 
-void serialize_snapshot_message(Stream* stream, SnapshotMessage* s) {
+void serialize_snapshot_message(Stream* stream, SnapshotMessage* s, ClientID client_id) {
     MessageType message_type = MessageType_Snapshot;
     serialize_var(stream, &message_type);
     serialize_var(stream, &s->tick_index);
     serialize_var(stream, &s->input_buffer_size);
 
-    serialize_entities(stream, &s->ents, EntitySerializationType_Update);
+    serialize_entities(stream, &s->ents, EntitySerializationType_Update, client_id);
+}
 
     // bool player_alive = false;
     //
@@ -211,7 +231,6 @@ void serialize_snapshot_message(Stream* stream, SnapshotMessage* s) {
     // if (player_alive) {
     //     serialize_player(stream, s->player);
     // }
-}
 
 typedef struct NetStats {
     u32 median_rtt;
@@ -346,7 +365,7 @@ typedef struct GameEventsMessage {
 
 } GameEventsMessage;
 
-void serialize_game_events(Stream* stream, Arena* arena, GameEventsMessage* message) {
+void serialize_game_events(Stream* stream, Arena* arena, GameEventsMessage* message, ClientID client) {
     MessageType type = MessageType_GameEvents;
     serialize_var(stream, &type);
     serialize_var(stream, &message->tick);
@@ -366,7 +385,16 @@ void serialize_game_events(Stream* stream, Arena* arena, GameEventsMessage* mess
 
     for (u32 i = 0; i < entities->length; i++) {
         Entity* ent = slice_getp(*entities, i);
+
+        ReplicationType reset = ReplicationType_NULL;
+        if (ent->replication_type == ReplicationType_Conditional) {
+            reset = ent->replication_type;
+            ent->replication_type = (ent->client_id == client) ? ReplicationType_Predicted : ReplicationType_Snapshot;
+        }
         serialize_init_entity(stream, ent);
+        if (reset != ReplicationType_NULL) {
+            ent->replication_type = reset;
+        }
     }
 
     serialize_slice_alloc(stream, arena, &message->delete_list);

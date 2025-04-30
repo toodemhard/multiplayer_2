@@ -93,7 +93,7 @@ void serialize_bytes(Stream* stream, u8* bytes, u64 size);
 // void serialize_string(Stream* stream, Arena* read_arena, String8* string);
 void serialize_test_message(Stream* stream, Arena* read_arena, TestMessage* message);
 
-void serialize_init_entity(Stream* stream, Entity* ent);
+// void serialize_init_entity(Stream* stream, Entity* ent);
 void serialize_snapshot_entity(Stream* stream, Entity* ent);
 void serialize_input_message(Stream* stream, PlayerInput* input, u32* tick);
 

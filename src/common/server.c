@@ -241,10 +241,10 @@ void server_update(Server* s) {
 
     service_packets_out(&s->out_packet_queue, s->out_latency, s->time);
 
-    Packet packet;
-    while (service_incoming_packets(&s->in_packet_queue, s->in_latency, &packet)) {
+    Packet in_packet;
+    while (service_incoming_packets(&s->in_packet_queue, s->in_latency, &in_packet)) {
         Stream stream = {
-            .slice = slice_create_view(u8, packet.data, packet.size),
+            .slice = slice_create_view(u8, in_packet.data, in_packet.size),
             .operation = Stream_Read,
         };
 
@@ -257,7 +257,7 @@ void server_update(Server* s) {
         //     serialize_test_message(&stream, scratch.arena, &message);
         //     ENetPacket* packet = enet_packet_create(event.packet->data, event.packet->dataLength, ENET_PACKET_FLAG_RELIABLE);
         // }
-        Client* client = (Client*)packet.peer->data;
+        Client* client = (Client*)in_packet.peer->data;
 
         if (type == MessageType_Input) {
 
@@ -510,40 +510,36 @@ void server_update(Server* s) {
         // Slice_EntityIndex delete_list = mod_lists.delete_list;
         // Slice_Entity create_list = mod_lists.create_list;
 
-        GameEventsMessage msg = {
-            .tick = s->current_tick,
-            .delete_list = s->state.delete_list,
-            .create_list = s->state.create_list,
-            .clients = inputs.ids,
-            .inputs = inputs.inputs,
-            // .event = event,
-        };
-        for (i32 i = 0; i < msg.delete_list.length; i++) {
-            // printf("i\n");
-            // if (slice_getp(s->state.entities, slice_get(msg.delete_list,i))->flags & EntityFlags_player) {
-            //     printf("server delete player\n");
-            // }
-        }
-        if (event_type != GameEventType_NULL) {
-            msg.events = slice_create(GameEvent, scratch.arena, 1);
-            GameEvent event = {
-                .type = event_type,
-                .score = {
-                    s->state.score[0], s->state.score[1]
-                },
+        for (i32 i = 0; i < s->clients.length; i++) {
+            Client* client = slice_getp(s->clients, i);
+
+            GameEventsMessage msg = {
+                .tick = s->current_tick,
+                .delete_list = s->state.delete_list,
+                .create_list = s->state.create_list,
+                .clients = inputs.ids,
+                .inputs = inputs.inputs,
             };
-            slice_push(&msg.events, event);
-        }
-        {
+            if (event_type != GameEventType_NULL) {
+                msg.events = slice_create(GameEvent, scratch.arena, 1);
+                GameEvent event = {
+                    .type = event_type,
+                    .score = {
+                        s->state.score[0], s->state.score[1]
+                    },
+                };
+                slice_push(&msg.events, event);
+            }
+
             for (u32 i = 0; i < msg.create_list.length; i++) {
                 slice_getp(msg.create_list, i)->active = true;
             }
             Stream stream = {
-                .slice = slice_create(u8, scratch.arena, kilobytes(100)),
+                .slice = slice_create(u8, scratch.arena, kilobytes(256)),
                 .operation = Stream_Write,
             };
 
-            serialize_game_events(&stream, NULL, &msg);
+            serialize_game_events(&stream, NULL, &msg, client->id);
 
             Packet packet = {
                 .send_flag = ENET_PACKET_FLAG_RELIABLE,
@@ -551,11 +547,8 @@ void server_update(Server* s) {
                 .size = stream.slice.length,
             };
 
-            for (i32 i = 0; i < s->clients.length; i++) {
-                Client* client = slice_getp(s->clients, i);
-                packet.peer = client->peer;
-                queue_packet(&s->out_packet_queue, packet, s->time);
-            }
+            packet.peer = client->peer;
+            queue_packet(&s->out_packet_queue, packet, s->time);
         }
 
         Slice_Entity* ents = &s->state.entities;
@@ -603,7 +596,7 @@ void server_update(Server* s) {
             };
 
             stream_clear(&stream);
-            serialize_snapshot_message(&stream, &msg);
+            serialize_snapshot_message(&stream, &msg, client->id);
 
             Packet packet = {
                 .send_flag = ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT,
