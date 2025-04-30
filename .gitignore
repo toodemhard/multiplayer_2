@@ -8,5 +8,6 @@ b3/
 debug/
 dist2/
 dist/
+release/
 b_rel/
 .vscode/
