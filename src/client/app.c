@@ -338,7 +338,7 @@ void menu_update(Menu* menu, Arena* temp_arena) {
 
 f64 frame_time = 0;
 
-DLL_EXPORT Signals update(void* memory) {
+Signals update(void* memory) {
     f64 frame_start = os_now_seconds();
     State* state = (State*)memory;
 
