@@ -2,7 +2,7 @@ Multiplayer game and networking system.
  
 https://github.com/user-attachments/assets/d2aae1ee-09c7-4955-8802-7b7f2feb5af9
 
-*2 clients with 100ms of simulated ping. Shown entities are predicted ahead, blue highlighted is last received snapshot from server.*
+*2 clients with 100ms of simulated ping in debug mode. Shown entities are predicted ahead, blue highlighted is last received snapshot from server.*
 
 Almost everything in the game undergoes client side prediction and rollback which allows for instantly responsive player input no matter the ping, and perfect dodging of enemy projectiles. The prediction even works for the spawning and destruction of entities. The only thing which is no longer predicted is enemy players because any change in enemy inputs always results in a misprediction leading to lots of teleporting and erratic movement. To solve this I added flag which allows any entity's replication type to be swapped between predicted and snapshot. The major game events such as round ending are also delayed to authoritative messages because a misprediction of that wouldn't be acceptable.
 
